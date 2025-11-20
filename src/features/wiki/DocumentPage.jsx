@@ -12,7 +12,9 @@ import { parseInternalLinks } from '../../lib/internalLinkParser';
 import { useAuthStore } from '../../store/authStore';
 import { logDocumentActivity } from '../../lib/wikiApi';
 import MarkdownEditor from './MarkdownEditor';
+import { applyTextAlignBlocks } from '../../lib/wikiTextAlign';
 
+// 🔹 마크다운에서 heading 찾아서 번호 + 앵커(id) 붙이는 함수
 function buildSectionTree(markdown) {
     if (!markdown) {
         return { markdownWithAnchors: '', headings: [] };
@@ -22,7 +24,6 @@ function buildSectionTree(markdown) {
     const headings = [];
     const newLines = [];
 
-    let index = 0;
     // 레벨별 번호 카운터 (1~6 레벨 사용)
     const counters = [0, 0, 0, 0, 0, 0, 0];
 
@@ -39,26 +40,20 @@ function buildSectionTree(markdown) {
                 counters[i] = 0;
             }
             const nums = counters.slice(1, level + 1).filter((n) => n > 0);
-            const number = nums.join('.'); // "1", "1.2", "1.2.3" ...
+            const number = nums.join('.'); // "1", "1.1", "1.1.1" ...
 
-            // 🔹 앵커 id (예: sec-0-개요)
-            const baseId =
-                rawText
-                    .toLowerCase()
-                    .replace(/[^a-z0-9가-힣]+/g, '-')
-                    .replace(/^-+|-+$/g, '') || `section-${index}`;
-
-            const id = `sec-${index}-${baseId}`;
+            // 🔹 앵커 id를 "sec-1-1-1" 형식으로
+            const sectionKey = number.replace(/\./g, '-'); // "1.2.1" → "1-2-1"
+            const id = `sec-${sectionKey}`;
 
             // 🔹 사이드바에서 쓸 데이터
             headings.push({ id, level, text: rawText, number });
 
             // 🔹 Viewer용 마크다운 줄 만들기
-            //    <a id="..."></a> + "## 1.1 제목"
+            //    항상 앞에 빈 줄을 하나 넣어서 Markdown 파서가 확실히 헤딩으로 인식하도록 한다.
+            newLines.push(''); // 빈 줄
             newLines.push(`<a id="${id}"></a>`);
             newLines.push(`${hashes} ${number} ${rawText}`);
-
-            index += 1;
         } else {
             newLines.push(line);
         }
@@ -69,30 +64,6 @@ function buildSectionTree(markdown) {
         headings,
     };
 }
-
-// 🔹 섹션 트리에 1 / 1.1 / 1.1.1 번호 붙여주는 함수
-function addHeadingNumbers(headings) {
-    const counters = [0, 0, 0, 0, 0, 0, 0]; // level 1~6 사용
-
-    return headings.map((h) => {
-        const level = h.level;
-
-        counters[level] += 1;
-        // 하위 레벨 초기화
-        for (let i = level + 1; i < counters.length; i++) {
-            counters[i] = 0;
-        }
-
-        const nums = counters.slice(1, level + 1).filter((n) => n > 0);
-        const number = nums.join('.'); // "1", "1.1", "1.1.1" ...
-
-        return {
-            ...h,
-            number,
-        };
-    });
-}
-
 
 export default function DocumentPage() {
     const { slug } = useParams();
@@ -111,17 +82,20 @@ export default function DocumentPage() {
     const viewLoggedRef = useRef(false);
     const viewerContainerRef = useRef(null);
 
+    // 🔹 doc 내용 → 에디터 content 동기화
     useEffect(() => {
         if (doc) {
             setContent(doc.content_markdown || '');
         }
     }, [doc]);
 
+    // 🔹 URL 쿼리(mode)로 보기/편집 모드 동기화
     useEffect(() => {
         const mode = searchParams.get('mode');
         setIsEditing(mode === 'edit');
     }, [searchParams]);
 
+    // 🔹 최초 viewed 로그 기록
     useEffect(() => {
         if (!doc || !user || viewLoggedRef.current) return;
 
@@ -132,6 +106,77 @@ export default function DocumentPage() {
             action: 'viewed',
         });
     }, [doc, user]);
+
+    // 🔹 내부 링크 파싱 + 정렬 블록 적용 (doc 유무와 상관없이 안전하게 동작)
+    let parsedMarkdown = parseInternalLinks(content || '', allDocs);
+    parsedMarkdown = applyTextAlignBlocks(parsedMarkdown);
+
+    // 🔹 섹션 트리 & 앵커 생성
+    const { markdownWithAnchors, headings } = buildSectionTree(parsedMarkdown);
+
+    // 🔹 사이드바에서 섹션 클릭 시 스크롤
+    const handleClickHeading = (id) => {
+        const container = viewerContainerRef.current;
+        if (!container) return;
+
+        const el = container.querySelector(`#${id}`);
+        if (!el) return;
+
+        const containerRect = container.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+
+        const offset = elRect.top - containerRect.top + container.scrollTop - 8;
+
+        container.scrollTo({
+            top: offset,
+            behavior: 'smooth',
+        });
+    };
+
+    // 🔹 Viewer 안의 [[문서#1.2.1]] 같은 내부 링크 클릭 시, 같은 문서면 해당 섹션으로 스크롤
+    useEffect(() => {
+        const container = viewerContainerRef.current;
+        if (!container) return;
+
+        const handleClick = (e) => {
+            const anchor = e.target.closest('a.wiki-link');
+            if (!anchor) return;
+
+            const href = anchor.getAttribute('href') || '';
+            if (!href.startsWith('/wiki/')) return;
+
+            const [path, hash] = href.split('#');
+            const currentPath = `/wiki/${slug}`;
+
+            // 다른 문서로 가는 링크는 그대로 두기
+            if (path !== currentPath) return;
+
+            // 같은 문서인데 섹션이 없으면 기본 동작
+            if (!hash) return;
+
+            e.preventDefault(); // 기본 브라우저 해시 스크롤 막기
+
+            const id = decodeURIComponent(hash); // "sec-2-1" 같은 값
+            const el = container.querySelector(`#${id}`);
+            if (!el) return;
+
+            const containerRect = container.getBoundingClientRect();
+            const elRect = el.getBoundingClientRect();
+
+            const offset =
+                elRect.top - containerRect.top + container.scrollTop - 8;
+
+            container.scrollTo({
+                top: offset,
+                behavior: 'smooth',
+            });
+        };
+
+        container.addEventListener('click', handleClick);
+        return () => {
+            container.removeEventListener('click', handleClick);
+        };
+    }, [slug, markdownWithAnchors]); // 🔹 항상 같은 위치에서 호출되므로 Hook 순서가 안정적
 
     const handleSave = (e) => {
         e.preventDefault();
@@ -154,6 +199,7 @@ export default function DocumentPage() {
         );
     };
 
+    // 🔹 여기서는 더 이상 Hook을 새로 호출하지 않으므로, 조건부 return은 안전
     if (isLoading || !doc) {
         return (
             <div className="text-sm text-slate-500">
@@ -161,29 +207,6 @@ export default function DocumentPage() {
             </div>
         );
     }
-
-    // 내부 링크 파싱
-    const parsedMarkdown = parseInternalLinks(content || '', allDocs);
-    const { markdownWithAnchors, headings } = buildSectionTree(parsedMarkdown);
-    const numberedHeadings = addHeadingNumbers(headings);
-
-    const handleClickHeading = (id) => {
-        const container = viewerContainerRef.current;
-        if (!container) return;
-
-        const el = container.querySelector(`#${id}`);
-        if (!el) return;
-
-        const containerRect = container.getBoundingClientRect();
-        const elRect = el.getBoundingClientRect();
-
-        const offset = elRect.top - containerRect.top + container.scrollTop - 8;
-
-        container.scrollTo({
-            top: offset,
-            behavior: 'smooth',
-        });
-    };
 
     return (
         <div className="flex h-full min-h-0 flex-col space-y-4">
@@ -262,10 +285,9 @@ export default function DocumentPage() {
                                         className="w-full text-left text-[12px] text-slate-700 hover:text-primary-600"
                                         style={{ paddingLeft: (h.level - 1) * 12 }}
                                     >
-                                        {/* 🔹 번호 표시 */}
                                         <span className="mr-1 text-[11px] text-slate-400">
-                        {h.number}
-                    </span>
+                                            {h.number}
+                                        </span>
                                         {h.text}
                                     </button>
                                 </li>
