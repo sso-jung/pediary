@@ -1,35 +1,91 @@
 // src/features/wiki/WikiPage.jsx
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useRecentActivity } from './hooks/useRecentActivity';
-import {useTodayActivity} from "./hooks/useTodayActivity.js";
+import { useTodayActivity } from './hooks/useTodayActivity';
+import ActivityCalendar from './ActivityCalendar';
 
 export default function WikiPage() {
-    const { data: activity, isLoading } = useTodayActivity();
+    const { data: rawActivity, isLoading } = useTodayActivity();
+    const [viewMode, setViewMode] = useState('today'); // 'today' | 'diary'
+
+    // 오늘 활동 요약용 (viewed 압축)
+    let activity = [];
+    if (rawActivity && rawActivity.length > 0) {
+        const seenViewedDocs = new Set();
+
+        for (const item of rawActivity) {
+            if (item.action === 'viewed') {
+                if (seenViewedDocs.has(item.document_id)) continue;
+                seenViewedDocs.add(item.document_id);
+                activity.push(item);
+            } else {
+                activity.push(item);
+            }
+        }
+
+        activity.sort(
+            (a, b) =>
+                new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        );
+    }
 
     return (
-        <div className="space-y-6">
-            {/* 상단 인사 영역 */}
-            <section>
-                <h1 className="text-2xl font-semibold text-slate-800">
-                    환영해, Pediary ✨
-                </h1>
-                <p className="mt-1 text-sm text-slate-500">
-                    왼쪽에서 카테고리를 선택해서 문서를 열거나, 아래에서 최근에 작성·수정·조회한
-                    문서를 다시 살펴볼 수 있어.
-                </p>
+        <div className="flex h-full min-h-0 flex-col">
+            {/* 상단 인사 + 토글 버튼 */}
+            <section className="shrink-0">
+                <div className="flex items-center justify-between gap-3">
+                    <div>
+                        <h1 className="text-2xl font-semibold text-slate-800">
+                            환영해, Pediary ✨
+                        </h1>
+                        <p className="mt-1 text-sm text-slate-500">
+                            오늘 내가 어떤 문서를 작성·수정·조회했는지 한눈에 볼 수 있어.
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={() =>
+                            setViewMode((m) => (m === 'today' ? 'diary' : 'today'))
+                        }
+                        className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50"
+                    >
+                        <svg
+                            className="h-4 w-4"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                            <path d="M8 2v4M16 2v4M3 10h18" />
+                        </svg>
+                        <span>{viewMode === 'today' ? '달력 다이어리' : '오늘만 보기'}</span>
+                    </button>
+                </div>
             </section>
 
-            {/* 최근 활동 타임라인 */}
-            <section className="rounded-2xl bg-white p-4 shadow-soft">
-                <h2 className="text-sm font-semibold text-slate-700">최근 활동</h2>
+            {/* 메인 영역 */}
+            <section className="mt-3 flex-1 min-h-0 rounded-2xl bg-white p-4 shadow-soft overflow-y-auto">
+                <h2 className="text-sm font-semibold text-slate-700">
+                    {viewMode === 'today' ? '오늘 활동' : '내 활동 다이어리'}
+                </h2>
 
-                {isLoading ? (
-                    <p className="mt-3 text-xs text-slate-500">활동 기록을 불러오는 중...</p>
+                {viewMode === 'diary' ? (
+                    // 🔹 달력 다이어리
+                    <ActivityCalendar />
+                ) : isLoading ? (
+                    <p className="mt-3 text-xs text-slate-500">
+                        활동 기록을 불러오는 중...
+                    </p>
                 ) : !activity || activity.length === 0 ? (
                     <p className="mt-3 text-xs text-slate-500">
-                        아직 활동 기록이 없어. 문서를 하나 만들어보자!
+                        아직 오늘 활동 기록이 없어. 문서를 하나 만들어보자!
                     </p>
                 ) : (
+                    // 🔹 오늘 활동 카드 리스트
                     <ul className="mt-3 space-y-2 text-xs">
                         {activity.map((item) => {
                             const date = new Date(item.created_at);

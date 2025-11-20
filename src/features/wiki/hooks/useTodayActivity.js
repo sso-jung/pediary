@@ -1,6 +1,6 @@
-import {fetchTodayActivity} from "../../../lib/wikiApi.js";
-import {useAuthStore} from "../../../store/authStore.js";
-import {useQuery} from "@tanstack/react-query";
+import { useQuery } from '@tanstack/react-query';
+import { fetchTodayActivity } from '../../../lib/wikiApi';
+import { useAuthStore } from '../../../store/authStore';
 
 export function useTodayActivity() {
     const user = useAuthStore((s) => s.user);

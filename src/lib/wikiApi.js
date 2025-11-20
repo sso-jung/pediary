@@ -177,37 +177,6 @@ export async function fetchRecentActivity({ userId, limit = 20 }) {
     return data;
 }
 
-export async function fetchTodayActivity(userId) {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    const start = `${yyyy}-${mm}-${dd} 00:00:00`;
-    const end = `${yyyy}-${mm}-${dd} 23:59:59`;
-
-    const { data, error } = await supabase
-        .from('document_activity')
-        .select(
-            `
-      id,
-      action,
-      created_at,
-      documents:document_id (
-        id,
-        title,
-        slug
-      )
-    `
-        )
-        .eq('user_id', userId)
-        .gte('created_at', start)
-        .lte('created_at', end)
-        .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return data;
-}
-
 // 특정 날짜의 활동 조회
 export async function fetchDailyActivity(userId, dateStr) {
     if (!dateStr) return [];
@@ -232,6 +201,78 @@ export async function fetchDailyActivity(userId, dateStr) {
         .eq('user_id', userId)
         .gte('created_at', start)
         .lte('created_at', end)
+        .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data;
+}
+// 오늘 기준 활동만 가져오기
+export async function fetchTodayActivity(userId) {
+    const now = new Date();
+
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+
+    const start = `${yyyy}-${mm}-${dd} 00:00:00`;
+    const end = `${yyyy}-${mm}-${dd} 23:59:59`;
+
+    const { data, error } = await supabase
+        .from('document_activity')
+        .select(
+            `
+      id,
+      action,
+      created_at,
+      document_id,
+      documents:document_id (
+        id,
+        title,
+        slug
+      )
+    `
+        )
+        .eq('user_id', userId)
+        .gte('created_at', start)
+        .lte('created_at', end)
+        .order('created_at', { ascending: false }); // 최신이 위로
+
+    if (error) throw error;
+    return data;
+}
+
+export async function fetchMonthlyActivity(userId, year, month) {
+    if (!userId || !year || !month) return [];
+
+    const yyyy = String(year);
+    const mm = String(month).padStart(2, '0');
+
+    const start = `${yyyy}-${mm}-01 00:00:00`;
+    // 다음 달 1일 00:00:00 기준으로 조회 범위 끝내기
+    const nextMonth = month === 12 ? 1 : month + 1;
+    const nextYear = month === 12 ? year + 1 : year;
+    const nextYyyy = String(nextYear);
+    const nextMm = String(nextMonth).padStart(2, '0');
+    const end = `${nextYyyy}-${nextMm}-01 00:00:00`;
+
+    const { data, error } = await supabase
+        .from('document_activity')
+        .select(
+            `
+      id,
+      action,
+      created_at,
+      document_id,
+      documents:document_id (
+        id,
+        title,
+        slug
+      )
+    `
+        )
+        .eq('user_id', userId)
+        .gte('created_at', start)
+        .lt('created_at', end)
         .order('created_at', { ascending: false });
 
     if (error) throw error;
