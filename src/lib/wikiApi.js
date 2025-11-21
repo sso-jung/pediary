@@ -278,3 +278,132 @@ export async function fetchMonthlyActivity(userId, year, month) {
     if (error) throw error;
     return data;
 }
+
+// ─────────────────────────────
+// 친구 기능
+// ─────────────────────────────
+
+// 친구 목록 (status = accepted, 내가 보낸 기준)
+export async function fetchFriends(userId) {
+    const { data, error } = await supabase
+        .from('friends')
+        .select('id, friend_id, created_at, status')
+        .eq('user_id', userId)
+        .eq('status', 'accepted');
+
+    if (error) throw error;
+    return data;
+}
+
+// 내가 받은 친구 요청 (status = pending)
+export async function fetchIncomingFriendRequests(userId) {
+    const { data, error } = await supabase
+        .from('friends')
+        .select('id, user_id, created_at, status')
+        .eq('friend_id', userId)
+        .eq('status', 'pending');
+
+    if (error) throw error;
+    return data;
+}
+
+// 친구 요청 보내기
+export async function sendFriendRequest({ userId, friendId }) {
+    const { data, error } = await supabase
+        .from('friends')
+        .insert({
+            user_id: userId,
+            friend_id: friendId,
+            status: 'pending',
+        })
+        .select('*')
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
+// 친구 요청 수락
+export async function acceptFriendRequest(requestId) {
+    const { data, error } = await supabase
+        .from('friends')
+        .update({ status: 'accepted' })
+        .eq('id', requestId)
+        .select('*')
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
+// 친구 요청 거절 / 삭제
+export async function deleteFriendRelation(id) {
+    const { error } = await supabase
+        .from('friends')
+        .delete()
+        .eq('id', id);
+
+    if (error) throw error;
+}
+
+// 프로필 검색 (닉네임/이메일에 keyword 포함)
+export async function searchProfiles(keyword) {
+    const value = (keyword || '').trim();
+    if (!value) return [];
+
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('id, email, nickname')
+        // 🔹 email === value OR nickname === value
+        .or(`email.eq.${value},nickname.eq.${value}`);
+
+    if (error) throw error;
+    return data;
+}
+
+// 내가 볼 수 있는 문서 (내 문서 + 친구공개 + 전체공개)
+export async function fetchVisibleDocuments(userId) {
+    // 1) 친구 목록
+    const friends = await fetchFriends(userId);
+    const friendIds = friends.map((f) => f.friend_id);
+
+    // 친구가 아직 없으면 내 문서 + public 만
+    const friendIdList = friendIds.length ? friendIds.join(',') : null;
+
+    let orConditions = [`user_id.eq.${userId}`, 'visibility.eq.public'];
+
+    if (friendIdList) {
+        orConditions.push(
+            `and(user_id.in.(${friendIdList}),visibility.eq.friends)`,
+        );
+    }
+
+    const { data, error } = await supabase
+        .from('documents')
+        .select('*')
+        .or(orConditions.join(','))
+        .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return data;
+}
+
+export async function fetchMyProfile(userId) {
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+    if (error) throw error;
+    return data;
+}
+
+export async function updateMyProfile(userId, { nickname }) {
+    const { data, error } = await supabase
+        .from('profiles')
+        .upsert({ id: userId, nickname })
+        .select('*')
+        .single();
+    if (error) throw error;
+    return data;
+}

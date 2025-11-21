@@ -1,12 +1,26 @@
 // src/features/wiki/WikiPage.jsx
-import { useState } from 'react';
+import {useEffect, useState} from 'react';
 import { Link } from 'react-router-dom';
 import { useTodayActivity } from './hooks/useTodayActivity';
 import ActivityCalendar from './ActivityCalendar';
 
+const HOME_VIEW_MODE_KEY = 'pediary-home-view-mode';
+
 export default function WikiPage() {
     const { data: rawActivity, isLoading } = useTodayActivity();
-    const [viewMode, setViewMode] = useState('today'); // 'today' | 'diary'
+    const [viewMode, setViewMode] = useState(() => {
+        if (typeof window === 'undefined') return 'today'; // SSR 대비
+
+        const saved = window.localStorage.getItem(HOME_VIEW_MODE_KEY);
+        // 저장된 게 없으면 오늘 보기('today')가 기본
+        return saved || 'today';
+    });
+
+    // 🔹 모드가 바뀔 때마다 localStorage 에 저장
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        window.localStorage.setItem(HOME_VIEW_MODE_KEY, viewMode);
+    }, [viewMode]);
 
     // 오늘 활동 요약용 (viewed 압축)
     let activity = [];

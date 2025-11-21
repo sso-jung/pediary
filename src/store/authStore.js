@@ -53,10 +53,14 @@ export const useAuthStore = create((set) => ({
             throw error;
         }
 
-        // const user = data.user ?? data.session?.user ?? null;
+        // 가입 직후 user 객체만 리턴 (세션 여부와 상관없이)
+        const user = data.user ?? data.session?.user ?? null;
+
+        // 이메일 인증을 요구하는 플로우라면,
+        // 여기서 set({ user }) 해서 로그인 상태로 만들지 않는 게 더 안전함.
         // set({ user });
 
-        return data;
+        return user;
     },
 
     // 로그아웃

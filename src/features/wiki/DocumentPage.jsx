@@ -1,6 +1,6 @@
 // src/features/wiki/DocumentPage.jsx
-import { useEffect, useRef, useState } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useEffect, useRef, useState, useMemo } from 'react';
+import { useParams, useSearchParams, useLocation, Link } from 'react-router-dom';
 import { Viewer } from '@toast-ui/react-editor';
 
 import { useDocument } from './hooks/useDocument';
@@ -68,6 +68,7 @@ function buildSectionTree(markdown) {
 export default function DocumentPage() {
     const { slug } = useParams();
     const [searchParams] = useSearchParams();
+    const location = useLocation();
     const user = useAuthStore((s) => s.user);
 
     const { data: doc, isLoading } = useDocument(slug);
@@ -78,6 +79,7 @@ export default function DocumentPage() {
     const [content, setContent] = useState('');
     const initialIsEditing = searchParams.get('mode') === 'edit';
     const [isEditing, setIsEditing] = useState(initialIsEditing);
+    const [showBacklinks, setShowBacklinks] = useState(false); // 🔹 역링크 패널 토글
 
     const viewLoggedRef = useRef(false);
     const viewerContainerRef = useRef(null);
@@ -107,7 +109,7 @@ export default function DocumentPage() {
         });
     }, [doc, user]);
 
-    // 🔹 내부 링크 파싱 + 정렬 블록 적용 (doc 유무와 상관없이 안전하게 동작)
+    // 🔹 내부 링크 파싱 + 정렬 블록 적용
     let parsedMarkdown = parseInternalLinks(content || '', allDocs);
     parsedMarkdown = applyTextAlignBlocks(parsedMarkdown);
 
@@ -133,50 +135,113 @@ export default function DocumentPage() {
         });
     };
 
-    // 🔹 Viewer 안의 [[문서#1.2.1]] 같은 내부 링크 클릭 시, 같은 문서면 해당 섹션으로 스크롤
+    // 🔹 URL 해시(#sec-2-1)가 바뀔 때마다 해당 섹션으로 스크롤
     useEffect(() => {
+        const { hash } = location;
         const container = viewerContainerRef.current;
         if (!container) return;
+        if (!hash) return;
+        if (isEditing) return; // 편집 모드에서는 이동 안 함
 
-        const handleClick = (e) => {
-            const anchor = e.target.closest('a.wiki-link');
-            if (!anchor) return;
+        const id = hash.slice(1); // "#sec-2-1" → "sec-2-1"
+        const el = container.querySelector(`#${id}`);
+        if (!el) return;
 
-            const href = anchor.getAttribute('href') || '';
-            if (!href.startsWith('/wiki/')) return;
+        const containerRect = container.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
 
-            const [path, hash] = href.split('#');
-            const currentPath = `/wiki/${slug}`;
+        const offset =
+            elRect.top - containerRect.top + container.scrollTop - 8;
 
-            // 다른 문서로 가는 링크는 그대로 두기
-            if (path !== currentPath) return;
+        container.scrollTo({
+            top: offset,
+            behavior: 'smooth',
+        });
+    }, [location.hash, isEditing, markdownWithAnchors]);
 
-            // 같은 문서인데 섹션이 없으면 기본 동작
-            if (!hash) return;
+    // 🔹 역링크 계산
+    //  - 다른 문서의 마크다운을 한 줄씩 보면서
+    //  - heading 번호(1, 1.1, 1.1.1 ...)를 계산
+    //  - 그 섹션 안에 [[현재제목]] / [[현재제목#...]] 이 있으면
+    //    → 그 섹션 하나를 "업무#1.1.1" 같은 링크로 한 번만 추가
+    const backlinks = useMemo(() => {
+        if (!doc || !Array.isArray(allDocs)) return [];
+        const currentTitle = doc.title?.trim();
+        if (!currentTitle) return [];
 
-            e.preventDefault(); // 기본 브라우저 해시 스크롤 막기
+        const result = [];
 
-            const id = decodeURIComponent(hash); // "sec-2-1" 같은 값
-            const el = container.querySelector(`#${id}`);
-            if (!el) return;
+        for (const other of allDocs) {
+            if (!other || other.id === doc.id) continue;
 
-            const containerRect = container.getBoundingClientRect();
-            const elRect = el.getBoundingClientRect();
+            const raw = other.content_markdown || '';
+            if (!raw.includes('[[')) continue;
 
-            const offset =
-                elRect.top - containerRect.top + container.scrollTop - 8;
+            const lines = raw.split('\n');
+            const counters = [0, 0, 0, 0, 0, 0, 0];
 
-            container.scrollTo({
-                top: offset,
-                behavior: 'smooth',
-            });
-        };
+            let currentSectionNumber = null;
+            let currentSectionId = null;
 
-        container.addEventListener('click', handleClick);
-        return () => {
-            container.removeEventListener('click', handleClick);
-        };
-    }, [slug, markdownWithAnchors]); // 🔹 항상 같은 위치에서 호출되므로 Hook 순서가 안정적
+            // 이 문서 안에서 "현재 문서를 참조한 섹션들"을 섹션ID로 dedupe
+            const sectionMap = new Map();
+
+            for (const line of lines) {
+                // 1) 헤딩인지 먼저 체크
+                const hMatch = line.match(/^(#{1,6})\s+(.*)$/);
+                if (hMatch) {
+                    const level = hMatch[1].length;
+                    counters[level] += 1;
+                    for (let i = level + 1; i < counters.length; i++) {
+                        counters[i] = 0;
+                    }
+                    const nums = counters.slice(1, level + 1).filter((n) => n > 0);
+                    const number = nums.join('.');
+                    const sectionKey = number.replace(/\./g, '-');
+                    currentSectionNumber = number;
+                    currentSectionId = `sec-${sectionKey}`;
+                }
+
+                // 2) 이 줄 안에서 [[...]] 찾기
+                const linkRegex = /\[\[([^[\]]+)\]\]/g;
+                let m;
+                while ((m = linkRegex.exec(line)) !== null) {
+                    const inner = m[1]; // "일기" 또는 "일기#2.1"
+                    const [rawTitle] = inner.split('#');
+                    if (rawTitle.trim() !== currentTitle) continue;
+
+                    const key = currentSectionId || '__no_section__';
+
+                    if (!sectionMap.has(key)) {
+                        let href = `/wiki/${other.slug}`;
+                        let label = other.title;
+
+                        if (currentSectionId && currentSectionNumber) {
+                            href = `${href}#${currentSectionId}`;
+                            label = `${other.title}#${currentSectionNumber}`;
+                        }
+
+                        sectionMap.set(key, { href, label });
+                    }
+                }
+            }
+
+            if (sectionMap.size > 0) {
+                result.push({
+                    docId: other.id,
+                    docTitle: other.title,
+                    links: Array.from(sectionMap.values()),
+                });
+            }
+        }
+
+        return result;
+    }, [doc, allDocs]);
+
+    const totalBacklinkCount = useMemo(
+        () => backlinks.reduce((sum, b) => sum + b.links.length, 0),
+        [backlinks],
+    );
 
     const handleSave = (e) => {
         e.preventDefault();
@@ -199,7 +264,6 @@ export default function DocumentPage() {
         );
     };
 
-    // 🔹 여기서는 더 이상 Hook을 새로 호출하지 않으므로, 조건부 return은 안전
     if (isLoading || !doc) {
         return (
             <div className="text-sm text-slate-500">
@@ -301,7 +365,11 @@ export default function DocumentPage() {
                     {isEditing ? (
                         // 편집 모드: 에디터도 h-full로 맞춤
                         <div className="h-full">
-                            <MarkdownEditor value={content} onChange={setContent} />
+                            <MarkdownEditor
+                                value={content}
+                                onChange={setContent}
+                                allDocs={allDocs || []}
+                            />
                         </div>
                     ) : (
                         // 보기 모드: Viewer 래퍼에만 스크롤
@@ -317,6 +385,62 @@ export default function DocumentPage() {
                     )}
                 </div>
             </div>
+
+            {/* 🔹 역링크 패널 – 접었다 펼치는 아코디언 형태 */}
+            {!isEditing && (
+                <div className="rounded-2xl bg-white p-3 shadow-soft text-xs">
+                    <button
+                        type="button"
+                        onClick={() => setShowBacklinks((v) => !v)}
+                        className="flex w-full items-center justify-between text-left"
+                    >
+                        <span className="text-[11px] font-semibold text-slate-500">
+                            이 문서를 참조하는 문서
+                            {totalBacklinkCount > 0 && (
+                                <span className="ml-2 inline-flex items-center rounded-full bg-slate-100 px-2 py-[1px] text-[10px] text-slate-500">
+                                    {totalBacklinkCount}개
+                                </span>
+                            )}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                            {showBacklinks ? '숨기기 ▲' : '보기 ▼'}
+                        </span>
+                    </button>
+
+                    {showBacklinks && (
+                        <div className="mt-2 border-t border-slate-100 pt-2">
+                            {backlinks.length === 0 ? (
+                                <p className="text-[11px] text-slate-400">
+                                    아직 이 문서를{' '}
+                                    <span className="font-mono">[[{doc.title}]]</span> 형식으로
+                                    참조하는 다른 문서가 없어.
+                                </p>
+                            ) : (
+                                <ul className="space-y-2">
+                                    {backlinks.map((b) => (
+                                        <li key={b.docId}>
+                                            <div className="text-[12px] font-semibold text-slate-800">
+                                                {b.docTitle}
+                                            </div>
+                                            <div className="mt-1 flex flex-wrap gap-1">
+                                                {b.links.map((l, idx) => (
+                                                    <Link
+                                                        key={idx}
+                                                        to={l.href}
+                                                        className="rounded-full bg-slate-100 px-2 py-[2px] text-[11px] text-slate-700 hover:bg-slate-200"
+                                                    >
+                                                        {l.label}
+                                                    </Link>
+                                                ))}
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

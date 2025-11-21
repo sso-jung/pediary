@@ -7,6 +7,8 @@ import CategoryPage from '../features/wiki/CategoryPage';
 import DocumentPage from '../features/wiki/DocumentPage';
 import { useAuthStore } from '../store/authStore';
 import CalendarPage from "../features/wiki/CalendarPage.jsx";
+import WikiQuickSearch from "../features/wiki/WikiQuickSearch.jsx";
+import FriendsPage from "../features/friends/FriendsPage.jsx";
 
 function ProtectedRoute({ children }) {
     const { user, loading } = useAuthStore();
@@ -71,6 +73,7 @@ export default function AppRouter() {
                 <Route path="/signup" element={<SignupPage />} />
                 <Route path="/calendar" element={<CalendarPage />} />
             </Routes>
+            <WikiQuickSearch />
         </BrowserRouter>
     );
 }

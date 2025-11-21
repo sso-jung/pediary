@@ -5,8 +5,8 @@ import { useMonthlyActivity } from './hooks/useMonthlyActivity';
 
 // 색상: 열람=노랑, 수정=파랑, 작성=보라
 const ACTION_STYLES = {
-    viewed: 'bg-amber-100 text-amber-700 border border-amber-200',   // 열람
-    updated: 'bg-sky-100 text-sky-700 border border-sky-200',        // 수정
+    viewed: 'bg-amber-100 text-amber-700 border border-amber-200',     // 열람
+    updated: 'bg-sky-100 text-sky-700 border border-sky-200',          // 수정
     created: 'bg-purple-100 text-purple-700 border border-purple-200', // 작성
 };
 
@@ -64,6 +64,17 @@ export default function ActivityCalendar() {
 
         return result;
     }, [data]);
+
+    const [selectedDateKey, setSelectedDateKey] = useState(null);
+
+    const handleSelectDate = (key) => {
+        const items = activityByDate[key] || [];
+        if (!items.length) {
+            setSelectedDateKey(null);
+            return;
+        }
+        setSelectedDateKey(key);
+    };
 
     // 달력용 날짜 계산
     const firstDay = new Date(year, month - 1, 1);
@@ -183,7 +194,7 @@ export default function ActivityCalendar() {
                     {ACTION_LABEL.created}
                 </span>
                 <span className="ml-1 text-[10px] text-slate-400">
-                    뱃지에 해당하는 색깔의 문서 제목이 하단에 표시돼요.
+                    색깔로 열람/수정/작성 여부를 구분해요.
                 </span>
             </div>
 
@@ -221,11 +232,19 @@ export default function ActivityCalendar() {
                                     '0',
                                 )}-${String(d).padStart(2, '0')}`;
                                 const items = activityByDate[key] || [];
+                                const summaryItems = items.slice(0, 3);
 
                                 return (
-                                    <div
+                                    <button
+                                        type="button"
                                         key={`${wi}-${di}`}
-                                        className="flex h-20 flex-col rounded-xl bg-white p-1.5 shadow-[0_0_0_1px_rgba(148,163,184,0.08)]"
+                                        onClick={() => handleSelectDate(key)}
+                                        className={
+                                            'flex h-20 flex-col rounded-xl bg-white p-1.5 text-left shadow-[0_0_0_1px_rgba(148,163,184,0.08)] ' +
+                                            (selectedDateKey === key
+                                                ? 'ring-1 ring-primary-300'
+                                                : 'hover:bg-slate-50')
+                                        }
                                     >
                                         <div className="mb-1 flex items-center justify-between">
                                             <span className="text-[11px] font-medium text-slate-700">
@@ -238,9 +257,9 @@ export default function ActivityCalendar() {
                                             )}
                                         </div>
 
-                                        {/* 문서 뱃지들 – 이제 제목만 표시 */}
+                                        {/* 문서 뱃지들 – 최대 3개만 표시 (액션 텍스트 제거, 색깔만) */}
                                         <div className="flex flex-wrap gap-0.5">
-                                            {items.slice(0, 3).map((item) => {
+                                            {summaryItems.map((item) => {
                                                 const action = item.action;
                                                 const style =
                                                     ACTION_STYLES[action] ||
@@ -248,9 +267,6 @@ export default function ActivityCalendar() {
                                                 const doc = item.documents;
                                                 const title =
                                                     doc?.title ?? '(삭제됨)';
-                                                const href = doc?.slug
-                                                    ? `/wiki/${doc.slug}`
-                                                    : null;
 
                                                 return (
                                                     <span
@@ -259,26 +275,10 @@ export default function ActivityCalendar() {
                                                             'inline-flex items-center rounded-full px-1.5 py-[2px] text-[10px] ' +
                                                             style
                                                         }
-                                                        title={
-                                                            ACTION_LABEL[
-                                                                action
-                                                                ] +
-                                                            ' / ' +
-                                                            title
-                                                        }
                                                     >
-                                                        {href ? (
-                                                            <Link
-                                                                to={href}
-                                                                className="max-w-[80px] truncate underline-offset-2 hover:underline"
-                                                            >
-                                                                {title}
-                                                            </Link>
-                                                        ) : (
-                                                            <span className="max-w-[80px] truncate">
-                                                                {title}
-                                                            </span>
-                                                        )}
+                                                        <span className="max-w-[80px] truncate">
+                                                            {title}
+                                                        </span>
                                                     </span>
                                                 );
                                             })}
@@ -289,10 +289,108 @@ export default function ActivityCalendar() {
                                                 </span>
                                             )}
                                         </div>
-                                    </div>
+                                    </button>
                                 );
                             }),
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* 🔹 선택한 날짜 상세 – 화면 중앙 모달 (플로팅) */}
+            {selectedDateKey && (
+                <div
+                    className="fixed inset-0 z-30 flex items-center justify-center bg-black/30"
+                    onClick={() => setSelectedDateKey(null)}   // ← 바깥 아무 곳 클릭 시 닫기
+                >
+                    <div
+                        className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl text-xs"
+                        onClick={(e) => e.stopPropagation()}   // ← 모달 안쪽 클릭은 전파 막기
+                    >
+                        {(() => {
+                            const items = (activityByDate[selectedDateKey] || [])
+                                .slice()
+                                .sort(
+                                    (a, b) =>
+                                        new Date(b.created_at).getTime() -
+                                        new Date(a.created_at).getTime(),
+                                );
+                            const [y, m, d] = selectedDateKey.split('-');
+
+                            return (
+                                <>
+                                    <div className="mb-2 flex items-center justify-between">
+                                        <div className="text-[11px] font-semibold text-slate-600">
+                                            {y}년 {Number(m)}월 {Number(d)}일 활동
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedDateKey(null)}
+                                            className="text-[11px] text-slate-400 hover:text-slate-600"
+                                        >
+                                            닫기 ✕
+                                        </button>
+                                    </div>
+
+                                    {items.length === 0 ? (
+                                        <p className="text-[11px] text-slate-400">
+                                            이 날에는 활동 기록이 없어.
+                                        </p>
+                                    ) : (
+                                        <ul className="max-h-64 space-y-1 overflow-y-auto">
+                                            {items.map((item) => {
+                                                const doc = item.documents;
+                                                const title = doc?.title ?? '(삭제됨)';
+                                                const href = doc?.slug
+                                                    ? `/wiki/${doc.slug}`
+                                                    : null;
+                                                const action = item.action;
+                                                const label =
+                                                    ACTION_LABEL[action] ?? action;
+
+                                                return (
+                                                    <li
+                                                        key={item.id}
+                                                        className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1"
+                                                    >
+                                            <span className="inline-flex items-center gap-2">
+                                                <span
+                                                    className={
+                                                        'rounded-full px-1.5 py-[1px] text-[10px] ' +
+                                                        ACTION_STYLES[action]
+                                                    }
+                                                >
+                                                    {label}
+                                                </span>
+                                                {href ? (
+                                                    <Link
+                                                        to={href}
+                                                        className="text-[11px] text-slate-800 underline-offset-2 hover:underline"
+                                                    >
+                                                        {title}
+                                                    </Link>
+                                                ) : (
+                                                    <span className="text-[11px] text-slate-800">
+                                                        {title}
+                                                    </span>
+                                                )}
+                                            </span>
+                                                        <span className="text-[10px] text-slate-400">
+                                                {new Date(
+                                                    item.created_at,
+                                                ).toLocaleTimeString('ko-KR', {
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                })}
+                                            </span>
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    )}
+                                </>
+                            );
+                        })()}
                     </div>
                 </div>
             )}

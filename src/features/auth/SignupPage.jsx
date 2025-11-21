@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useAuthStore } from '../../store/authStore';
+import { supabase } from '../../lib/supabaseClient';
 
 export default function SignupPage() {
     const [email, setEmail] = useState('');
@@ -25,9 +26,22 @@ export default function SignupPage() {
 
         setLoading(true);
         try {
+            // 1) authStore를 통해 회원가입
             await signUp(email, password);
 
-            alert('회원가입이 완료되었습니다. 이메일로 전송된 인증 링크를 클릭한 후 로그인해 주세요.');
+            // 2) profiles 테이블에 프로필 생성/업데이트
+            const user = await signUp(email, password);
+
+            if (user) {
+                await supabase.from('profiles').upsert({
+                    id: user.id,
+                    email: user.email,
+                });
+            }
+
+            alert(
+                '회원가입이 완료되었습니다. 이메일로 전송된 인증 링크를 클릭한 후 로그인해 주세요.',
+            );
             navigate('/login', { replace: true });
         } catch (err) {
             console.error(err);
