@@ -26,8 +26,6 @@ export function parseInternalLinks(markdownText, documents) {
         .replace(/\\\|/g, '|')
         .replace(/\\\./g, '.');
 
-    console.log('🔗 parseInternalLinks INPUT(normalized):', markdownText);
-
     // 제목 → 문서 매핑
     const docMap = new Map();
     documents.forEach((doc) => {
@@ -133,8 +131,6 @@ export function parseInternalLinks(markdownText, documents) {
             i += 1;
         }
     }
-
-    console.log('🔗 parseInternalLinks OUTPUT:', result);
 
     return result;
 }

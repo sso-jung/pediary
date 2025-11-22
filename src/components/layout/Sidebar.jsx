@@ -3,15 +3,22 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCategories } from '../../features/wiki/hooks/useCategories';
 import { useCreateCategory } from '../../features/wiki/hooks/useCreateCategory';
+import { useDeleteCategory } from '../../features/wiki/hooks/useDeleteCategory';
 import { useAuthStore } from '../../store/authStore';
 import Button from '../ui/Button';
+import ConfirmDialog from '../ui/ConfirmDialog';
+import { useSnackbar } from '../ui/SnackbarContext';
 
 export default function Sidebar() {
     const { data: categories, isLoading } = useCategories();
     const createCategoryMutation = useCreateCategory();
+    const deleteCategoryMutation = useDeleteCategory();
     const user = useAuthStore((s) => s.user);
 
+    const { showSnackbar } = useSnackbar();
+
     const [newCategoryName, setNewCategoryName] = useState('');
+    const [categoryToDelete, setCategoryToDelete] = useState(null);
 
     const navigate = useNavigate();
     const location = useLocation();
@@ -37,6 +44,38 @@ export default function Sidebar() {
 
     const getIsActive = (catId) => {
         return location.pathname.startsWith(`/category/${catId}`);
+    };
+
+    const handleConfirmDeleteCategory = () => {
+        if (!categoryToDelete) return;
+
+        deleteCategoryMutation.mutate(
+            { categoryId: categoryToDelete.id },
+            {
+                onSuccess: () => {
+                    showSnackbar(
+                        `"${categoryToDelete.name}" 카테고리를 삭제했어.\n해당 카테고리의 문서들은 휴지통으로 이동했어.`,
+                    );
+
+                    // 만약 현재 보고 있던 카테고리를 지웠다면 전체 페이지로 이동
+                    if (
+                        location.pathname.startsWith(
+                            `/category/${categoryToDelete.id}`,
+                        )
+                    ) {
+                        navigate('/docs');
+                    }
+
+                    setCategoryToDelete(null);
+                },
+                onError: () => {
+                    showSnackbar(
+                        '카테고리 삭제에 실패했어. 잠시 후 다시 시도해줘.',
+                    );
+                    setCategoryToDelete(null);
+                },
+            },
+        );
     };
 
     const isAllActive = location.pathname === '/docs';
@@ -106,12 +145,28 @@ export default function Sidebar() {
                                             : 'text-slate-700 hover:bg-primary-50'
                                     }`}
                                 >
-                                    <span>{cat.name}</span>
+                                    <div className="flex items-center gap-2">
+                                        <span>{cat.name}</span>
 
-                                    {!isMine && (
-                                        <span className="ml-2 inline-flex items-center rounded-full bg-fuchsia-50 px-2 py-[1px] text-[10px] text-fuchsia-700">
-                                            친구 공유
-                                        </span>
+                                        {!isMine && (
+                                            <span className="ml-1 inline-flex items-center rounded-full bg-fuchsia-50 px-2 py-[1px] text-[10px] text-fuchsia-700">
+                                                친구 공유
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {isMine && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation(); // 카테고리 이동 막기
+                                                setCategoryToDelete(cat);
+                                            }}
+                                            className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] text-slate-400 hover:bg-gray-200 hover:text-gray-500"
+                                            aria-label="카테고리 삭제"
+                                        >
+                                            X
+                                        </button>
                                     )}
                                 </li>
                             );
@@ -147,6 +202,24 @@ export default function Sidebar() {
                 </svg>
                 <span>휴지통</span>
             </button>
+            <ConfirmDialog
+                open={!!categoryToDelete}
+                title="카테고리를 삭제할까?"
+                message={
+                    categoryToDelete
+                        ? `"${categoryToDelete.name}" 카테고리를 삭제할까?\n이 카테고리 안의 문서들은 모두 휴지통으로 이동해.`
+                        : ''
+                }
+                confirmText={
+                    deleteCategoryMutation.isLoading ? '삭제 중...' : '삭제'
+                }
+                cancelText="취소"
+                onCancel={() => {
+                    if (deleteCategoryMutation.isLoading) return;
+                    setCategoryToDelete(null);
+                }}
+                onConfirm={handleConfirmDeleteCategory}
+            />
         </div>
     );
 }

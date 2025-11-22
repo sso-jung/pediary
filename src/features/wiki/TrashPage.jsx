@@ -18,12 +18,6 @@ export default function TrashPage() {
 
     const [docToHardDelete, setDocToHardDelete] = useState(null);
 
-    const getCategoryName = (categoryId) => {
-        if (!categoryId || !categories) return '미분류';
-        const found = categories.find((c) => c.id === categoryId);
-        return found ? found.name : '미분류';
-    };
-
     const handleConfirmHardDelete = () => {
         if (!docToHardDelete) return;
 
@@ -81,7 +75,8 @@ export default function TrashPage() {
                         const deletedAtStr = doc.deleted_at
                             ? new Date(doc.deleted_at).toLocaleString()
                             : '';
-                        const categoryName = getCategoryName(doc.category_id);
+                        const categoryName =
+                        doc.category?.name || '미분류';
 
                         return (
                             <li

@@ -1,5 +1,6 @@
 // src/components/ui/ConfirmDialog.jsx
 import React from 'react';
+import { createPortal } from 'react-dom';
 import Button from './Button';
 
 export default function ConfirmDialog({
@@ -13,7 +14,7 @@ export default function ConfirmDialog({
 }) {
     if (!open) return null;
 
-    return (
+    const dialog = (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/20">
             <div className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-xl">
                 {title && (
@@ -47,4 +48,11 @@ export default function ConfirmDialog({
             </div>
         </div>
     );
+
+    // 🔹 Portal로 body에 렌더링 → 어디서 쓰든 전체 화면 중앙에 뜸
+    if (typeof document === 'undefined') {
+        // SSR 방어용
+        return dialog;
+    }
+    return createPortal(dialog, document.body);
 }

@@ -6,6 +6,9 @@ import { Viewer } from '@toast-ui/react-editor';
 import { useDocument } from './hooks/useDocument';
 import { useUpdateDocument } from './hooks/useUpdateDocument';
 import { useAllDocuments } from './hooks/useAllDocuments';
+import { useCategories } from './hooks/useCategories';
+import { useUpdateDocumentCategory } from './hooks/useUpdateDocumentCategory';
+
 import Button from '../../components/ui/Button';
 import { useSnackbar } from '../../components/ui/SnackbarContext';
 import { parseInternalLinks } from '../../lib/internalLinkParser';
@@ -76,6 +79,11 @@ export default function DocumentPage() {
     const updateMutation = useUpdateDocument(doc?.id, slug);
     const { showSnackbar } = useSnackbar();
 
+    const { data: categories } = useCategories();
+
+    // 🔹 현재 문서의 카테고리 상태 (select value로 사용)
+    const [categoryId, setCategoryId] = useState(null);
+
     const [content, setContent] = useState('');
     const initialIsEditing = searchParams.get('mode') === 'edit';
     const [isEditing, setIsEditing] = useState(initialIsEditing);
@@ -89,6 +97,13 @@ export default function DocumentPage() {
 
     const viewLoggedRef = useRef(false);
     const viewerContainerRef = useRef(null);
+
+    // 🔹 문서 로딩 시 카테고리 초기값 세팅
+    useEffect(() => {
+        if (doc) {
+            setCategoryId(doc.category_id ?? null);
+        }
+    }, [doc]);
 
     // 🔹 doc 내용 → 에디터 content 동기화
     useEffect(() => {
@@ -279,6 +294,7 @@ export default function DocumentPage() {
                 title: doc.title,
                 contentMarkdown: content,
                 visibility,
+                categoryId,
             },
             {
                 onSuccess: () => {
@@ -292,6 +308,12 @@ export default function DocumentPage() {
         );
     };
 
+    const handleChangeCategory = (e) => {
+        const value = e.target.value;
+        const newCatId = value === '' ? null : Number(value);
+        setCategoryId(newCatId);   // 🔹 여기까지만 (서버 호출 X)
+    };
+
     if (isLoading || !doc) {
         return (
             <div className="text-sm text-slate-500">
@@ -301,113 +323,141 @@ export default function DocumentPage() {
     }
 
     return (
-        <div className="flex h-full min-h-0 flex-col space-y-4">
-            {/* 상단 바: 제목 + 보기/편집 + 저장 */}
-            <form
-                onSubmit={handleSave}
-                className="flex flex-col gap-2 sm:flex-row sm:items-center"
-            >
-                <div className="flex-1">
-                    {!isEditing && (
-                        <h1 className="text-2xl font-semibold text-slate-800">
-                            {doc.title}
-                        </h1>
-                    )}
-                    {!isEditing && isOwner && (
-                        <div className="mt-1 text-[11px]">
-                            <span
-                                className={
-                                    'inline-flex items-center rounded-full px-2 py-[2px] ' +
-                                    (visibility === 'friends'
-                                        ? 'bg-fuchsia-50 text-fuchsia-700'
-                                        : 'bg-slate-100 text-slate-500')
-                                }
-                            >
-                                {visibility === 'friends' ? '친구 공개' : '나만 보기'}
-                            </span>
+        <div className="flex h-full min-h-0 flex-col space-y-[10px]">
+        {/* 🔹 상단 바: 섹션 패널 폭만큼 띄우고 오른쪽에 제목/버튼 배치 */}
+        <div className="grid gap-4 md:grid-cols-[260px,minmax(0,1fr)]">
+            {/* 섹션 패널 자리만 확보하는 빈 칸 */}
+            <div className="hidden md:block" />
+                <form
+                    onSubmit={handleSave}
+                    className="flex flex-col gap-2 sm:flex-row sm:items-center"
+                >
+                    <div className="flex-1">
+                            {/* 🔹 편집 모드에서 보이는 카테고리 말머리 */}
+                            {isOwner && isEditing && (
+                                <div className="mb flex flex-wrap items-center gap-2 text-[10pt] pl-[10px]">
+                                    <span className="text-slate-400">카테고리</span>
+                                    <select
+                                        className="rounded-full border border-slate-200 bg-white px-2 py-[3px] text-[10pt] outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-100"
+                                        value={categoryId ?? ''}
+                                        onChange={handleChangeCategory}
+                                        disabled={updateMutation.isLoading}
+                                    >
+                                        <option value="">미분류</option>
+                                        {categories
+                                            ?.filter((c) => c.user_id === user?.id)
+                                            .map((cat) => (
+                                                <option key={cat.id} value={cat.id}>
+                                                    {cat.name}
+                                                </option>
+                                            ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            {/* 🔹 보기 모드: 제목 + 공개범위 뱃지를 한 줄에 */}
+                            {!isEditing && (
+                                <div className="flex flex-wrap items-baseline gap-3">
+                                    <h1 className="text-2xl font-semibold italic tracking-tight text-slate-900">
+                                        {doc.title}
+                                    </h1>
+
+                                    {isOwner && (
+                                        <span
+                                            className={
+                                                'inline-flex items-center rounded-full px-2 py-[2px] text-[11px] ' +
+                                                (visibility === 'friends'
+                                                    ? 'bg-fuchsia-50 text-fuchsia-700'
+                                                    : 'bg-slate-100 text-slate-500')
+                                            }
+                                        >
+                                            {visibility === 'friends' ? '친구 공개' : '나만 보기'}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
                         </div>
-                    )}
-                </div>
 
-                <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-                    {/* 🔹 편집 가능할 때만 공개 범위 토글 + 저장 버튼 노출 */}
-                    {canEdit && isEditing && (
-                        <>
-                            <div className="inline-flex items-center rounded-full bg-slate-100 p-1 text-[11px]">
-                                <span className="ml-2 mr-1 hidden text-slate-500 sm:inline">
-                                    공개 범위
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={() => setVisibility('private')}
-                                    className={
-                                        'rounded-full px-3 py-1 ' +
-                                        (visibility === 'private'
-                                            ? 'bg-white text-slate-900 shadow'
-                                            : 'text-slate-500 hover:text-slate-700')
-                                    }
+                    <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
+                        {/* 🔹 편집 가능할 때만 공개 범위 토글 + 저장 버튼 노출 */}
+                        {canEdit && isEditing && (
+                            <>
+                                <div className="inline-flex items-center rounded-full bg-slate-100 p-1 text-[11px]">
+                                    <span className="ml-2 mr-1 hidden text-slate-500 sm:inline">
+                                        공개 범위
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setVisibility('private')}
+                                        className={
+                                            'rounded-full px-3 py-1 ' +
+                                            (visibility === 'private'
+                                                ? 'bg-white text-slate-900 shadow'
+                                                : 'text-slate-500 hover:text-slate-700')
+                                        }
+                                    >
+                                        나만 보기
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setVisibility('friends')}
+                                        className={
+                                            'rounded-full px-3 py-1 ' +
+                                            (visibility === 'friends'
+                                                ? 'bg-white text-slate-900 shadow'
+                                                : 'text-slate-500 hover:text-slate-700')
+                                        }
+                                    >
+                                        친구 공개
+                                    </button>
+                                </div>
+
+                                <Button
+                                    type="submit"
+                                    className="sm:w-24"
+                                    disabled={updateMutation.isLoading}
                                 >
-                                    나만 보기
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setVisibility('friends')}
-                                    className={
-                                        'rounded-full px-3 py-1 ' +
-                                        (visibility === 'friends'
-                                            ? 'bg-white text-slate-900 shadow'
-                                            : 'text-slate-500 hover:text-slate-700')
-                                    }
-                                >
-                                    친구 공개
-                                </button>
-                            </div>
+                                    {updateMutation.isLoading ? '저장 중...' : '저장'}
+                                </Button>
+                            </>
+                        )}
 
-                            <Button
-                                type="submit"
-                                className="sm:w-24"
-                                disabled={updateMutation.isLoading}
-                            >
-                                {updateMutation.isLoading ? '저장 중...' : '저장'}
-                            </Button>
-                        </>
-                    )}
-
-                    {/* 보기/편집 토글 */}
-                    {isOwner && (
-                    <div className="inline-flex items-center rounded-full bg-slate-100 p-1 text-xs sm:text-sm">
-                        <button
-                            type="button"
-                            onClick={() => setIsEditing(false)}
-                            className={
-                                'rounded-full px-3 py-1 transition ' +
-                                (!isEditing
-                                    ? 'bg-white text-slate-900 shadow'
-                                    : 'text-slate-500 hover:text-slate-700')
-                            }
-                        >
-                            보기
-                        </button>
-
-                        {canEdit && (
+                        {/* 보기/편집 토글 */}
+                        {isOwner && (
+                        <div className="inline-flex items-center rounded-full bg-slate-100 p-1 text-xs sm:text-sm">
                             <button
                                 type="button"
-                                onClick={() => setIsEditing(true)}
+                                onClick={() => setIsEditing(false)}
                                 className={
                                     'rounded-full px-3 py-1 transition ' +
-                                    (isEditing
+                                    (!isEditing
                                         ? 'bg-white text-slate-900 shadow'
                                         : 'text-slate-500 hover:text-slate-700')
                                 }
                             >
-                                편집
+                                보기
                             </button>
-                        )}
-                        {/* 🔹 편집 권한 없으면 '편집' 버튼을 아예 안 보여줌 */}
+
+                            {canEdit && (
+                                <button
+                                    type="button"
+                                    onClick={() => setIsEditing(true)}
+                                    className={
+                                        'rounded-full px-3 py-1 transition ' +
+                                        (isEditing
+                                            ? 'bg-white text-slate-900 shadow'
+                                            : 'text-slate-500 hover:text-slate-700')
+                                    }
+                                >
+                                    편집
+                                </button>
+                            )}
+                            {/* 🔹 편집 권한 없으면 '편집' 버튼을 아예 안 보여줌 */}
+                        </div>
+                         )}
                     </div>
-                     )}
-                </div>
-            </form>
+                </form>
+            </div>
 
             {/* 섹션 트리 + 내용 영역 */}
             <div className="flex-1 min-h-0 grid auto-rows-[minmax(0,1fr)] gap-4 md:grid-cols-[260px,minmax(0,1fr)]">

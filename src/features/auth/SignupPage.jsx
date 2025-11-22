@@ -26,17 +26,23 @@ export default function SignupPage() {
 
         setLoading(true);
         try {
-            // 1) authStore를 통해 회원가입
-            await signUp(email, password);
-
-            // 2) profiles 테이블에 프로필 생성/업데이트
+            // 🔹 1) 회원가입을 한 번만 호출하고 user 객체를 받는다.
             const user = await signUp(email, password);
 
+            // 🔹 2) profiles 테이블에 프로필 생성/업데이트
             if (user) {
-                await supabase.from('profiles').upsert({
-                    id: user.id,
-                    email: user.email,
-                });
+                const { error: profileError } = await supabase
+                    .from('profiles')
+                    .upsert({
+                        id: user.id,
+                        email: user.email,
+                    });
+
+                if (profileError) {
+                    console.error('profiles upsert error:', profileError);
+                    // 여기서 throw 해도 되고, 그냥 콘솔만 찍고 넘어가도 됨
+                    // throw profileError;
+                }
             }
 
             alert(

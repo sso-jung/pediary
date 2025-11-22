@@ -3,7 +3,7 @@ import Button from '../ui/Button';
 import { useAuthStore } from '../../store/authStore';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
-export default function Header({ onToggleFriends }) {
+export default function Header({ onToggleFriends, onToggleMyInfo, activeSidePanel }) {
     const user = useAuthStore((s) => s.user);
     const signOut = useAuthStore((s) => s.signOut);
 
@@ -15,9 +15,12 @@ export default function Header({ onToggleFriends }) {
         path.startsWith('/wiki') ||
         path.startsWith('/category') ||
         path.startsWith('/docs') ||
-        path.startsWith('/trash');   // 🔹 휴지통도 문서 탭으로 취급
+        path.startsWith('/trash');
 
     const activeTab = isDocs ? 'docs' : 'home';
+
+    const isFriendsOpen = activeSidePanel === 'friends';
+    const isMyInfoOpen = activeSidePanel === 'me';
 
     return (
         <div className="mx-auto flex max-w-[100rem] items-center justify-between px-4 py-3 lg:px-8">
@@ -32,7 +35,6 @@ export default function Header({ onToggleFriends }) {
                     </div>
                 </Link>
 
-                {/* 상단 탭: 홈 / 문서 */}
                 <div className="hidden sm:inline-flex rounded-full bg-slate-100 p-1 text-xs">
                     <button
                         type="button"
@@ -61,7 +63,7 @@ export default function Header({ onToggleFriends }) {
                 </div>
             </div>
 
-            {/* 오른쪽: 유저 정보 + 친구/로그아웃 */}
+            {/* 오른쪽: 유저 정보 + 내정보/친구/로그아웃 */}
             <div className="flex items-center gap-2">
                 {user && (
                     <>
@@ -69,18 +71,39 @@ export default function Header({ onToggleFriends }) {
                             {user.email}
                         </span>
 
-                        {/* 친구 패널 토글 버튼 */}
+                        {/* ✅ 내정보 버튼 */}
                         <Button
-                            type="button"
-                            size="xs"
-                            variant="ghost"
-                            className="hidden lg:block rounded-full px-[7px] py-[5px] text-xs"
-                            onClick={onToggleFriends}
+                          type="button"
+                          size="xs"
+                          variant="ghost"
+                          className={
+                            'hidden lg:block rounded-full px-[7px] py-[5px] text-xs transition ' +
+                            (isMyInfoOpen
+                              ? '!bg-gray-500 !text-white shadow-sm hover:!bg-gray-500'
+                              : 'bg-transparent text-slate-600 hover:bg-slate-100')
+                          }
+                          onClick={onToggleMyInfo}
                         >
-                            친구
+                          내정보
                         </Button>
 
-                        {/* 로그아웃 버튼 */}
+                        {/* ✅ 친구 버튼 */}
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="ghost"
+                          className={
+                            'hidden lg:block rounded-full px-[7px] py-[5px] text-xs transition ' +
+                            (isFriendsOpen
+                              ? '!bg-gray-500 !text-white shadow-sm hover:!bg-gray-500'
+                              : 'bg-transparent text-slate-600 hover:bg-slate-100')
+                          }
+                          onClick={onToggleFriends}
+                        >
+                          친구
+                        </Button>
+
+
                         <Button
                             type="button"
                             size="xs"

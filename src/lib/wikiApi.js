@@ -9,6 +9,7 @@ export async function fetchCategories(userId) {
         .from('categories')
         .select('*')
         .eq('user_id', userId)
+        .is('deleted_at', null)
         .order('parent_id', { ascending: true, nullsFirst: true })
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true });
@@ -31,6 +32,39 @@ export async function createCategory({ userId, name, parentId = null }) {
 
     if (error) throw error;
     return data;
+}
+
+// 🔹 카테고리 soft delete + 안의 문서들 휴지통으로
+export async function softDeleteCategoryAndDocuments({ userId, categoryId }) {
+    const now = new Date().toISOString();
+
+    // 1) 카테고리 soft delete
+    const { error: catError } = await supabase
+        .from('categories')
+        .update({ deleted_at: now })
+        .eq('id', categoryId)
+        .eq('user_id', userId);
+
+    if (catError) {
+        console.error('softDeleteCategoryAndDocuments - category error', catError);
+        throw catError;
+    }
+
+    // 2) 해당 카테고리의 내 문서들을 soft delete (이미 휴지통인 건 건들지 않음)
+    const { error: docError } = await supabase
+        .from('documents')
+        .update({
+            deleted_at: now,
+            deleted_by: userId,
+        })
+        .eq('user_id', userId)
+        .eq('category_id', categoryId)
+        .is('deleted_at', null);
+
+    if (docError) {
+        console.error('softDeleteCategoryAndDocuments - documents error', docError);
+        throw docError;
+    }
 }
 
 // ─────────────────────────────
@@ -137,16 +171,27 @@ export async function fetchDocumentBySlug({ userId, slug }) {
 }
 
 // 문서 내용/제목 수정
-export async function updateDocument({ userId, documentId, title, contentMarkdown, visibility }) {
+export async function updateDocument({
+    userId,
+    documentId,
+    title,
+    contentMarkdown,
+    visibility,
+    categoryId,   // 🔹 추가
+}) {
     const payload = {
         title,
         content_markdown: contentMarkdown,
         updated_at: new Date().toISOString(),
     };
 
-    // visibility를 함께 전달받으면 항상 업데이트
     if (visibility) {
         payload.visibility = visibility; // 'private' / 'friends'
+    }
+
+    // 🔹 categoryId 도 같이 업데이트 (undefined면 건드리지 않음)
+    if (categoryId !== undefined) {
+        payload.category_id = categoryId;
     }
 
     const { data, error } = await supabase
@@ -180,6 +225,113 @@ export async function fetchAllDocuments(userId) {
     });
 
     return Array.from(map.values());
+}
+
+// 🔹 문서 복구 (카테고리가 삭제된 경우 처리 포함)
+export async function restoreDocumentWithCategoryHandling({ documentId, userId }) {
+    // 0) 문서 조회 (soft delete 포함)
+    const { data: doc, error: docError } = await supabase
+        .from('documents')
+        .select('*')
+        .eq('id', documentId)
+        .single();
+
+    if (docError) throw docError;
+    if (!doc) throw new Error('문서를 찾을 수 없어.');
+
+    if (doc.user_id !== userId) {
+        throw new Error('내 문서만 복구할 수 있어.');
+    }
+
+    // 카테고리가 없으면 그냥 복구만
+    if (!doc.category_id) {
+        const { data: restored, error: restoreError } = await supabase
+            .from('documents')
+            .update({
+                deleted_at: null,
+                deleted_by: null,
+            })
+            .eq('id', documentId)
+            .eq('user_id', userId)
+            .select('*')
+            .single();
+
+        if (restoreError) throw restoreError;
+        return restored;
+    }
+
+    const categoryId = doc.category_id;
+
+    // 1) 현재 카테고리 상태 조회 (삭제 여부 포함)
+    const { data: category, error: catError } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('id', categoryId)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    if (catError) throw catError;
+
+    let targetCategoryId = categoryId;
+
+    // 1-1) 카테고리가 존재하고 삭제되지 않았다면 → 그대로 사용
+    if (category && !category.deleted_at) {
+        // 아무 처리 필요 없음
+    } else if (category && category.deleted_at) {
+        // 1-2) 카테고리가 soft delete 된 경우
+        const categoryName = category.name;
+
+        // 동일한 이름의 살아있는 카테고리가 있는지 먼저 확인
+        const { data: sameNameActive, error: sameNameError } = await supabase
+            .from('categories')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('name', categoryName)
+            .is('deleted_at', null)
+            .maybeSingle();
+
+        if (sameNameError) throw sameNameError;
+
+        if (sameNameActive) {
+            targetCategoryId = sameNameActive.id;
+        } else {
+            // 없으면 새 카테고리 생성
+            const { data: newCategory, error: newCatError } = await supabase
+                .from('categories')
+                .insert({
+                    user_id: userId,
+                    name: categoryName,
+                    parent_id: category.parent_id ?? null,
+                    sort_order: category.sort_order ?? 0,
+                })
+                .select('*')
+                .single();
+
+            if (newCatError) throw newCatError;
+            targetCategoryId = newCategory.id;
+        }
+    } else {
+        // category row 자체가 아예 없는 경우는
+        // 위에서 soft delete 로만 지우기로 했으니 이 케이스는 안 생기는 게 정상.
+        // 혹시 모를 경우 대비: 카테고리를 null 로 두고 복구.
+        targetCategoryId = null;
+    }
+
+    // 2) 문서 복구 + 카테고리 id 업데이트
+    const { data: restored, error: restoreError } = await supabase
+        .from('documents')
+        .update({
+            category_id: targetCategoryId,
+            deleted_at: null,
+            deleted_by: null,
+        })
+        .eq('id', documentId)
+        .eq('user_id', userId)
+        .select('*')
+        .single();
+
+    if (restoreError) throw restoreError;
+    return restored;
 }
 
 // ─────────────────────────────
@@ -574,12 +726,23 @@ export async function fetchMyProfile(userId) {
     return data;
 }
 
-export async function updateMyProfile(userId, { nickname }) {
+export async function updateMyProfile(userId, { nickname, email }) {
+    const payload = {
+        id: userId,
+        nickname,
+    };
+
+    // 새 row를 만들 때 NOT NULL 에 걸리지 않게 이메일도 넣어준다.
+    if (email) {
+        payload.email = email;
+    }
+
     const { data, error } = await supabase
         .from('profiles')
-        .upsert({ id: userId, nickname })
+        .upsert(payload)
         .select('*')
         .single();
+
     if (error) throw error;
     return data;
 }
@@ -604,6 +767,7 @@ export async function fetchVisibleCategories(userId) {
         .from('categories')
         .select('*')
         .eq('user_id', userId)
+        .is('deleted_at', null)
         .order('parent_id', { ascending: true, nullsFirst: true })
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true });
@@ -642,6 +806,7 @@ export async function fetchVisibleCategories(userId) {
         .from('categories')
         .select('*')
         .in('id', friendCategoryIds)
+        .is('deleted_at', null)
         .order('parent_id', { ascending: true, nullsFirst: true })
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true });
@@ -745,7 +910,12 @@ export async function fetchDeletedDocuments(userId) {
       visibility,
       created_at,
       updated_at,
-      deleted_at
+      deleted_at,
+      category:category_id (
+        id,
+        name,
+        deleted_at
+      )
     `
         )
         .eq('user_id', userId)
@@ -754,4 +924,21 @@ export async function fetchDeletedDocuments(userId) {
 
     if (error) throw error;
     return data ?? [];
+}
+
+// 🔹 문서의 카테고리 변경
+export async function updateDocumentCategory({ userId, documentId, categoryId }) {
+    const { data, error } = await supabase
+        .from('documents')
+        .update({
+            category_id: categoryId,
+            updated_at: new Date().toISOString(),
+        })
+        .eq('id', documentId)
+        .eq('user_id', userId)
+        .select('*')
+        .single();
+
+    if (error) throw error;
+    return data;
 }

@@ -4,10 +4,18 @@ import { useLocation } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import FriendsPage from '../../features/friends/FriendsPage';
+import MyInfoPanel from '../../features/account/MyInfoPanel'; // ✅ 새 패널
 
 export default function AppLayout({ children }) {
-    const [showFriends, setShowFriends] = useState(false);
-    const handleToggleFriends = () => setShowFriends((prev) => !prev);
+    const [activeSidePanel, setActiveSidePanel] = useState(null); // 'friends' | 'me' | null
+
+    const handleToggleFriends = () => {
+        setActiveSidePanel((prev) => (prev === 'friends' ? null : 'friends'));
+    };
+
+    const handleToggleMyInfo = () => {
+        setActiveSidePanel((prev) => (prev === 'me' ? null : 'me'));
+    };
 
     const location = useLocation();
     const path = location.pathname;
@@ -21,7 +29,11 @@ export default function AppLayout({ children }) {
         <div className="flex h-full flex-col bg-softbg">
             {/* 상단 헤더 */}
             <header className="shrink-0 border-b border-slate-200 bg-white/80 backdrop-blur">
-                <Header onToggleFriends={handleToggleFriends} />
+                <Header
+                    onToggleFriends={handleToggleFriends}
+                    onToggleMyInfo={handleToggleMyInfo}
+                    activeSidePanel={activeSidePanel}
+                />
             </header>
 
             {/* 아래 영역 */}
@@ -33,17 +45,18 @@ export default function AppLayout({ children }) {
                     </aside>
                 )}
 
-                {/* 우측: 메인 + 오른쪽 친구 패널 자리 */}
+                {/* 우측: 메인 + 오른쪽 패널 자리 */}
                 {isDocs ? (
                     <main className="flex-1 min-w-0 overflow-hidden">
                         <div className="relative mx-auto flex h-full w-full max-w-[100rem] flex-col pl-2 pr-2 py-6 lg:pl-6 lg:pr-[280px]">
                             {children}
 
-                            {/* 오른쪽 친구 패널 (데스크톱에서만) */}
-                            {showFriends && (
+                            {/* 오른쪽 패널 (데스크톱에서만) */}
+                            {activeSidePanel && (
                                 <div className="hidden lg:block absolute right-0 h-full w-[266px]">
                                     <div className="flex flex-col rounded-2xl max-h-[50rem] border border-slate-200 bg-white shadow-soft">
-                                        <FriendsPage />
+                                        {activeSidePanel === 'friends' && <FriendsPage />}
+                                        {activeSidePanel === 'me' && <MyInfoPanel />}
                                     </div>
                                 </div>
                             )}
@@ -54,11 +67,12 @@ export default function AppLayout({ children }) {
                         <div className="relative mx-auto flex w-full max-w-[90rem] flex-col pl-2 pr-2 py-6 lg:pl-6 lg:pr-20">
                             {children}
 
-                            {/* 오른쪽 친구 패널 (데스크톱에서만) */}
-                            {showFriends && (
+                            {/* 오른쪽 패널 (데스크톱에서만) */}
+                            {activeSidePanel && (
                                 <div className="hidden lg:block absolute right-[-200px] top-0 h-full w-[266px]">
                                     <div className="flex h-full flex-col rounded-2xl max-h-[50rem] border border-slate-200 bg-white shadow-soft">
-                                        <FriendsPage />
+                                        {activeSidePanel === 'friends' && <FriendsPage />}
+                                        {activeSidePanel === 'me' && <MyInfoPanel />}
                                     </div>
                                 </div>
                             )}
