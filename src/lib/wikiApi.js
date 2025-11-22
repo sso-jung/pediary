@@ -385,10 +385,13 @@ export async function fetchRecentActivity({ userId, limit = 20 }) {
 
 // 특정 날짜의 활동 조회
 export async function fetchDailyActivity(userId, dateStr) {
-    if (!dateStr) return [];
+    if (!userId || !dateStr) return [];
 
-    const start = `${dateStr} 00:00:00`;
-    const end = `${dateStr} 23:59:59`;
+    const [yyyy, mm, dd] = dateStr.split('-').map(Number);
+
+    // 🔹 로컬 기준 해당 날짜 00:00 ~ 다음날 00:00
+    const start = new Date(yyyy, mm - 1, dd);
+    const end = new Date(yyyy, mm - 1, dd + 1);
 
     const { data, error } = await supabase
         .from('document_activity')
@@ -407,23 +410,23 @@ export async function fetchDailyActivity(userId, dateStr) {
     `
         )
         .eq('user_id', userId)
-        .gte('created_at', start)
-        .lte('created_at', end)
+        .gte('created_at', start.toISOString())
+        .lt('created_at', end.toISOString())
         .order('created_at', { ascending: false });
 
     if (error) throw error;
     return (data ?? []).filter((row) => !row.documents?.deleted_at);
 }
+
 // 오늘 기준 활동만 가져오기
 export async function fetchTodayActivity(userId) {
+    if (!userId) return [];
+
     const now = new Date();
 
-    const yyyy = now.getFullYear();
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const dd = String(now.getDate()).padStart(2, '0');
-
-    const start = `${yyyy}-${mm}-${dd} 00:00:00`;
-    const end = `${yyyy}-${mm}-${dd} 23:59:59`;
+    // 🔹 로컬 타임존 기준 "오늘 00:00" ~ "내일 00:00"
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
     const { data, error } = await supabase
         .from('document_activity')
@@ -442,28 +445,24 @@ export async function fetchTodayActivity(userId) {
     `
         )
         .eq('user_id', userId)
-        .gte('created_at', start)
-        .lte('created_at', end)
+        // 🔹 UTC ISO 문자열로 비교 (created_at 이 timestamptz 라는 가정)
+        .gte('created_at', start.toISOString())
+        .lt('created_at', end.toISOString())   // 내일 00:00 "미만"
         .order('created_at', { ascending: false });
 
     if (error) throw error;
 
-    // 🔹 documents.deleted_at 이 있는(soft delete 된) 문서는 걸러냄
+    // soft delete 문서 제거
     return (data ?? []).filter((row) => !row.documents?.deleted_at);
 }
 
 export async function fetchMonthlyActivity(userId, year, month) {
     if (!userId || !year || !month) return [];
 
-    const yyyy = String(year);
-    const mm = String(month).padStart(2, '0');
-
-    const start = `${yyyy}-${mm}-01 00:00:00`;
-    const nextMonth = month === 12 ? 1 : month + 1;
-    const nextYear = month === 12 ? year + 1 : year;
-    const nextYyyy = String(nextYear);
-    const nextMm = String(nextMonth).padStart(2, '0');
-    const end = `${nextYyyy}-${nextMm}-01 00:00:00`;
+    // 🔹 로컬 기준 해당 월 1일 00:00 ~ 다음 달 1일 00:00
+    // month는 1~12로 들어온다고 가정
+    const start = new Date(year, month - 1, 1); // 해당 월의 1일 00:00 (로컬)
+    const end = new Date(year, month, 1);       // 다음 달 1일 00:00 (로컬)
 
     const { data, error } = await supabase
         .from('document_activity')
@@ -482,8 +481,8 @@ export async function fetchMonthlyActivity(userId, year, month) {
     `
         )
         .eq('user_id', userId)
-        .gte('created_at', start)
-        .lt('created_at', end)
+        .gte('created_at', start.toISOString()) // 월 시작(포함)
+        .lt('created_at', end.toISOString())    // 다음 달 시작(미만)
         .order('created_at', { ascending: false });
 
     if (error) throw error;

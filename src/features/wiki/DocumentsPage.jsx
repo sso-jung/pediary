@@ -72,7 +72,7 @@ export default function DocumentsPage() {
                                             className={
                                                 'inline-flex items-center rounded-full px-2 py-[2px] text-[10px] ' +
                                                 (doc.visibility === 'friends'
-                                                    ? 'bg-fuchsia-50 text-fuchsia-700'
+                                                    ? 'bg-purple-100 text-purple-700'
                                                     : 'bg-slate-100 text-slate-500')
                                             }
                                         >

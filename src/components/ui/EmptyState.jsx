@@ -1,6 +1,6 @@
 // src/components/ui/EmptyState.jsx
 export default function EmptyState({
-    icon = 'docs', // 'docs' | 'trash' | 'friends' 등
+    icon = 'docs', // 'docs' | 'trash' | 'friends' | 'calendar' | 'stats' | 'profile' | 'lock'
     title,
     description,
 }) {
@@ -76,6 +76,159 @@ export default function EmptyState({
                         stroke="currentColor"
                         strokeWidth="1.6"
                         strokeLinecap="round"
+                    />
+                </svg>
+            );
+        }
+
+        // 🗓 달력(캘린더) 아이콘 - 오늘활동/다이어리 빈 상태 등에
+        if (icon === 'calendar') {
+            return (
+                <svg
+                    viewBox="0 0 24 24"
+                    className="h-7 w-7 text-violet-400"
+                    aria-hidden="true"
+                >
+                    <rect
+                        x="3"
+                        y="4"
+                        width="18"
+                        height="17"
+                        rx="2"
+                        ry="2"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                    />
+                    <path
+                        d="M3 9h18"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                    />
+                    <path
+                        d="M8 3v4M16 3v4"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                    />
+                    <circle cx="9" cy="13" r="0.9" fill="currentColor" />
+                    <circle cx="13" cy="13" r="0.9" fill="currentColor" />
+                    <circle cx="17" cy="13" r="0.9" fill="currentColor" />
+                </svg>
+            );
+        }
+
+        // 📊 통계/분석 아이콘 - 내정보 통계, 활동 기록 등
+        if (icon === 'stats') {
+            return (
+                <svg
+                    viewBox="0 0 24 24"
+                    className="h-7 w-7 text-indigo-300"
+                    aria-hidden="true"
+                >
+                    <path
+                        d="M4 19h16"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                    />
+                    <rect
+                        x="5"
+                        y="11"
+                        width="3"
+                        height="6"
+                        rx="1"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                    />
+                    <rect
+                        x="10.5"
+                        y="7"
+                        width="3"
+                        height="10"
+                        rx="1"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                    />
+                    <rect
+                        x="16"
+                        y="9"
+                        width="3"
+                        height="8"
+                        rx="1"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                    />
+                </svg>
+            );
+        }
+
+        // 🙂 프로필/내정보 아이콘
+        if (icon === 'profile') {
+            return (
+                <svg
+                    viewBox="0 0 24 24"
+                    className="h-7 w-7 text-amber-300"
+                    aria-hidden="true"
+                >
+                    <circle
+                        cx="12"
+                        cy="9"
+                        r="3"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                    />
+                    <path
+                        d="M5 19a7 7 0 0 1 14 0"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                    />
+                </svg>
+            );
+        }
+
+        // 🔒 보안/비밀번호 관련 빈 상태
+        if (icon === 'lock') {
+            return (
+                <svg
+                    viewBox="0 0 24 24"
+                    className="h-7 w-7 text-slate-300"
+                    aria-hidden="true"
+                >
+                    <rect
+                        x="5"
+                        y="11"
+                        width="14"
+                        height="9"
+                        rx="2"
+                        ry="2"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                    />
+                    <path
+                        d="M9 11V8a3 3 0 0 1 6 0v3"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                    />
+                    <circle
+                        cx="12"
+                        cy="15"
+                        r="1"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
                     />
                 </svg>
             );

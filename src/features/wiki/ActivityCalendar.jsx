@@ -2,6 +2,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMonthlyActivity } from './hooks/useMonthlyActivity';
+import { getLocalDateKey } from '../../lib/dateUtils';
 
 // 색상: 열람=노랑, 수정=파랑, 작성=보라
 const ACTION_STYLES = {
@@ -39,7 +40,8 @@ export default function ActivityCalendar() {
 
         for (const item of data) {
             const d = new Date(item.created_at);
-            const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
+//             const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
+            const key = getLocalDateKey(item.created_at);
             const doc = item.documents;
             const docId = doc?.id;
             if (!docId) continue;

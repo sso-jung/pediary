@@ -12,6 +12,7 @@ import {
     useDeleteFriendRelation,
 } from './hooks/useFriendMutations';
 import Button from '../../components/ui/Button';
+import EmptyState from '../../components/ui/EmptyState';
 
 export default function FriendsPage() {
     const user = useAuthStore((s) => s.user);
@@ -148,10 +149,13 @@ export default function FriendsPage() {
 function FriendsList({ friends = [], onDelete }) {
     if (!friends.length) {
         return (
-            <p className="text-[11px] text-slate-400">
-                아직 친구가 없어요. <br />
-                &quot;친구 찾기&quot; 탭에서 친구를 추가해 보세요.
-            </p>
+            <EmptyState
+                icon="friends"
+                title="아직 친구가 없어."
+                description={
+                    '친구 찾기 탭에서 친구를 추가하면, 친구의 문서도 열람할 수 있어.'
+                }
+            />
         );
     }
 

@@ -3,6 +3,7 @@ import {useEffect, useState} from 'react';
 import { Link } from 'react-router-dom';
 import { useTodayActivity } from './hooks/useTodayActivity';
 import ActivityCalendar from './ActivityCalendar';
+import EmptyState from '../../components/ui/EmptyState';
 
 const HOME_VIEW_MODE_KEY = 'pediary-home-view-mode';
 
@@ -44,7 +45,7 @@ export default function WikiPage() {
     }
 
     return (
-        <div className="flex h-full min-h-0 flex-col">
+        <div className="flex h-full min-h-[800px] flex-col">
             {/* 상단 인사 + 토글 버튼 */}
             <section className="shrink-0">
                 <div className="flex items-center justify-between gap-3">
@@ -95,9 +96,13 @@ export default function WikiPage() {
                         활동 기록을 불러오는 중...
                     </p>
                 ) : !activity || activity.length === 0 ? (
-                    <p className="mt-3 text-xs text-slate-500">
-                        아직 오늘 활동 기록이 없어. 문서를 하나 만들어보자!
-                    </p>
+                    <EmptyState
+                        icon="calendar"
+                        title="아직 오늘 활동 기록이 없어."
+                        description={
+                            '문서를 읽고 쓴 모든 기록을 여기에서 확인할 수 있어.'
+                        }
+                    />
                 ) : (
                     // 🔹 오늘 활동 카드 리스트
                     <ul className="mt-3 space-y-2 text-xs">

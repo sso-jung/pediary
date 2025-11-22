@@ -69,7 +69,7 @@ export default function AppLayout({ children }) {
 
                             {/* 오른쪽 패널 (데스크톱에서만) */}
                             {activeSidePanel && (
-                                <div className="hidden lg:block absolute right-[-200px] top-0 h-full w-[266px]">
+                                <div className="hidden lg:block absolute right-[-200px] top-[24px] h-full w-[266px]">
                                     <div className="flex h-full flex-col rounded-2xl max-h-[50rem] border border-slate-200 bg-white shadow-soft">
                                         {activeSidePanel === 'friends' && <FriendsPage />}
                                         {activeSidePanel === 'me' && <MyInfoPanel />}
