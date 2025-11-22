@@ -1,12 +1,15 @@
+// src/components/layout/Sidebar.jsx
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCategories } from '../../features/wiki/hooks/useCategories';
 import { useCreateCategory } from '../../features/wiki/hooks/useCreateCategory';
+import { useAuthStore } from '../../store/authStore';
 import Button from '../ui/Button';
 
 export default function Sidebar() {
     const { data: categories, isLoading } = useCategories();
     const createCategoryMutation = useCreateCategory();
+    const user = useAuthStore((s) => s.user);
 
     const [newCategoryName, setNewCategoryName] = useState('');
 
@@ -35,6 +38,9 @@ export default function Sidebar() {
     const getIsActive = (catId) => {
         return location.pathname.startsWith(`/category/${catId}`);
     };
+
+    const isAllActive = location.pathname === '/docs';
+    const isTrashActive = location.pathname === '/trash';
 
     return (
         <div className="flex h-full flex-col gap-4 p-4">
@@ -74,25 +80,73 @@ export default function Sidebar() {
                     </p>
                 ) : (
                     <ul className="space-y-1 text-sm">
+                        {/* 🔹 맨 위 '전체' */}
+                        <li
+                            onClick={() => navigate('/docs')}
+                            className={`rounded-lg px-2 py-1 cursor-pointer transition ${
+                                isAllActive
+                                    ? 'bg-primary-100 text-primary-700 font-medium'
+                                    : 'text-slate-700 hover:bg-primary-50'
+                            }`}
+                        >
+                            전체
+                        </li>
+
                         {categories.map((cat) => {
                             const active = getIsActive(cat.id);
+                            const isMine = cat.user_id === user?.id;
+
                             return (
                                 <li
                                     key={cat.id}
                                     onClick={() => handleClickCategory(cat.id)}
-                                    className={`rounded-lg px-2 py-1 cursor-pointer transition ${
+                                    className={`flex items-center justify-between rounded-lg px-2 py-1 cursor-pointer transition ${
                                         active
                                             ? 'bg-primary-100 text-primary-700 font-medium'
                                             : 'text-slate-700 hover:bg-primary-50'
                                     }`}
                                 >
-                                    {cat.name}
+                                    <span>{cat.name}</span>
+
+                                    {!isMine && (
+                                        <span className="ml-2 inline-flex items-center rounded-full bg-fuchsia-50 px-2 py-[1px] text-[10px] text-fuchsia-700">
+                                            친구 공유
+                                        </span>
+                                    )}
                                 </li>
                             );
                         })}
                     </ul>
                 )}
             </div>
+
+            {/* 🔹 휴지통 버튼 */}
+            <button
+                type="button"
+                onClick={() => navigate('/trash')}
+                className={`mt-2 inline-flex items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-medium transition ${
+                    isTrashActive
+                        ? 'border-rose-200 bg-rose-50 text-rose-600'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600'
+                }`}
+            >
+                <svg
+                    className="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.7"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                >
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                    <path d="M10 11v6" />
+                    <path d="M14 11v6" />
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                </svg>
+                <span>휴지통</span>
+            </button>
         </div>
     );
 }

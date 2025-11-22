@@ -3,17 +3,90 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { Editor } from '@toast-ui/react-editor';
 import '@toast-ui/editor/dist/toastui-editor.css';
 
+// 🔹 한 문서의 마크다운에서 헤딩(섹션) 정보 뽑기
+function extractSectionsFromMarkdown(markdown) {
+    if (!markdown) return [];
+
+    const lines = markdown.split('\n');
+    const counters = [0, 0, 0, 0, 0, 0, 0]; // 1~6 레벨 카운터
+    const sections = [];
+
+    for (const line of lines) {
+        const match = line.match(/^(#{1,6})\s+(.*)$/); // "# 제목" ~ "###### 제목"
+        if (!match) continue;
+
+        const hashes = match[1];
+        const level = hashes.length;
+        const rawText = match[2].trim();
+
+        counters[level] += 1;
+        for (let i = level + 1; i < counters.length; i++) {
+            counters[i] = 0;
+        }
+        const nums = counters.slice(1, level + 1).filter((n) => n > 0);
+        const number = nums.join('.'); // "1", "1.1", "1.1.1" ...
+
+        sections.push({
+            level,
+            number,  // "1.1"
+            text: rawText, // "고기"
+        });
+    }
+
+    return sections;
+}
+
+// 🔹 "열려 있는 [[... 링크 조각" 찾기
+function findOpenInternalLink(markdown) {
+    if (!markdown) return { open: false };
+
+    // 문서 전체에서 마지막 [[ 위치
+    const idx = markdown.lastIndexOf('[[');
+    if (idx === -1) return { open: false };
+
+    const after = markdown.slice(idx + 2);
+
+    // 🔹 idx 이후에 ]]가 하나라도 나오면 → 이미 닫힌 링크로 보고 자동완성 안 띄움
+    if (after.includes(']]')) {
+        return { open: false };
+    }
+
+    // 🔹 아직 ]]가 없다면 "열려 있는 [[조각" 이라고 보고,
+    //    공백/줄바꿈 전까지를 검색어로 사용
+    let endIdx = after.length;
+    const newlineIdx = after.search(/[\r\n]/);
+    const spaceIdx = after.search(/\s/);
+
+    if (newlineIdx !== -1 && newlineIdx < endIdx) endIdx = newlineIdx;
+    if (spaceIdx !== -1 && spaceIdx < endIdx) endIdx = spaceIdx;
+
+    const segment = after.slice(0, endIdx);
+    const tail = after.slice(endIdx);
+
+    return {
+        open: true,
+        index: idx,      // [[ 위치
+        query: segment,  // 검색어
+        segmentLength: segment.length,
+        tail,            // 그 이후 나머지
+    };
+}
+
 export default function MarkdownEditor({ value, onChange, allDocs = [] }) {
     const editorRef = useRef(null);
-    const wrapperRef = useRef(null);
-    const lastKeyRef = useRef(null);
 
     // 🔹 내부 링크 자동완성 팝업 상태
     const [isLinkPaletteOpen, setIsLinkPaletteOpen] = useState(false);
     const [linkQuery, setLinkQuery] = useState('');
     const [highlightIndex, setHighlightIndex] = useState(0);
 
-    // 외부에서 content가 바뀌었을 때 에디터도 동기화
+    // 팝업 열림 상태 ref (keydown에서 최신값 쓰려고)
+    const isLinkPaletteOpenRef = useRef(false);
+    useEffect(() => {
+        isLinkPaletteOpenRef.current = isLinkPaletteOpen;
+    }, [isLinkPaletteOpen]);
+
+    // 🔹 외부 value → 에디터 동기화
     useEffect(() => {
         const instance = editorRef.current?.getInstance();
         if (!instance) return;
@@ -24,141 +97,224 @@ export default function MarkdownEditor({ value, onChange, allDocs = [] }) {
         }
     }, [value]);
 
+    // 🔹 에디터 내용 변경 시
     const handleChange = () => {
         const instance = editorRef.current?.getInstance();
         if (!instance) return;
-        const markdown = instance.getMarkdown(); // DB에는 계속 markdown으로 저장
+
+        const markdown = instance.getMarkdown() || '';
         onChange(markdown);
-    };
 
-    // 🔹 문서 목록 필터링 (제목 기준)
-    const filteredDocs = useMemo(() => {
-        const q = linkQuery.trim().toLowerCase();
-        if (!q) return allDocs || [];
-        return (allDocs || []).filter((doc) =>
-            doc.title?.toLowerCase().includes(q),
-        );
-    }, [allDocs, linkQuery]);
+        const info = findOpenInternalLink(markdown);
 
-    // 🔹 전역 keydown: [[ 입력 감지 + 팝업 열린 상태에서의 조작
-    useEffect(() => {
-        const handleKey = (e) => {
-            const active = document.activeElement;
-            const isInEditor =
-                wrapperRef.current &&
-                active &&
-                wrapperRef.current.contains(active);
-
-            // ────────────────
-            // 1) 팝업이 열려있을 때의 조작
-            // ────────────────
-            if (isLinkPaletteOpen) {
-                // Esc → 닫기
-                if (e.key === 'Escape') {
-                    e.preventDefault();
-                    setIsLinkPaletteOpen(false);
-                    setLinkQuery('');
-                    setHighlightIndex(0);
-                    return;
-                }
-
-                // 방향키로 선택 이동
-                if (e.key === 'ArrowDown') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setHighlightIndex((prev) => {
-                        if (filteredDocs.length === 0) return 0;
-                        return (prev + 1) % filteredDocs.length;
-                    });
-                    return;
-                }
-                if (e.key === 'ArrowUp') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setHighlightIndex((prev) => {
-                        if (filteredDocs.length === 0) return 0;
-                        return (prev - 1 + filteredDocs.length) % filteredDocs.length;
-                    });
-                    return;
-                }
-
-                // Enter → 선택된 문서를 [[제목]] 형식으로 삽입
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const doc = filteredDocs[highlightIndex];
-                    if (!doc) return;
-
-                    const instance = editorRef.current?.getInstance();
-                    if (!instance) return;
-
-                    // 사용자가 이미 [[ 을 타이핑한 상태이므로
-                    // 여기서 "제목]]" 만 넣어주면 최종적으로 [[제목]] 이 됨
-                    instance.insertText(`${doc.title}]]`);
-
-                    setIsLinkPaletteOpen(false);
-                    setLinkQuery('');
-                    setHighlightIndex(0);
-                    lastKeyRef.current = null;
-                    return;
-                }
-
-                // 일반 문자 입력 → 검색어로 사용
-                if (
-                    e.key.length === 1 &&
-                    !e.ctrlKey &&
-                    !e.metaKey &&
-                    !e.altKey
-                ) {
-                    e.preventDefault();
-                    setLinkQuery((prev) => prev + e.key);
-                    return;
-                }
-
-                // Backspace → 검색어 지우기
-                if (e.key === 'Backspace') {
-                    e.preventDefault();
-                    setLinkQuery((prev) => prev.slice(0, -1));
-                    return;
-                }
-
-                return; // 팝업 열려있으면 여기서 처리 끝
-            }
-
-            // ────────────────
-            // 2) 팝업이 닫혀있을 때: 에디터 안에서 [[ 입력 감지
-            // ────────────────
-            if (!isInEditor) {
-                lastKeyRef.current = e.key;
-                return;
-            }
-
-            // Ctrl, Cmd 등 조합키는 무시 (Ctrl+K 검색과 충돌 방지)
-            if (e.ctrlKey || e.metaKey || e.altKey) {
-                lastKeyRef.current = e.key;
-                return;
-            }
-
-            if (e.key === '[' && lastKeyRef.current === '[') {
-                // 사용자가 에디터 안에서 [[ 를 입력한 시점
-                setIsLinkPaletteOpen(true);
+        if (!info.open) {
+            // 열려 있는 [[ 조각이 없으면 팝업 닫기
+            if (isLinkPaletteOpenRef.current) {
+                setIsLinkPaletteOpen(false);
                 setLinkQuery('');
                 setHighlightIndex(0);
-                // [[ 자체는 에디터에 그대로 들어가도록 preventDefault 안 함
+            }
+            return;
+        }
+
+        // 열려 있는 [[조각이 있으면 → 팝업 열고 검색어 업데이트
+        if (!isLinkPaletteOpenRef.current) {
+            setIsLinkPaletteOpen(true);
+            setHighlightIndex(0);
+        }
+        setLinkQuery(info.query || '');
+    };
+
+    // 🔹 링크 후보: 문서 단위 + 섹션 단위 모두 포함
+    const linkCandidates = useMemo(() => {
+        if (!Array.isArray(allDocs)) return [];
+
+        const result = [];
+
+        for (const doc of allDocs) {
+            if (!doc?.title || !doc?.slug) continue;
+
+            // 1) 문서 자체 링크 후보 ([[요리]])
+            result.push({
+                type: 'doc',
+                docId: doc.id,
+                docTitle: doc.title,
+                slug: doc.slug,
+            });
+
+            // 2) 섹션 링크 후보 ([[요리#1.1|고기]])
+            const sections = extractSectionsFromMarkdown(doc.content_markdown || '');
+            for (const s of sections) {
+                result.push({
+                    type: 'section',
+                    docId: doc.id,
+                    docTitle: doc.title,
+                    slug: doc.slug,
+                    sectionNumber: s.number, // "1.1"
+                    headingText: s.text,     // "고기"
+                    level: s.level,
+                });
+            }
+        }
+
+        return result;
+    }, [allDocs]);
+
+    // 🔹 linkQuery 로 후보 필터링
+    const filteredCandidates = useMemo(() => {
+        const q = linkQuery.trim().toLowerCase();
+        if (!q) return linkCandidates;
+
+        return linkCandidates.filter((item) => {
+            const title = item.docTitle?.toLowerCase() || '';
+
+            if (item.type === 'doc') {
+                // 문서 전체 후보: 제목이 검색어로 "시작"하면
+                return title.startsWith(q);
+            } else {
+                // 섹션 후보: 섹션 제목 또는 문서 제목이 검색어로 시작하면
+                const heading = item.headingText?.toLowerCase() || '';
+                return heading.startsWith(q) || title.startsWith(q);
+            }
+        });
+    }, [linkCandidates, linkQuery]);
+
+    // 🔹 [[ + 검색어 → [[제목]] / [[제목#1.1|고기]] 으로 치환
+    const applyInternalLink = (item) => {
+        if (!item) return;
+
+        const instance = editorRef.current?.getInstance();
+        if (!instance) return;
+
+        const markdown = instance.getMarkdown() || '';
+        const info = findOpenInternalLink(markdown);
+
+        // 삽입할 문자열 결정
+        let insertion = '';
+        if (item.type === 'doc') {
+            // [[요리]]
+            insertion = `[[${item.docTitle}]]`;
+        } else if (item.type === 'section') {
+            // [[요리#1.1|고기]]
+            insertion = `[[${item.docTitle}#${item.sectionNumber}|${item.headingText}]]`;
+        }
+
+        let newMarkdown;
+
+        if (!info.open) {
+            // 혹시 못 찾으면 그냥 현재 위치에 삽입
+            instance.insertText(insertion);
+            newMarkdown = instance.getMarkdown() || '';
+        } else {
+            const { index, tail } = info;
+            const before = markdown.slice(0, index); // [[ 이전 전체
+            newMarkdown = before + insertion + tail;
+            instance.setMarkdown(newMarkdown);
+        }
+
+        onChange(newMarkdown);
+
+        setIsLinkPaletteOpen(false);
+        setLinkQuery('');
+        setHighlightIndex(0);
+
+        // 커서를 삽입된 ]] 뒤로 옮기기
+        const caretIndex = newMarkdown.indexOf(insertion) + insertion.length;
+        if (caretIndex > 1) {
+            const textBeforeCaret = newMarkdown.slice(0, caretIndex);
+            const lines = textBeforeCaret.split('\n');
+            const line = lines.length - 1;
+            const ch = lines[lines.length - 1].length;
+
+            if (instance.setSelection) {
+                instance.setSelection({ line, ch }, { line, ch });
+            }
+            if (instance.focus) {
+                instance.focus();
+            }
+        }
+    };
+
+    // 🔹 Esc: [[ + 검색어 조각 삭제
+    const cancelInternalLink = () => {
+        const instance = editorRef.current?.getInstance();
+        if (!instance) return;
+
+        const markdown = instance.getMarkdown() || '';
+        const info = findOpenInternalLink(markdown);
+        if (!info.open) {
+            // 열려 있는 조각 없으면 그냥 팝업만 닫기
+            setIsLinkPaletteOpen(false);
+            setLinkQuery('');
+            setHighlightIndex(0);
+            return;
+        }
+
+        const { index, tail } = info;
+        const before = markdown.slice(0, index); // [[ 이전
+        // [[ + 검색어 부분 제거하고 tail만 남김
+        const newMarkdown = before + tail;
+
+        instance.setMarkdown(newMarkdown);
+        onChange(newMarkdown);
+
+        setIsLinkPaletteOpen(false);
+        setLinkQuery('');
+        setHighlightIndex(0);
+    };
+
+    // 🔹 keydown: 팝업 열려 있는 동안 ↑↓ / Enter / Esc 처리
+    useEffect(() => {
+        const handleKey = (e) => {
+            if (!isLinkPaletteOpenRef.current) return;
+
+            // 조합키는 무시
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                cancelInternalLink();
+                return;
             }
 
-            lastKeyRef.current = e.key;
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                e.stopPropagation();
+                setHighlightIndex((prev) => {
+                    if (filteredCandidates.length === 0) return 0;
+                    return (prev + 1) % filteredCandidates.length;
+                });
+                return;
+            }
+
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                e.stopPropagation();
+                setHighlightIndex((prev) => {
+                    if (filteredCandidates.length === 0) return 0;
+                    return (prev - 1 + filteredCandidates.length) % filteredCandidates.length;
+                });
+                return;
+            }
+
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                const item = filteredCandidates[highlightIndex];
+                if (item) applyInternalLink(item);
+                return;
+            }
+
+            // 나머지 키는 에디터에 맡기고, onChange에서 markdown 기준으로 다시 계산
         };
 
         window.addEventListener('keydown', handleKey, true);
         return () => window.removeEventListener('keydown', handleKey, true);
-    }, [isLinkPaletteOpen, filteredDocs, highlightIndex]);
+    }, [filteredCandidates, highlightIndex]);
 
     return (
-        <div
-            ref={wrapperRef}
-            className="relative rounded-xl border border-slate-200 bg-white"
-        >
+        <div className="relative rounded-xl border border-slate-200 bg-white">
             <Editor
                 ref={editorRef}
                 initialValue={value || ''}
@@ -183,7 +339,7 @@ export default function MarkdownEditor({ value, onChange, allDocs = [] }) {
                     <div className="border-b border-slate-100 px-3 py-2 text-[11px] text-slate-500">
                         <span className="font-semibold">내부 링크 추가</span>
                         <span className="ml-2 text-[10px] text-slate-400">
-                            제목을 타이핑해서 문서를 찾아봐. ↑↓ / Enter / Esc
+                            제목이나 섹션을 타이핑해. ↑↓ / Enter / Esc
                         </span>
                     </div>
                     <div className="px-3 py-2">
@@ -193,15 +349,23 @@ export default function MarkdownEditor({ value, onChange, allDocs = [] }) {
                                 {linkQuery || ' '}
                             </span>
                         </div>
-                        {filteredDocs.length === 0 ? (
+                        {filteredCandidates.length === 0 ? (
                             <div className="rounded-lg bg-slate-50 px-2 py-2 text-[11px] text-slate-400">
                                 일치하는 문서가 없어.
                             </div>
                         ) : (
                             <ul className="max-h-52 space-y-1 overflow-y-auto py-1 text-[12px]">
-                                {filteredDocs.map((doc, idx) => (
+                                {filteredCandidates.map((item, idx) => (
                                     <li
-                                        key={doc.id}
+                                        key={
+                                            item.type === 'doc'
+                                                ? `doc-${item.docId}`
+                                                : `sec-${item.docId}-${item.sectionNumber}-${item.headingText}`
+                                        }
+                                        onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            applyInternalLink(item);
+                                        }}
                                         className={
                                             'cursor-pointer rounded-lg px-2 py-1 ' +
                                             (idx === highlightIndex
@@ -209,12 +373,25 @@ export default function MarkdownEditor({ value, onChange, allDocs = [] }) {
                                                 : 'text-slate-700 hover:bg-slate-50')
                                         }
                                     >
-                                        <div className="truncate font-medium">
-                                            {doc.title}
-                                        </div>
-                                        <div className="truncate text-[10px] text-slate-400">
-                                            /wiki/{doc.slug}
-                                        </div>
+                                        {item.type === 'doc' ? (
+                                            <>
+                                                <div className="truncate font-medium">
+                                                    {item.docTitle}
+                                                </div>
+                                                <div className="truncate text-[10px] text-slate-400">
+                                                    /wiki/{item.slug}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="truncate font-medium">
+                                                    {item.headingText}
+                                                </div>
+                                                <div className="truncate text-[10px] text-slate-400">
+                                                    {item.docTitle} · {item.sectionNumber}
+                                                </div>
+                                            </>
+                                        )}
                                     </li>
                                 ))}
                             </ul>

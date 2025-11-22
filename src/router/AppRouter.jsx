@@ -9,6 +9,8 @@ import { useAuthStore } from '../store/authStore';
 import CalendarPage from "../features/wiki/CalendarPage.jsx";
 import WikiQuickSearch from "../features/wiki/WikiQuickSearch.jsx";
 import FriendsPage from "../features/friends/FriendsPage.jsx";
+import DocumentsPage from '../features/wiki/DocumentsPage.jsx';
+import TrashPage from '../features/wiki/TrashPage.jsx';
 
 function ProtectedRoute({ children }) {
     const { user, loading } = useAuthStore();
@@ -32,13 +34,37 @@ export default function AppRouter() {
     return (
         <BrowserRouter>
             <Routes>
-                {/* 홈: 간단한 환영/안내 화면 */}
+                {/* 홈: 오늘 활동 / 다이어리 페이지 */}
                 <Route
                     path="/"
                     element={
                         <ProtectedRoute>
                             <AppLayout>
                                 <WikiPage />
+                            </AppLayout>
+                        </ProtectedRoute>
+                    }
+                />
+
+                {/* 🔹 문서 탭: 전체 문서 목록 */}
+                <Route
+                    path="/docs"
+                    element={
+                        <ProtectedRoute>
+                            <AppLayout>
+                                <DocumentsPage />
+                            </AppLayout>
+                        </ProtectedRoute>
+                    }
+                />
+
+                {/* 🔹 휴지통 */}
+                <Route
+                    path="/trash"
+                    element={
+                        <ProtectedRoute>
+                            <AppLayout>
+                                <TrashPage />
                             </AppLayout>
                         </ProtectedRoute>
                     }
@@ -71,9 +97,23 @@ export default function AppRouter() {
                 {/* Auth */}
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
-                <Route path="/calendar" element={<CalendarPage />} />
+
+                {/* (필요하면 여기도 ProtectedRoute로 감싸도 됨) */}
+                <Route
+                    path="/calendar"
+                    element={
+                        <ProtectedRoute>
+                            <AppLayout>
+                                <CalendarPage />
+                            </AppLayout>
+                        </ProtectedRoute>
+                    }
+                />
             </Routes>
+
+            {/* 전역 단축키 검색 (Ctrl+K) */}
             <WikiQuickSearch />
         </BrowserRouter>
     );
 }
+

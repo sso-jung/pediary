@@ -8,12 +8,13 @@ export function useUpdateDocument(documentId, slug) {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({ title, contentMarkdown }) =>
+        mutationFn: ({ title, contentMarkdown, visibility }) =>
             updateDocument({
                 userId: user.id,
                 documentId,
                 title,
                 contentMarkdown,
+                visibility,
             }),
         onSuccess: (updatedDoc) => {
             queryClient.invalidateQueries(['document', user.id, slug]);

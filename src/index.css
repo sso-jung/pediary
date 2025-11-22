@@ -65,3 +65,17 @@ body {
   text-decoration: none; /* hover에도 밑줄 X */
   color: #1d4ed8;        /* 살짝 더 진한 파랑 */
 }
+
+/* Toast UI Viewer / Editor 안의 링크 공통 스타일 */
+.toastui-editor-contents a,
+.toastui-viewer-contents a {
+  color: #4566c4 !important;
+  text-decoration: none !important;
+  font-weight: 600 !important;
+}
+
+.toastui-editor-contents a:hover,
+.toastui-viewer-contents a:hover {
+  text-decoration: none; /* hover에도 밑줄 X */
+  color: #193ea6 !important;        /* 살짝 더 진한 파랑 */
+}

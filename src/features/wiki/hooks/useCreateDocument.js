@@ -8,8 +8,8 @@ export function useCreateDocument(categoryId) {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: ({ title }) =>
-            createDocument({ userId: user.id, categoryId, title }),
+        mutationFn: ({ title, visibility }) =>
+            createDocument({ userId: user.id, categoryId, title, visibility }),
         onSuccess: async (newDoc) => {
             queryClient.invalidateQueries(['documents', user.id, categoryId]);
 

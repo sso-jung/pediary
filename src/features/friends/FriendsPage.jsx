@@ -130,6 +130,7 @@ export default function FriendsPage() {
                         setKeyword={setKeyword}
                         profiles={profiles}
                         userId={userId}
+                        friends={friends}                // ✅ 추가
                         onSendRequest={(friendId) =>
                             sendReq.mutate({ friendId })
                         }
@@ -156,32 +157,45 @@ function FriendsList({ friends = [], onDelete }) {
 
     return (
         <ul className="space-y-1">
-            {friends.map((f) => (
-                <li
-                    key={f.id}
-                    className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1.5"
-                >
-                    <div className="flex flex-col">
-                        <span className="text-[11px] font-medium text-slate-800">
-                            친구 ID: {f.friend_id}
-                        </span>
-                        <span className="text-[10px] text-slate-400">
-                            {new Date(f.created_at).toLocaleDateString(
-                                'ko-KR',
-                            )}{' '}
-                            친구가 되었어요.
-                        </span>
-                    </div>
-                    <Button
-                        type="button"
-                        size="xs"
-                        variant="ghost"
-                        onClick={() => onDelete(f.id)}
+            {friends.map((f) => {
+                const profile = f.friend_profile;
+                const displayName =
+                    profile?.nickname || profile?.email || f.friend_id;
+
+                return (
+                    <li
+                        key={f.id}
+                        className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1.5"
                     >
-                        삭제
-                    </Button>
-                </li>
-            ))}
+                        <div className="flex flex-col">
+                            {/* ✅ 닉네임 > 이메일 > id 순으로 표시 */}
+                            <span className="text-[11px] font-medium text-slate-800">
+                                {displayName}
+                            </span>
+                            {profile?.nickname && (
+                                <span className="text-[10px] text-slate-400">
+                                    {profile.email}
+                                </span>
+                            )}
+                            <span className="text-[10px] text-slate-400">
+                                {new Date(f.created_at).toLocaleDateString(
+                                    'ko-KR',
+                                )}{' '}
+                                친구가 되었어요.
+                            </span>
+                        </div>
+                        <Button
+                            type="button"
+                            size="xs"
+                            variant="ghost"
+                            className="px-[10px] py-[2pt] text-[8.5pt]"
+                            onClick={() => onDelete(f.id)}
+                        >
+                            삭제
+                        </Button>
+                    </li>
+                );
+            })}
         </ul>
     );
 }
@@ -219,7 +233,7 @@ function SentRequests({ outgoing = [], onCancel }) {
                             type="button"
                             size="xs"
                             variant="ghost"
-                            className="px-2 py-[2px] text-[10px]"
+                            className="px-[8pt] py-[2pt] text-[8.5pt]"
                             onClick={() => onCancel(r.id)}
                         >
                             요청 취소
@@ -269,7 +283,7 @@ function FriendRequests({ incoming = [], onAccept, onReject }) {
                             <Button
                                 type="button"
                                 size="xs"
-                                className="px-2 py-[2px] text-[10px]"
+                                className="px-[8px] py-[2pt] text-[8.5pt]"
                                 onClick={() => onAccept(r.id)}
                             >
                                 수락
@@ -278,7 +292,7 @@ function FriendRequests({ incoming = [], onAccept, onReject }) {
                                 type="button"
                                 size="xs"
                                 variant="ghost"
-                                className="px-2 py-[2px] text-[10px]"
+                                className="px-[8px] py-[2pt] text-[8.5pt]"
                                 onClick={() => onReject(r.id)}
                             >
                                 거절
@@ -293,12 +307,13 @@ function FriendRequests({ incoming = [], onAccept, onReject }) {
 
 
 function FriendSearch({
-                          keyword,
-                          setKeyword,
-                          profiles = [],
-                          userId,
-                          onSendRequest,
-                      }) {
+    keyword,
+    setKeyword,
+    profiles = [],
+    userId,
+    friends = [],        // ✅ 추가
+    onSendRequest,
+}) {
     return (
         <div className="space-y-2">
             <div className="space-y-1">
@@ -323,33 +338,76 @@ function FriendSearch({
                 </p>
             ) : (
                 <ul className="space-y-1">
-                    {profiles.map((p) => (
-                        <li
-                            key={p.id}
-                            className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1.5"
-                        >
-                            <div className="flex flex-col">
-                                {/* 닉네임이 있으면 닉네임, 없으면 이메일을 메인으로 */}
-                                <span className="text-[11px] font-medium text-slate-800">
-                                    {p.nickname || p.email}
-                                </span>
-                                {p.nickname && (
-                                    <span className="text-[10px] text-slate-400">
-                                        {p.email}
-                                    </span>
-                                )}
-                            </div>
-                            <Button
-                                type="button"
-                                size="xs"
-                                className="px-[7px] py-[3px] text-[9pt]"
-                                disabled={p.id === userId}
-                                onClick={() => onSendRequest(p.id)}
+                    {profiles.map((p) => {
+                        const isSelf = p.id === userId;
+                        const isFriend = friends?.some((f) => f.friend_id === p.id);
+
+                        // 표시 이름: 닉네임 > 이메일
+                        const displayName = p.nickname || p.email;
+
+                        return (
+                            <li
+                                key={p.id}
+                                className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1.5"
                             >
-                                친구 요청
-                            </Button>
-                        </li>
-                    ))}
+                                <div className="flex flex-col">
+                                    <span className="text-[11px] font-medium text-slate-800">
+                                        {displayName}
+                                    </span>
+                                    {p.nickname && (
+                                        <span className="text-[10px] text-slate-400">
+                                            {p.email}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* 🔹 버튼 영역 */}
+                                {isSelf ? (
+                                    // 자기 자신일 때
+                                    <Button
+                                        type="button"
+                                        size="xs"
+                                        disabled
+                                        className="px-[7px] py-[2pt] text-[8.5pt] cursor-not-allowed"
+                                    >
+                                        내 계정
+                                    </Button>
+                                ) : isFriend ? (
+                                    <Button
+                                        type="button"
+                                        size="xs"
+                                        variant="ghost"
+                                        disabled
+                                        className="
+                                            px-[7pt] py-[2pt] text-[8.5pt]
+                                            cursor-default
+                                            rounded-full
+                                            border border-fuchsia-200/90
+                                            bg-fuchsia-100/90
+                                            text-fuchsia-700
+                                            disabled:opacity-100
+                                            shadow-none
+                                            hover:bg-fuchsia-100/90 hover:text-fuchsia-700
+                                            active:bg-fuchsia-100/90 active:text-fuchsia-700
+                                            focus:ring-0
+                                        "
+                                    >
+                                        친구
+                                    </Button>
+                                ) : (
+                                    // 아직 친구가 아닐 때 → 기존 "친구 요청" 버튼
+                                    <Button
+                                        type="button"
+                                        size="xs"
+                                        className="px-[7pt] py-[2pt] text-[8.5pt]"
+                                        onClick={() => onSendRequest(p.id)}
+                                    >
+                                        친구 요청
+                                    </Button>
+                                )}
+                            </li>
+                        );
+                    })}
                 </ul>
             )}
         </div>

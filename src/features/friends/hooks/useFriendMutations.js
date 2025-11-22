@@ -1,15 +1,15 @@
 // src/features/friends/hooks/useFriendMutations.js
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-    sendFriendRequest,
     acceptFriendRequest,
     deleteFriendRelation,
 } from '../../../lib/wikiApi';
-import {useSnackbar} from "../../../components/ui/SnackbarContext.jsx";
+import { supabase } from '../../../lib/supabaseClient';
+import { useSnackbar } from '../../../components/ui/SnackbarContext.jsx';
 
 export function useSendFriendRequest(userId) {
     const qc = useQueryClient();
-    const { showMessage } = useSnackbar();
+    const { showSnackbar } = useSnackbar();
 
     return useMutation({
         mutationFn: async ({ friendId }) => {
@@ -27,14 +27,15 @@ export function useSendFriendRequest(userId) {
             return data;
         },
         onSuccess: () => {
-            qc.invalidateQueries({ queryKey: ['incomingFriendRequests'] });
-            qc.invalidateQueries({ queryKey: ['outgoingFriendRequests'] });
-            showMessage('친구 요청을 보냈어요.', 'success');
+            // ✅ 위에서 정의한 queryKey와 정확히 일치
+            qc.invalidateQueries({ queryKey: ['incomingFriendRequests', userId] });
+            qc.invalidateQueries({ queryKey: ['outgoingFriendRequests', userId] });
+
+            showSnackbar('친구 요청을 보냈어요.');
         },
         onError: (err) => {
-            showMessage(
+            showSnackbar(
                 err.message || '친구 요청을 보내는 데 실패했어요.',
-                'error',
             );
         },
     });
@@ -46,7 +47,8 @@ export function useAcceptFriendRequest(userId) {
         mutationFn: (requestId) => acceptFriendRequest(requestId),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['friends', userId] });
-            qc.invalidateQueries({ queryKey: ['friendRequests', userId] });
+            qc.invalidateQueries({ queryKey: ['incomingFriendRequests', userId] });
+            qc.invalidateQueries({ queryKey: ['outgoingFriendRequests', userId] });
         },
     });
 }
@@ -57,7 +59,8 @@ export function useDeleteFriendRelation(userId) {
         mutationFn: (id) => deleteFriendRelation(id),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['friends', userId] });
-            qc.invalidateQueries({ queryKey: ['friendRequests', userId] });
+            qc.invalidateQueries({ queryKey: ['incomingFriendRequests', userId] });
+            qc.invalidateQueries({ queryKey: ['outgoingFriendRequests', userId] });
         },
     });
 }

@@ -6,7 +6,7 @@ export function useAllDocuments() {
     const user = useAuthStore((s) => s.user);
 
     return useQuery({
-        queryKey: ['documents', 'all', user?.id],
+        queryKey: ['allDocuments', user?.id],
         queryFn: () => fetchAllDocuments(user.id),
         enabled: !!user,
     });

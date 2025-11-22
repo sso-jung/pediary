@@ -1,6 +1,6 @@
 // src/features/wiki/hooks/useCategories.js
 import { useQuery } from '@tanstack/react-query';
-import { fetchCategories } from '../../../lib/wikiApi';
+import { fetchVisibleCategories } from '../../../lib/wikiApi';
 import { useAuthStore } from '../../../store/authStore';
 
 export function useCategories() {
@@ -8,7 +8,7 @@ export function useCategories() {
 
     return useQuery({
         queryKey: ['categories', user?.id],
-        queryFn: () => fetchCategories(user.id),
+        queryFn: () => fetchVisibleCategories(user.id),
         enabled: !!user,
     });
 }
