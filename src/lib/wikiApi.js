@@ -1,5 +1,6 @@
 // src/lib/wikiApi.js
 import { supabase } from './supabaseClient';
+import {buildSectionNumberMapping} from "./sectionDiff.js";
 
 // ─────────────────────────────
 // 카테고리
@@ -940,4 +941,77 @@ export async function updateDocumentCategory({ userId, documentId, categoryId })
 
     if (error) throw error;
     return data;
+}
+
+// title: "음식점"
+export async function updateSectionLinksForTitle({
+                                                     userId,
+                                                     title,
+                                                     oldMarkdown,
+                                                     newMarkdown,
+                                                 }) {
+    const mappings = buildSectionNumberMapping(oldMarkdown, newMarkdown);
+    if (mappings.length === 0) {
+        return; // 번호 변화 없음
+    }
+
+    // 1) 이 제목을 참조하는 문서들 전체 조회 (제목 기준으로 넉넉하게)
+    const { data: docs, error } = await supabase
+        .from('documents')
+        .select('id, user_id, content_markdown')
+        .ilike('content_markdown', `%${title}%`);
+
+    if (error) throw error;
+    if (!docs || docs.length === 0) return;
+
+    const updates = [];
+
+    for (const d of docs) {
+        let markdown = d.content_markdown || '';
+        let updated = markdown;
+
+        for (const m of mappings) {
+            const { oldNumber, newNumber } = m;
+
+            // 숫자 안의 . 도 \. 로 이스케이프되어 저장되어 있음
+            const escapedOldNumber = oldNumber.replace(/\./g, '\\.');
+            const escapedNewNumber = newNumber.replace(/\./g, '\\.');
+
+            // 🔹 DB 안에 실제로 저장되어 있는 형태:
+            //     \[\[음식점\#2\.1\|
+            //   → 문자열 리터럴에서는 \\[\\[음식점\\#2\\.1\\|
+            const pattern1 = `\\[\\[${title}\\#${escapedOldNumber}\\|`;
+            const replacement1 = `\\[\\[${title}\\#${escapedNewNumber}\\|`;
+
+            // 🔹 alias 없는 형태: \[\[음식점\#2\.1\]\]
+            const pattern2 = `\\[\\[${title}\\#${escapedOldNumber}\\]\\]`;
+            const replacement2 = `\\[\\[${title}\\#${escapedNewNumber}\\]\\]`;
+
+            updated = updated.split(pattern1).join(replacement1);
+            updated = updated.split(pattern2).join(replacement2);
+        }
+
+        if (updated !== markdown) {
+            updates.push({
+                id: d.id,
+                user_id: d.user_id,
+                content_markdown: updated,
+            });
+        }
+    }
+
+    // 3) 실제 DB 업데이트
+    for (const u of updates) {
+        const { error: upErr } = await supabase
+            .from('documents')
+            .update({
+                content_markdown: u.content_markdown,
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', u.id);
+
+        if (upErr) {
+            console.error('updateSectionLinksForTitle - update error', upErr);
+        }
+    }
 }

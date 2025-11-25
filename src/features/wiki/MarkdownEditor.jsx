@@ -2,6 +2,18 @@
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { Editor } from '@toast-ui/react-editor';
 import '@toast-ui/editor/dist/toastui-editor.css';
+import 'tui-color-picker/dist/tui-color-picker.css';
+import '@toast-ui/editor-plugin-color-syntax/dist/toastui-editor-plugin-color-syntax.css';
+import colorSyntax from '@toast-ui/editor-plugin-color-syntax';
+
+function stripHeadingText(rawText = '') {
+    let s = rawText;
+    s = s.replace(/<[^>]*>/g, '');
+    s = s.replace(/\[([^\]]+)\]\((?:[^)]+)\)/g, '$1');
+    s = s.replace(/[*_`~]/g, '');
+    s = s.replace(/\s+/g, ' ');
+    return s.trim();
+}
 
 // 🔹 한 문서의 마크다운에서 헤딩(섹션) 정보 뽑기
 function extractSectionsFromMarkdown(markdown) {
@@ -18,6 +30,7 @@ function extractSectionsFromMarkdown(markdown) {
         const hashes = match[1];
         const level = hashes.length;
         const rawText = match[2].trim();
+        const plainText = stripHeadingText(rawText);
 
         counters[level] += 1;
         for (let i = level + 1; i < counters.length; i++) {
@@ -29,7 +42,7 @@ function extractSectionsFromMarkdown(markdown) {
         sections.push({
             level,
             number,  // "1.1"
-            text: rawText, // "고기"
+            text: plainText, // "고기"
         });
     }
 
@@ -298,7 +311,7 @@ export default function MarkdownEditor({ value, onChange, allDocs = [] }) {
                 return;
             }
 
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' || e.key === 'Tab') {
                 e.preventDefault();
                 e.stopPropagation();
                 const item = filteredCandidates[highlightIndex];
@@ -323,6 +336,16 @@ export default function MarkdownEditor({ value, onChange, allDocs = [] }) {
                 initialEditType="wysiwyg"
                 hideModeSwitch={true}
                 useCommandShortcut={true}
+                plugins={[
+                   [colorSyntax, {
+                       preset: [
+                           '#333333', '#666666', '#FFFFFF',
+                           '#f33c3c', '#F97316', '#EAB308',
+                           '#22C55E', '#0EA5E9', '#6366F1', '#7e59de',
+                           '#89caff', '#dfc9ea', '#ffbfdd', '#e0e0e0', '#a5c7ae', '#ffd2bf',
+                       ],
+                   }],
+               ]}
                 toolbarItems={[
                     ['heading', 'bold', 'italic', 'strike'],
                     ['hr', 'quote'],

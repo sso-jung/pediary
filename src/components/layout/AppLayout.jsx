@@ -47,36 +47,42 @@ export default function AppLayout({ children }) {
 
                 {/* 우측: 메인 + 오른쪽 패널 자리 */}
                 {isDocs ? (
-                    <main className="flex-1 min-w-0 overflow-hidden">
-                        <div className="relative mx-auto flex h-full w-full max-w-[100rem] flex-col pl-2 pr-2 py-6 lg:pl-6 lg:pr-[280px]">
-                            {children}
+                    <main className="flex-1 min-w-0 min-h-0">
+                        <div className="relative mx-auto flex h-full min-h-0 w-full max-w-[100rem] flex-col pl-2 pr-2 py-6 lg:pl-6 lg:pr-[300px]">
+                        {children}
 
-                            {/* 오른쪽 패널 (데스크톱에서만) */}
-                            {activeSidePanel && (
-                                <div className="hidden lg:block absolute right-0 h-full w-[266px]">
-                                    <div className="flex flex-col rounded-2xl max-h-[50rem] border border-slate-200 bg-white shadow-soft">
-                                        {activeSidePanel === 'friends' && <FriendsPage />}
-                                        {activeSidePanel === 'me' && <MyInfoPanel />}
-                                    </div>
+                        {/* 오른쪽 패널 (데스크톱에서만) */}
+                        {activeSidePanel && (
+                            <div className="hidden lg:block absolute right-[16px] top-6 bottom-6 w-[266px]">
+                                <div
+                                    className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white shadow-soft">
+                                    {activeSidePanel === 'friends' && <FriendsPage/>}
+                                    {activeSidePanel === 'me' && <MyInfoPanel/>}
                                 </div>
-                            )}
+                            </div>
+                        )}
                         </div>
                     </main>
                 ) : (
-                    <main className="flex-1 min-w-0 overflow-hidden">
-                        <div className="relative mx-auto flex w-full max-w-[90rem] flex-col pl-2 pr-2 py-6 lg:pl-6 lg:pr-20">
+                    <main className="relative flex-1 min-w-0 min-h-0">
+                        {/* 가운데 콘텐츠 영역: max-w + 오른쪽 패널 자리 확보 */}
+                        <div
+                            className="mx-auto flex h-full min-h-0 w-full max-w-[90rem] flex-col
+                       pl-2 pr-2 py-6 lg:pl-[147px] lg:pr-[147px]"
+                        >
                             {children}
-
-                            {/* 오른쪽 패널 (데스크톱에서만) */}
-                            {activeSidePanel && (
-                                <div className="hidden lg:block absolute right-[-200px] top-[24px] h-full w-[266px]">
-                                    <div className="flex h-full flex-col rounded-2xl max-h-[50rem] border border-slate-200 bg-white shadow-soft">
-                                        {activeSidePanel === 'friends' && <FriendsPage />}
-                                        {activeSidePanel === 'me' && <MyInfoPanel />}
-                                    </div>
-                                </div>
-                            )}
                         </div>
+
+                        {/* 오른쪽 패널 (데스크톱에서만) – 이제는 main 기준으로 브라우저 오른쪽에 붙음 */}
+                        {activeSidePanel && (
+                            <div className="hidden lg:block absolute right-[16px] top-6 bottom-6 w-[266px]">
+                                <div
+                                    className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white shadow-soft">
+                                    {activeSidePanel === 'friends' && <FriendsPage/>}
+                                    {activeSidePanel === 'me' && <MyInfoPanel/>}
+                                </div>
+                            </div>
+                        )}
                     </main>
                 )}
             </div>

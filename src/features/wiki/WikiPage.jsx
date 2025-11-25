@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useTodayActivity } from './hooks/useTodayActivity';
 import ActivityCalendar from './ActivityCalendar';
 import EmptyState from '../../components/ui/EmptyState';
+import SparkleIcon from '../../components/icons/SparkleIcon';
 
 const HOME_VIEW_MODE_KEY = 'pediary-home-view-mode';
 
@@ -45,13 +46,14 @@ export default function WikiPage() {
     }
 
     return (
-        <div className="flex h-full min-h-[800px] flex-col">
+        <div className="flex h-full min-h-0 flex-col">
             {/* 상단 인사 + 토글 버튼 */}
             <section className="shrink-0">
                 <div className="flex items-center justify-between gap-3">
                     <div>
-                        <h1 className="text-2xl font-semibold text-slate-800">
-                            환영해, Pediary ✨
+                        <h1 className="pediary-heading flex items-center gap-[7px] text-2xl font-semibold text-slate-800">
+                            <span>환영해, Pediary</span>
+                            <SparkleIcon className="h-6 w-6"/>
                         </h1>
                         <p className="mt-1 text-sm text-slate-500">
                             오늘 내가 어떤 문서를 작성·수정·조회했는지 한눈에 볼 수 있어.
@@ -74,8 +76,8 @@ export default function WikiPage() {
                             strokeLinecap="round"
                             strokeLinejoin="round"
                         >
-                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                            <path d="M8 2v4M16 2v4M3 10h18" />
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                            <path d="M8 2v4M16 2v4M3 10h18"/>
                         </svg>
                         <span>{viewMode === 'today' ? '달력 다이어리' : '오늘만 보기'}</span>
                     </button>
@@ -90,7 +92,7 @@ export default function WikiPage() {
 
                 {viewMode === 'diary' ? (
                     // 🔹 달력 다이어리
-                    <ActivityCalendar />
+                    <ActivityCalendar/>
                 ) : isLoading ? (
                     <p className="mt-3 text-xs text-slate-500">
                         활동 기록을 불러오는 중...

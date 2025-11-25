@@ -1,3 +1,5 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/pretendardvariable.css');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -18,6 +20,11 @@ body {
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+/* Pediary 헤더 전용 폰트 클래스 */
+.pediary-heading {
+  font-family: 'Pretendard Variable', system-ui, -apple-system,
+  BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
 
 @keyframes fade-in-down {
   from {
@@ -78,4 +85,15 @@ body {
 .toastui-viewer-contents a:hover {
   text-decoration: none; /* hover에도 밑줄 X */
   color: #193ea6 !important;        /* 살짝 더 진한 파랑 */
+}
+
+:root {
+  /* 기본 색상 (예: slate-500 근처) */
+  --wiki-heading-number-color: #536ea8;
+}
+
+/* 본문 헤더 번호 */
+.wiki-heading-number {
+  color: var(--wiki-heading-number-color);
+  font-weight: 600;
 }

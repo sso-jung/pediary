@@ -6,10 +6,14 @@ import { getLocalDateKey } from '../../lib/dateUtils';
 
 // 색상: 열람=노랑, 수정=파랑, 작성=보라
 const ACTION_STYLES = {
-    viewed: 'bg-amber-100 text-amber-700 border border-amber-200',     // 열람
-    updated: 'bg-sky-100 text-sky-700 border border-sky-200',          // 수정
+    viewed: 'bg-amber-100 text-amber-700 border border-amber-200', // 열람
+    updated: 'bg-sky-100 text-sky-700 border border-sky-200', // 수정
     created: 'bg-purple-100 text-purple-700 border border-purple-200', // 작성
 };
+
+// OFF(숨김) 상태일 때 공통 회색 스타일
+const ACTION_STYLE_OFF =
+    'bg-slate-100 text-slate-400 border border-slate-200';
 
 const ACTION_LABEL = {
     created: '작성',
@@ -31,16 +35,34 @@ export default function ActivityCalendar() {
 
     const { data, isLoading } = useMonthlyActivity(year, month);
 
+    // 액션 필터 상태: true = ON, false = OFF
+    const [actionFilter, setActionFilter] = useState({
+        created: true,
+        updated: true,
+        viewed: true,
+    });
+
+    const toggleAction = (action) => {
+        setActionFilter((prev) => ({
+            ...prev,
+            [action]: !prev[action],
+        }));
+    };
+
     // 날짜별 + 문서별로 묶고, 같은 날 같은 문서 여러 번이면
     // 작성 > 수정 > 열람 중 하나만 남기기
+    // actionFilter 에 따라 걸러진 결과로 계산
     const activityByDate = useMemo(() => {
         if (!data) return {};
 
         const temp = {}; // { 'YYYY-MM-DD': { docId: item } }
 
         for (const item of data) {
-            const d = new Date(item.created_at);
-//             const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
+            const action = item.action;
+
+            // OFF 된 액션은 완전히 제외
+            if (!actionFilter[action]) continue;
+
             const key = getLocalDateKey(item.created_at);
             const doc = item.documents;
             const docId = doc?.id;
@@ -49,7 +71,7 @@ export default function ActivityCalendar() {
             if (!temp[key]) temp[key] = {};
 
             const prev = temp[key][docId];
-            const currentPriority = ACTION_PRIORITY[item.action] ?? 0;
+            const currentPriority = ACTION_PRIORITY[action] ?? 0;
             const prevPriority = prev ? ACTION_PRIORITY[prev.action] ?? 0 : 0;
 
             // 우선순위가 더 높다면 교체
@@ -65,7 +87,7 @@ export default function ActivityCalendar() {
         });
 
         return result;
-    }, [data]);
+    }, [data, actionFilter]);
 
     const [selectedDateKey, setSelectedDateKey] = useState(null);
 
@@ -88,7 +110,7 @@ export default function ActivityCalendar() {
 
     for (let w = 0; w < 6; w++) {
         const week = [];
-        for (let i = 0; i < 7; i++, day++) {
+        for (let i = 0; i < 7; i += 1, day += 1) {
             if (day < 1 || day > daysInMonth) week.push(null);
             else week.push(day);
         }
@@ -118,7 +140,7 @@ export default function ActivityCalendar() {
     // 연/월 선택 셀렉트용 배열
     const yearOptions = [];
     const baseYear = today.getFullYear();
-    for (let y = baseYear - 3; y <= baseYear + 1; y++) {
+    for (let y = baseYear - 3; y <= baseYear + 1; y += 1) {
         yearOptions.push(y);
     }
 
@@ -169,34 +191,32 @@ export default function ActivityCalendar() {
                 </div>
             </div>
 
-            {/* 행동 legend: 색 + 라벨은 여기서만 표시 */}
+            {/* 행동 legend: 클릭해서 ON/OFF */}
             <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                <span
-                    className={
-                        'inline-flex items-center rounded-full px-2 py-[2px] ' +
-                        ACTION_STYLES.viewed
-                    }
-                >
-                    {ACTION_LABEL.viewed}
-                </span>
-                <span
-                    className={
-                        'inline-flex items-center rounded-full px-2 py-[2px] ' +
-                        ACTION_STYLES.updated
-                    }
-                >
-                    {ACTION_LABEL.updated}
-                </span>
-                <span
-                    className={
-                        'inline-flex items-center rounded-full px-2 py-[2px] ' +
-                        ACTION_STYLES.created
-                    }
-                >
-                    {ACTION_LABEL.created}
-                </span>
+                {['viewed', 'updated', 'created'].map((action) => {
+                    const isOn = actionFilter[action];
+                    const style = isOn ? ACTION_STYLES[action] : ACTION_STYLE_OFF;
+
+                    return (
+                        <button
+                            key={action}
+                            type="button"
+                            onClick={() => toggleAction(action)}
+                            className="focus:outline-none"
+                        >
+                            <span
+                                className={
+                                    'inline-flex items-center rounded-full px-2 py-[2px] transition ' +
+                                    style
+                                }
+                            >
+                                {ACTION_LABEL[action]}
+                            </span>
+                        </button>
+                    );
+                })}
                 <span className="ml-1 text-[10px] text-slate-400">
-                    색깔로 열람/수정/작성 여부를 구분해요.
+                    뱃지를 클릭해서 작성/수정/열람 표시를 켜고 끌 수 있어.
                 </span>
             </div>
 
@@ -259,7 +279,7 @@ export default function ActivityCalendar() {
                                             )}
                                         </div>
 
-                                        {/* 문서 뱃지들 – 최대 3개만 표시 (액션 텍스트 제거, 색깔만) */}
+                                        {/* 문서 뱃지들 – 최대 3개만 표시 */}
                                         <div className="flex flex-wrap gap-0.5">
                                             {summaryItems.map((item) => {
                                                 const action = item.action;
@@ -299,15 +319,15 @@ export default function ActivityCalendar() {
                 </div>
             )}
 
-            {/* 🔹 선택한 날짜 상세 – 화면 중앙 모달 (플로팅) */}
+            {/* 선택한 날짜 상세 – 화면 중앙 모달 */}
             {selectedDateKey && (
                 <div
                     className="fixed inset-0 z-30 flex items-center justify-center bg-black/30"
-                    onClick={() => setSelectedDateKey(null)}   // ← 바깥 아무 곳 클릭 시 닫기
+                    onClick={() => setSelectedDateKey(null)} // 바깥 아무 곳 클릭 시 닫기
                 >
                     <div
                         className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl text-xs"
-                        onClick={(e) => e.stopPropagation()}   // ← 모달 안쪽 클릭은 전파 막기
+                        onClick={(e) => e.stopPropagation()} // 모달 안쪽 클릭은 전파 막기
                     >
                         {(() => {
                             const items = (activityByDate[selectedDateKey] || [])
@@ -327,7 +347,9 @@ export default function ActivityCalendar() {
                                         </div>
                                         <button
                                             type="button"
-                                            onClick={() => setSelectedDateKey(null)}
+                                            onClick={() =>
+                                                setSelectedDateKey(null)
+                                            }
                                             className="text-[11px] text-slate-400 hover:text-slate-600"
                                         >
                                             닫기 ✕
@@ -342,49 +364,57 @@ export default function ActivityCalendar() {
                                         <ul className="max-h-64 space-y-1 overflow-y-auto">
                                             {items.map((item) => {
                                                 const doc = item.documents;
-                                                const title = doc?.title ?? '(삭제됨)';
+                                                const title =
+                                                    doc?.title ?? '(삭제됨)';
                                                 const href = doc?.slug
                                                     ? `/wiki/${doc.slug}`
                                                     : null;
                                                 const action = item.action;
                                                 const label =
-                                                    ACTION_LABEL[action] ?? action;
+                                                    ACTION_LABEL[action] ??
+                                                    action;
 
                                                 return (
                                                     <li
                                                         key={item.id}
                                                         className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1"
                                                     >
-                                            <span className="inline-flex items-center gap-2">
-                                                <span
-                                                    className={
-                                                        'rounded-full px-1.5 py-[1px] text-[10px] ' +
-                                                        ACTION_STYLES[action]
-                                                    }
-                                                >
-                                                    {label}
-                                                </span>
-                                                {href ? (
-                                                    <Link
-                                                        to={href}
-                                                        className="text-[11px] text-slate-800 underline-offset-2 hover:underline"
-                                                    >
-                                                        {title}
-                                                    </Link>
-                                                ) : (
-                                                    <span className="text-[11px] text-slate-800">
-                                                        {title}
-                                                    </span>
-                                                )}
-                                            </span>
+                                                        <span className="inline-flex items-center gap-2">
+                                                            <span
+                                                                className={
+                                                                    'rounded-full px-1.5 py-[1px] text-[10px] ' +
+                                                                    ACTION_STYLES[
+                                                                        action
+                                                                        ]
+                                                                }
+                                                            >
+                                                                {label}
+                                                            </span>
+                                                            {href ? (
+                                                                <Link
+                                                                    to={href}
+                                                                    className="text-[11px] text-slate-800 underline-offset-2 hover:underline"
+                                                                >
+                                                                    {title}
+                                                                </Link>
+                                                            ) : (
+                                                                <span className="text-[11px] text-slate-800">
+                                                                    {title}
+                                                                </span>
+                                                            )}
+                                                        </span>
                                                         <span className="text-[10px] text-slate-400">
-                                                {new Date(
-                                                    item.created_at,
-                                                ).toLocaleTimeString('ko-KR', {
-                                                    hour: '2-digit',
-                                                    minute: '2-digit',
-                                                })}
-                                            </span>
+                                                            {new Date(
+                                                                item.created_at,
+                                                            ).toLocaleTimeString(
+                                                                'ko-KR',
+                                                                {
+                                                                    hour: '2-digit',
+                                                                    minute:
+                                                                        '2-digit',
+                                                                },
+                                                            )}
+                                                        </span>
                                                     </li>
                                                 );
                                             })}

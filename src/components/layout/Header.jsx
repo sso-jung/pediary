@@ -2,6 +2,7 @@
 import Button from '../ui/Button';
 import { useAuthStore } from '../../store/authStore';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import pediaryMark from '../../assets/logo.png';
 
 export default function Header({ onToggleFriends, onToggleMyInfo, activeSidePanel }) {
     const user = useAuthStore((s) => s.user);
@@ -23,12 +24,18 @@ export default function Header({ onToggleFriends, onToggleMyInfo, activeSidePane
     const isMyInfoOpen = activeSidePanel === 'me';
 
     return (
-        <div className="mx-auto flex max-w-[100rem] items-center justify-between px-4 py-3 lg:px-8">
+        <div className="mx-auto flex max-w-[100rem] items-center justify-between px-4 py-[10px] lg:px-8">
             {/* 왼쪽: 로고 + 탭 */}
             <div className="flex items-center gap-4">
                 <Link to="/" className="flex items-center gap-2">
                     <div className="flex items-center gap-2">
-                        <span className="h-8 w-8 rounded-2xl bg-primary-100" />
+                        <div className="h-[36px] h-[36px] rounded-3xl bg-primary-100 overflow-hidden">
+                            <img
+                                src={pediaryMark}
+                                alt="Pediary"
+                                className="h-full w-full object-cover"
+                            />
+                        </div>
                         <span className="text-lg font-semibold text-slate-800">
                             Pediary
                         </span>

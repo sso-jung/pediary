@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store/authStore';
 import Button from '../ui/Button';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import { useSnackbar } from '../ui/SnackbarContext';
+import EmptyState from "../ui/EmptyState.jsx";
 
 export default function Sidebar() {
     const { data: categories, isLoading } = useCategories();
@@ -114,9 +115,13 @@ export default function Sidebar() {
                 {isLoading ? (
                     <p className="text-xs text-slate-500">카테고리를 불러오는 중...</p>
                 ) : !categories || categories.length === 0 ? (
-                    <p className="text-xs text-slate-400">
-                        아직 카테고리가 없어. 위에서 하나 추가해 볼까?
-                    </p>
+                    <EmptyState
+                        icon="profile"
+                        title="아직 카테고리가 없어."
+                        description={
+                            '위 버튼을 눌러 카테고리를 추가하고 카테고리 별 문서를 관리해 보자.'
+                        }
+                    />
                 ) : (
                     <ul className="space-y-1 text-sm">
                         {/* 🔹 맨 위 '전체' */}
@@ -162,10 +167,10 @@ export default function Sidebar() {
                                                 e.stopPropagation(); // 카테고리 이동 막기
                                                 setCategoryToDelete(cat);
                                             }}
-                                            className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] text-slate-400 hover:bg-gray-200 hover:text-gray-500"
+                                            className="ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] text-red-400 hover:text-red-600"
                                             aria-label="카테고리 삭제"
                                         >
-                                            X
+                                            삭제
                                         </button>
                                     )}
                                 </li>
