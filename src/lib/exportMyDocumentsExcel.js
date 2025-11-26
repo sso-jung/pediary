@@ -1,0 +1,585 @@
+// src/lib/exportMyDocumentsExcel.js
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
+import { fetchMyDocuments, fetchCategories } from './wikiApi';
+import { parseInternalLinkInner } from './internalLinkFormat';
+
+// 🔹 내부 위키 링크 제거: [[doc:7#2.1|드마리스]] → "드마리스"
+function stripInternalLinks(md = '') {
+    if (!md) return '';
+
+    // sanitizer 로 인해 \[\[... 형태인 것도 풀어줌
+    let text = md
+        .replace(/\\\[/g, '[')
+        .replace(/\\\]/g, ']')
+        .replace(/\\#/g, '#')
+        .replace(/\\\|/g, '|')
+        .replace(/\\\./g, '.');
+
+    // [[...]] 패턴을 찾아서 label만 남기기
+    text = text.replace(/\[\[([^\]]+)\]\]/g, (match, inner) => {
+        const parsed = parseInternalLinkInner(inner);
+        if (parsed && parsed.label) {
+            return parsed.label; // 레이블만 남김
+        }
+        return ''; // label 없으면 통째로 제거
+    });
+
+    return text;
+}
+
+// 🔹 css color → ARGB 로 변환 (#hex, rgb(51,51,51) 둘 다 지원)
+function cssColorToArgb(css) {
+    if (!css) return null;
+    const s = css.trim().toLowerCase();
+
+    if (s.startsWith('#')) {
+        let hex = s.slice(1);
+        if (hex.length === 3) {
+            hex = hex.split('').map((ch) => ch + ch).join('');
+        }
+        if (hex.length === 6) {
+            return 'FF' + hex.toUpperCase();
+        }
+        return null;
+    }
+
+    const m = s.match(/rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/);
+    if (m) {
+        const r = Number(m[1]);
+        const g = Number(m[2]);
+        const b = Number(m[3]);
+        if (
+            Number.isFinite(r) && Number.isFinite(g) && Number.isFinite(b) &&
+            r >= 0 && r <= 255 && g >= 0 && g <= 255 && b >= 0 && b <= 255
+        ) {
+            const toHex = (n) => n.toString(16).padStart(2, '0').toUpperCase();
+            return 'FF' + toHex(r) + toHex(g) + toHex(b);
+        }
+    }
+    return null;
+}
+
+// 🔹 Markdown → 라인 배열 (텍스트 + 스타일 정보)
+function markdownToLines(md = '', title = '') {
+    const result = [];
+
+    // 문서 제목을 제일 위에 헤딩1으로 추가
+    if (title) {
+        result.push({
+            text: `[${title}]`,
+            isHeading: true,
+            level: 1,
+            bold: true,
+            italic: false,
+            underline: false,
+            strike: false,
+            color: null,
+        });
+    }
+
+    if (!md) return result;
+
+    let s = stripInternalLinks(md);
+    s = s.replace(/\r\n/g, '\n');
+    const rawLines = s.split('\n');
+
+    for (let raw of rawLines) {
+        let line = raw;
+
+        if (!line.trim()) continue;
+
+        // ── 수평선(*** / --- / ___) 은 그대로 한 줄로만 보냄
+        const trimmed = line.trim();
+        if (trimmed === '***' || trimmed === '---' || trimmed === '___') {
+            result.push({
+                text: '***',
+                isHeading: false,
+                level: null,
+                bold: false,
+                italic: false,
+                underline: false,
+                strike: false,
+                color: null,
+            });
+            continue;
+        }
+
+        let isHeading = false;
+        let level = null;
+        let bold = false;
+        let italic = false;
+        let underline = false;
+        let strike = false;
+        let color = null;
+
+        // ── span 색상 추출
+        const spanColorMatch = line.match(
+            /<span[^>]*style=["'][^"']*color\s*:\s*([^;"']+)/i,
+        );
+        if (spanColorMatch) {
+            const argb = cssColorToArgb(spanColorMatch[1]);
+            if (argb) color = argb;
+        }
+        line = line.replace(/<\/?span[^>]*>/gi, '');
+
+        // 밑줄 <u>...</u>
+        if (/<u[^>]*>/.test(line)) {
+            underline = true;
+        }
+        line = line.replace(/<\/?u[^>]*>/gi, '');
+
+        // 나머지 HTML 태그 제거
+        line = line.replace(/<[^>]+>/g, '');
+
+        // ── 헤딩(# ...)
+        const hMatch = line.match(/^(#{1,6})\s*(.*)$/);
+        if (hMatch) {
+            isHeading = true;
+            level = hMatch[1].length;
+            line = hMatch[2];
+        }
+
+        // 리스트: "- 항목" → "• 항목"
+        line = line.replace(/^[-*+]\s+/g, '• ');
+
+        // 외부 링크: [텍스트](url) → "텍스트 (url)"
+        line = line.replace(/\[([^\]]+)]\(([^)]+)\)/g, '$1 ($2)');
+
+        // ── 인라인 스타일 마크업 감지 (줄 어디에 있어도 플래그 ON)
+        // if (/~~(.+?)~~/.test(line)) {
+        //     strike = true;
+        // }
+        if (/\*\*(.+?)\*\*/.test(line)) {
+            bold = true;
+        }
+        // *...* (단, **..** 는 위에서 이미 잡았으니 남은 건 기울임)
+        if (/(^|[^*])\*(?!\*)([^*]+)\*(?!\*)/.test(line)) {
+            italic = true;
+        }
+
+        // 실제 텍스트에서 마크업 제거
+        line = line
+            // .replace(/~~(.+?)~~/g, '$1')
+            .replace(/\*\*(.+?)\*\*/g, '$1')
+            .replace(/(^|[^*])\*(?!\*)([^*]+)\*(?!\*)/g, '$1$2');
+
+        // 인라인 코드 `code`
+        line = line.replace(/`([^`]+)`/g, '$1');
+
+        // 역슬래시 제거
+        line = line.replace(/\\/g, '');
+
+        // 공백 정리
+        line = line.replace(/[ \t]+/g, ' ').trimEnd();
+        if (!line.trim()) continue;
+
+        result.push({
+            text: line,
+            isHeading,
+            level,
+            bold,
+            italic,
+            underline,
+            // strike: false,
+            color,
+        });
+    }
+
+    return result;
+}
+
+
+// 🔹 카테고리 트리 헬퍼
+function buildCategoryMaps(categories) {
+    const byId = new Map();
+    for (const c of categories || []) {
+        byId.set(c.id, c);
+    }
+    return { byId };
+}
+
+// 🔹 문서의 상/하위 폴더 정보
+function resolveCategoryPath(doc, categoryMap) {
+    const { byId } = categoryMap;
+    if (!doc.category_id) {
+        return {
+            depth1: '(미분류)',
+            depth2: '',
+        };
+    }
+
+    const cat = byId.get(doc.category_id);
+    if (!cat) {
+        return {
+            depth1: '(알 수 없음)',
+            depth2: '',
+        };
+    }
+
+    if (cat.parent_id == null) {
+        // 1depth
+        return {
+            depth1: cat.name,
+            depth2: '',
+        };
+    }
+
+    const parent = byId.get(cat.parent_id);
+    if (!parent) {
+        return {
+            depth1: cat.name,
+            depth2: '',
+        };
+    }
+
+    // parent: 1depth, cat: 2depth
+    return {
+        depth1: parent.name,
+        depth2: cat.name,
+    };
+}
+
+// 🔹 헤더/내용 라벨 스타일 (회색 배경 + 검은 Bold + 가운데 정렬)
+function applyHeaderStyle(cell) {
+    if (!cell) return;
+    cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFD9D9D9' }, // 회색
+    };
+    cell.font = {
+        name: '맑은 고딕',
+        bold: true,
+        size: 10,
+        color: { argb: 'FF000000' },
+    };
+    cell.alignment = {
+        vertical: 'middle',
+        horizontal: 'center',
+        wrapText: true,
+    };
+}
+
+// 🔹 한 chunk 안의 ~~취소선~~을 부분 strike 로 바꾸는 헬퍼
+function buildRichTextFromChunk(chunkText, baseFont) {
+    const text = chunkText || '';
+    const runs = [];
+    const re = /~~(.*?)~~/g;
+
+    let lastIndex = 0;
+    let m;
+
+    while ((m = re.exec(text)) !== null) {
+        const matchIndex = m.index;
+        const fullMatch = m[0]; // "~~...~~"
+        const inner = m[1];     // 안쪽 텍스트
+
+        // 1) 앞부분 (취소선 아닌 텍스트)
+        if (matchIndex > lastIndex) {
+            const before = text.slice(lastIndex, matchIndex);
+            if (before) {
+                runs.push({
+                    text: before,
+                    font: { ...baseFont },
+                });
+            }
+        }
+
+        // 2) 취소선 부분
+        if (inner) {
+            runs.push({
+                text: inner,
+                font: { ...baseFont, strike: true },
+            });
+        }
+
+        lastIndex = matchIndex + fullMatch.length;
+    }
+
+    // 3) 마지막 나머지
+    if (lastIndex < text.length) {
+        const tail = text.slice(lastIndex);
+        if (tail) {
+            runs.push({
+                text: tail,
+                font: { ...baseFont },
+            });
+        }
+    }
+
+    // 취소선이 전혀 없는 경우: 통짜 run 하나
+    if (runs.length === 0) {
+        runs.push({
+            text,
+            font: { ...baseFont },
+        });
+    }
+
+    return { richText: runs };
+}
+
+// 🔹 ~~취소선~~ 구간을 안 가르면서 maxLen 기준으로 텍스트 쪼개기
+function splitTextWithStrikeSafe(text, maxLen) {
+    const result = [];
+    const len = text.length;
+    if (!text || len <= maxLen) {
+        return text ? [text] : [];
+    }
+
+    // 전체 텍스트에서 ~~...~~ 구간 인덱스 수집
+    const intervals = [];
+    const re = /~~(.*?)~~/g;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+        const start = m.index;
+        const end = start + m[0].length; // "~~...~~" 전체
+        intervals.push([start, end]);
+    }
+
+    let start = 0;
+    while (start < len) {
+        let end = Math.min(start + maxLen, len);
+
+        // end 가 어떤 ~~...~~ 구간의 중간이면 그 구간 끝까지로 당겨줌
+        for (const [s, e] of intervals) {
+            if (end > s && end < e) {
+                end = e;
+                break;
+            }
+        }
+
+        // 혹시라도 이상한 경우엔 그냥 maxLen 만큼 잘라서 탈출
+        if (end <= start) {
+            end = Math.min(start + maxLen, len);
+        }
+
+        result.push(text.slice(start, end));
+        start = end;
+    }
+
+    return result;
+}
+
+// 🔹 실제 엑셀 파일 생성 + 다운로드 (exceljs)
+export async function downloadMyDocumentsExcel(userId) {
+    if (!userId) {
+        throw new Error('로그인된 사용자가 없어.');
+    }
+
+    // 1) 내 문서 + 내 카테고리 조회
+    const [docs, categories] = await Promise.all([
+        fetchMyDocuments(userId),
+        fetchCategories(userId),
+    ]);
+
+    const catMap = buildCategoryMaps(categories || []);
+    const now = new Date();
+    const dateStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+
+    // 2) 카테고리별로 문서 그룹핑 (1depth 기준)
+    const docsByRootName = new Map(); // rootName -> 문서 배열
+
+    for (const doc of docs || []) {
+        const { depth1, depth2 } = resolveCategoryPath(doc, catMap);
+        const key = depth1 || '(미분류)';
+
+        if (!docsByRootName.has(key)) {
+            docsByRootName.set(key, []);
+        }
+        docsByRootName.get(key).push({
+            doc,
+            depth1,
+            depth2,
+        });
+    }
+
+    // 3) 워크북 생성
+    const workbook = new ExcelJS.Workbook();
+
+    // 3-1) Summary 시트
+    const summary = workbook.addWorksheet('Summary');
+
+    // 컬럼 폭
+    summary.getColumn(1).width = 30; // 백업일시
+    summary.getColumn(2).width = 15; // 문서 수
+
+    // 🔹 헤더 행: "항목/값" 제거하고 바로 "백업일시 / 문서 수"를 헤더로 사용
+    const summaryHeaderRow = summary.addRow(['백업일시', '문서 수']);
+    applyHeaderStyle(summary.getCell(1, 1));
+    applyHeaderStyle(summary.getCell(1, 2));
+
+    // 🔹 데이터 행
+    const backupTimeStr = now.toLocaleString('ko-KR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+    });
+
+    const summaryDataRow = summary.addRow([
+        backupTimeStr,
+        docs?.length || 0,
+    ]);
+
+    // 데이터도 맑은고딕 + 가운데 정렬
+    summaryDataRow.eachCell((cell) => {
+        cell.font = {
+            name: '맑은 고딕',
+            size: 10,
+            color: { argb: 'FF000000' },
+        };
+        cell.alignment = {
+            vertical: 'middle',
+            horizontal: 'center',
+            wrapText: true,
+        };
+    });
+
+    const headers = ['상위폴더', '하위폴더', '생성일', '수정일'];
+
+    // 3-2) 1depth 카테고리별 시트
+    for (const [rootName, docListRaw] of docsByRootName.entries()) {
+        if (!docListRaw || docListRaw.length === 0) continue;
+
+        // 같은 폴더(하위폴더)끼리 붙어 나오도록 정렬
+        const docList = [...docListRaw].sort((a, b) => {
+            const d1 = (a.depth2 || '').localeCompare(b.depth2 || '');
+            if (d1 !== 0) return d1;
+            return (a.doc.title || '').localeCompare(b.doc.title || '');
+        });
+
+        // 시트 생성
+        let sheetName = rootName || '카테고리';
+        sheetName = sheetName.slice(0, 31); // 엑셀 시트명 제한
+        const ws = workbook.addWorksheet(sheetName);
+
+        // 컬럼 폭: 대략 100px, 100px, 200px, 200px
+        ws.getColumn(1).width = 26; // 상위폴더
+        ws.getColumn(2).width = 26; // 하위폴더
+        ws.getColumn(3).width = 36; // 생성일
+        ws.getColumn(4).width = 36; // 수정일
+
+        let currentRow = 0; // 1-based가 아니라 내부 카운터용
+
+        for (let idx = 0; idx < docList.length; idx += 1) {
+            const { doc, depth1, depth2 } = docList[idx];
+
+            const createdStr = doc.created_at
+                ? new Date(doc.created_at).toLocaleString()
+                : '';
+            const updatedStr = doc.updated_at
+                ? new Date(doc.updated_at).toLocaleString()
+                : '';
+
+            const lines = markdownToLines(doc.content_markdown || '', doc.title);
+
+            // 문서 사이 한 줄 띄우기 (첫 문서 제외)
+            if (idx > 0) {
+                ws.addRow(['', '', '', '']);
+                currentRow += 1;
+            }
+
+            // 1) 헤더 행: 상위폴더/하위폴더/생성일/수정일
+            const headerRow = ws.addRow(headers);
+            currentRow += 1;
+            headerRow.eachCell((cell) => applyHeaderStyle(cell));
+
+            // 2) 메타 정보 행
+            const metaRow = ws.addRow([depth1, depth2, createdStr, updatedStr]);
+            currentRow += 1;
+            metaRow.eachCell((cell) => {
+                cell.font = {
+                    name: '맑은 고딕',
+                    size: 10,
+                    color: { argb: 'FF000000' },
+                };
+                cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+            });
+
+            // 3) "내용" 라벨 행 (A~D 병합 + 헤더 스타일)
+            const labelRowIndex = currentRow + 1;
+            const labelRow = ws.addRow(['내용', null, null, null]);
+            currentRow += 1;
+            ws.mergeCells(labelRowIndex, 1, labelRowIndex, 4);
+            const labelCell = ws.getCell(labelRowIndex, 1);
+            applyHeaderStyle(labelCell);
+
+// 4) 내용 각 줄을 한 행씩 (A~D 병합)
+//    - 헤딩이 나오면 그 위에 한 줄 비우기
+            const MAX_CHARS_PER_ROW = 80;
+            let isFirstContentLine = true;
+
+            for (const line of lines) {
+                if (!isFirstContentLine && line.isHeading) {
+                    const emptyRowIdx = currentRow + 1;
+                    ws.addRow(['', '', '', '']);
+                    currentRow += 1;
+                    ws.mergeCells(emptyRowIdx, 1, emptyRowIdx, 4);
+                }
+                isFirstContentLine = false;
+
+                const fullText = line.text || '';
+                const chunks = splitTextWithStrikeSafe(fullText, MAX_CHARS_PER_ROW);
+
+                // ───────── baseFont 결정 (색/볼드/기울임/헤딩 반영) ─────────
+                let fontSize = 10;
+                let fontBold = !!line.bold;
+                const fontItalic = !!line.italic;
+                const fontUnderline = line.underline ? true : undefined;
+                const fontColor = line.color || 'FF000000';
+
+                if (line.isHeading) {
+                    const lvl = line.level || 1;
+                    if (lvl === 1) fontSize = 16;      // 제목
+                    else if (lvl === 2) fontSize = 14; // 헤딩2
+                    else fontSize = 12;                // 헤딩3~
+                    fontBold = true;
+                }
+
+                const baseFont = {
+                    name: '맑은 고딕',
+                    size: fontSize,
+                    bold: fontBold,
+                    italic: fontItalic,
+                    underline: fontUnderline,
+                    color: { argb: fontColor },
+                };
+
+                chunks.forEach((chunkText, idx) => {
+                    const row = ws.addRow([null, null, null, null]);
+                    currentRow += 1;
+
+                    const rowIndex = row.number;
+                    ws.mergeCells(rowIndex, 1, rowIndex, 4);
+                    const cell = ws.getCell(rowIndex, 1);
+
+                    // 헤딩이면 첫 chunk 기준으로 높이 보정
+                    if (line.isHeading && idx === 0) {
+                        const approxHeight = fontSize * 1.5;
+                        row.height = Math.max(row.height || 0, approxHeight);
+                    }
+
+                    // 🔹 chunk 안의 ~~..~~을 부분 스트로크로
+                    cell.value = buildRichTextFromChunk(chunkText, baseFont);
+
+                    cell.alignment = {
+                        wrapText: true,
+                        vertical: 'top',
+                        horizontal: 'left',
+                    };
+                });
+            }
+        }
+    }
+
+    // 4) 파일로 저장
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const fileName = `pediary-backup-${dateStr}.xlsx`;
+    saveAs(blob, fileName);
+}
