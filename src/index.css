@@ -97,3 +97,32 @@ body {
   color: var(--wiki-heading-number-color);
   font-weight: 600;
 }
+
+/* ─────────────────────────────
+   카테고리 트리 라인
+   ───────────────────────────── */
+
+.tree-line {
+  position: absolute;
+  left: 0.4rem;          /* 세로선 x 위치 */
+  top: 0;
+  bottom: 0;
+  border-left: 1px dashed #e2e8f0; /* slate-200 */
+}
+
+.tree-line-last {
+  position: absolute;
+  left: 0.4rem;
+  top: 0;
+  bottom: 50%;           /* 마지막 항목은 가운데까지만 내려오게 */
+  border-left: 1px dashed #e2e8f0;
+}
+
+.tree-branch {
+  position: absolute;
+  left: 0.4rem;          /* 세로선과 정확히 만나는 x 위치 */
+  top: 50%;              /* 항목의 중앙 y 위치 */
+  width: 0.8rem;
+  border-top: 1px dashed #e2e8f0; /* 가로선도 점선 */
+  transform: translateY(-0.5px);
+}

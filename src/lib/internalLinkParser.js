@@ -1,24 +1,25 @@
 // src/lib/internalLinkParser.js
 
 /**
- * 위키 내부 링크 파서
+ * 위키 내부 링크 파서 (PK 기반 버전)
  *
  * 지원 문법
- *  - [[제목]]
- *  - [[제목#1.1]]
- *  - [[제목#1.1|보쌈 & 무김치]]
+ *  - [[doc:123]]
+ *  - [[doc:123#1.1]]
+ *  - [[doc:123#1.1|보쌈 & 무김치]]
  *
  * 출력은 Toast UI 가 이해하는 "순수 Markdown 링크"
  *  - [제목](/wiki/slug)
  *  - [제목#1.1](/wiki/slug#sec-1-1)
  *  - [보쌈 & 무김치](/wiki/slug#sec-1-1)
  */
+
+import { parseInternalLinkInner } from './internalLinkFormat';
+
 export function parseInternalLinks(markdownText, documents) {
     if (!markdownText || !Array.isArray(documents)) return markdownText;
 
-    // 0. sanitizer 때문에 [[요리#1.1|보쌈]] 이
-    //    \[\[요리\#1\.1\|보쌈\]\] 이런 식으로 저장된 걸 다시 풀어준다.
-    //    ( [, ], #, |, . 만 대상으로 함 )
+    // 0. sanitizer 때문에 \[\[... 이런 식으로 저장된 걸 풀어준다.
     markdownText = markdownText
         .replace(/\\\[/g, '[')
         .replace(/\\\]/g, ']')
@@ -26,11 +27,11 @@ export function parseInternalLinks(markdownText, documents) {
         .replace(/\\\|/g, '|')
         .replace(/\\\./g, '.');
 
-    // 제목 → 문서 매핑
+    // id → 문서 매핑
     const docMap = new Map();
     documents.forEach((doc) => {
-        if (doc?.title && doc?.slug) {
-            docMap.set(doc.title.trim(), doc);
+        if (doc && doc.id != null) {
+            docMap.set(Number(doc.id), doc);
         }
     });
 
@@ -51,78 +52,49 @@ export function parseInternalLinks(markdownText, documents) {
                 continue;
             }
 
-            const inner = markdownText.slice(start, end); // "요리", "요리#1.1", "요리#1.1|보쌈 & 무김치"
+            const inner = markdownText.slice(start, end); // "doc:123#1.1|레이블"
 
-            // 1) alias 분리: "요리#1.1|보쌈 & 무김치"
-            let left = inner;
-            let alias = null;
-            const pipeIndex = inner.indexOf('|');
-            if (pipeIndex >= 0) {
-                left = inner.slice(0, pipeIndex);   // "요리#1.1"
-                alias = inner.slice(pipeIndex + 1); // "보쌈 & 무김치"
-            }
+            const parsed = parseInternalLinkInner(inner);
 
-            // 2) 제목 / 섹션 분리: "요리#1.1"
-            let titleRaw = left;
-            let sectionRaw = '';
-            const hashIndex = left.indexOf('#');
-            if (hashIndex >= 0) {
-                titleRaw = left.slice(0, hashIndex);    // "요리"
-                sectionRaw = left.slice(hashIndex + 1); // "1.1"
-            }
-
-            const title = (titleRaw || '').trim();
-            if (!title || !docMap.has(title)) {
-                // 문서를 못 찾는 경우 (존재 X, 권한 X 등)
-                // → 위키 문법([[...]])은 숨기고 "표시 텍스트"만 남긴다.
-
-                let displayText;
-
-                if (alias != null) {
-                    // [[업무#1.1|오늘의 할일]] → "오늘의 할일"
-                    const aliasTrimmed = alias.trim();
-                    displayText = aliasTrimmed || title || inner;
-                } else if (sectionRaw) {
-                    // [[업무#1.1]] → "업무#1.1"
-                    const sectionPart = sectionRaw.trim();
-                    if (title) {
-                        displayText = `${title}${sectionPart ? `#${sectionPart}` : ''}`;
-                    } else {
-                        // 제목도 없으면 그냥 안쪽 내용을 그대로
-                        displayText = inner;
-                    }
-                } else {
-                    // [[업무]] → "업무"
-                    displayText = title || inner;
-                }
-
+            // 우리가 지원하는 포맷이 아니면, 그냥 안쪽 텍스트만 보여준다.
+            if (!parsed) {
+                const displayText = inner.trim() || inner;
                 result += displayText;
                 i = end + 2;
                 continue;
             }
 
-            const doc = docMap.get(title);
+            const { docId, section, label } = parsed;
+            const doc = docMap.get(docId);
 
-            // 3) href 만들기
+            // 문서를 못 찾는 경우 (존재 X, 권한 X 등)
+            // → 위키 문법([[...]])은 숨기고 "표시 텍스트"만 남긴다.
+            if (!doc) {
+                const displayText = label || inner;
+                result += displayText;
+                i = end + 2;
+                continue;
+            }
+
+            // 1) href 만들기
             let href = `/wiki/${doc.slug}`;
-            const sectionPart = (sectionRaw || '').trim();
-            if (sectionPart) {
-                const sectionId = 'sec-' + sectionPart.replace(/\./g, '-'); // "1.1" → "sec-1-1"
+            if (section) {
+                const sectionId = 'sec-' + section.replace(/\./g, '-'); // "1.1" → "sec-1-1"
                 href += `#${sectionId}`;
             }
 
-            // 4) 화면에 보일 텍스트
-            let displayText;
-            if (alias != null) {
-                const aliasTrimmed = alias.trim();
-                displayText = aliasTrimmed || title;
-            } else if (sectionPart) {
-                displayText = `${title}#${sectionPart}`;
+            // 2) 화면에 보일 텍스트
+            let displayText = '';
+
+            if (label) {
+                displayText = label;
+            } else if (section) {
+                displayText = `${doc.title}#${section}`;
             } else {
-                displayText = title;
+                displayText = doc.title;
             }
 
-            // 5) Markdown 링크로 치환
+            // 3) Markdown 링크로 치환
             result += `[${displayText}](${href})`;
             i = end + 2;
         } else {

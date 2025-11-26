@@ -15,10 +15,10 @@ import Button from '../../components/ui/Button';
 import { useSnackbar } from '../../components/ui/SnackbarContext';
 import { parseInternalLinks } from '../../lib/internalLinkParser';
 import { useAuthStore } from '../../store/authStore';
-import { logDocumentActivity } from '../../lib/wikiApi';
+import {logDocumentActivity, updateSectionLinksForDocument} from '../../lib/wikiApi';
 import MarkdownEditor from './MarkdownEditor';
 import { applyTextAlignBlocks } from '../../lib/wikiTextAlign';
-import { updateSectionLinksForTitle } from '../../lib/wikiApi'; // 방금 만든 함수 import
+import { parseInternalLinkInner } from '../../lib/internalLinkFormat';
 
 function stripHeadingText(rawText = '') {
     let s = rawText;
@@ -221,18 +221,18 @@ export default function DocumentPage() {
     //    → 그 섹션 하나를 "업무#1.1.1" 같은 링크로 한 번만 추가
     const backlinks = useMemo(() => {
         if (!doc || !Array.isArray(allDocs)) return [];
-        const currentTitle = doc.title?.trim();
-        if (!currentTitle) return [];
+        const currentDocId = doc.id;
+        if (currentDocId == null) return [];
 
         const result = [];
 
         for (const other of allDocs) {
-            if (!other || other.id === doc.id) continue;
+            if (!other || other.id === currentDocId) continue;
 
             const raw = other.content_markdown || '';
             if (!raw) continue;
 
-            // 🔹 sanitizer가 붙인 역슬래시를 한 번 풀어준다
+            // sanitizer가 붙인 역슬래시를 한 번 풀어준다
             const normalized = raw
                 .replace(/\\\[/g, '[')
                 .replace(/\\\]/g, ']')
@@ -240,7 +240,7 @@ export default function DocumentPage() {
                 .replace(/\\\|/g, '|')
                 .replace(/\\\./g, '.');
 
-            // 🔹 실제 [[ 가 없으면 스킵
+            // 실제 [[ 가 없으면 스킵
             if (!normalized.includes('[[')) continue;
 
             const lines = normalized.split('\n');
@@ -269,9 +269,11 @@ export default function DocumentPage() {
                 const linkRegex = /\[\[([^[\]]+)\]\]/g;
                 let m;
                 while ((m = linkRegex.exec(line)) !== null) {
-                    const inner = m[1]; // "요리#1.1|보쌈 & 무김치"
-                    const [rawTitle] = inner.split('#');
-                    if (rawTitle.trim() !== currentTitle) continue;
+                    const inner = m[1]; // "doc:123#1.1|보쌈 & 무김치"
+
+                    const parsed = parseInternalLinkInner(inner);
+                    if (!parsed) continue;
+                    if (parsed.docId !== currentDocId) continue;
 
                     const key = currentSectionId || '__no_section__';
 
@@ -315,10 +317,9 @@ export default function DocumentPage() {
         }
 
         try {
-            // 1) 섹션 번호 변경에 따른 링크 자동 수정
-            await updateSectionLinksForTitle({
-                userId: user.id,
-                title: doc.title,
+            // 1) 섹션 번호 변경에 따른 링크 자동 수정 (doc:id 기반)
+            await updateSectionLinksForDocument({
+                documentId: doc.id,
                 oldMarkdown: doc.content_markdown || '',
                 newMarkdown: content || '',
             });
@@ -346,6 +347,7 @@ export default function DocumentPage() {
             showSnackbar('링크 업데이트 중 오류가 발생했어. 나중에 다시 시도해줘.');
         }
     };
+
 
     const handleChangeCategory = (e) => {
         const value = e.target.value;
@@ -397,7 +399,7 @@ export default function DocumentPage() {
                                     >
                                         <option value="">미분류</option>
                                         {categories
-                                            ?.filter((c) => c.user_id === user?.id)
+                                            ?.filter((c) => c.user_id === user?.id && !c.deleted_at)
                                             .map((cat) => (
                                                 <option key={cat.id} value={cat.id}>
                                                     {cat.name}

@@ -234,6 +234,26 @@ export default function EmptyState({
             );
         }
 
+        // 📁 폴더 아이콘
+        if (icon === 'folder') {
+            return (
+                <svg
+                    viewBox="0 0 24 24"
+                    className="h-7 w-7 text-yellow-300"
+                    aria-hidden="true"
+                >
+                    <path
+                        d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    />
+                </svg>
+            );
+        }
+
         // 기본: 문서 아이콘
         return (
             <svg

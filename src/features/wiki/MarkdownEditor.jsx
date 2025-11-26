@@ -5,6 +5,7 @@ import '@toast-ui/editor/dist/toastui-editor.css';
 import 'tui-color-picker/dist/tui-color-picker.css';
 import '@toast-ui/editor-plugin-color-syntax/dist/toastui-editor-plugin-color-syntax.css';
 import colorSyntax from '@toast-ui/editor-plugin-color-syntax';
+import { buildInternalLink } from '../../lib/internalLinkFormat';
 
 function stripHeadingText(rawText = '') {
     let s = rawText;
@@ -202,14 +203,23 @@ export default function MarkdownEditor({ value, onChange, allDocs = [] }) {
         const markdown = instance.getMarkdown() || '';
         const info = findOpenInternalLink(markdown);
 
-        // 삽입할 문자열 결정
+        // 🔹 새 포맷으로 삽입할 문자열 결정
+        //   - 문서 전체: [[doc:123|제목]]
+        //   - 섹션:     [[doc:123#1.1|섹션제목]]
         let insertion = '';
+
         if (item.type === 'doc') {
-            // [[요리]]
-            insertion = `[[${item.docTitle}]]`;
+            insertion = buildInternalLink({
+                docId: item.docId,
+                section: null,
+                label: item.docTitle,
+            });
         } else if (item.type === 'section') {
-            // [[요리#1.1|고기]]
-            insertion = `[[${item.docTitle}#${item.sectionNumber}|${item.headingText}]]`;
+            insertion = buildInternalLink({
+                docId: item.docId,
+                section: item.sectionNumber,
+                label: item.headingText,
+            });
         }
 
         let newMarkdown;
@@ -231,7 +241,7 @@ export default function MarkdownEditor({ value, onChange, allDocs = [] }) {
         setLinkQuery('');
         setHighlightIndex(0);
 
-        // 커서를 삽입된 ]] 뒤로 옮기기
+        // 커서를 삽입된 ]] 뒤로 옮기기 (기존 로직 그대로 사용)
         const caretIndex = newMarkdown.indexOf(insertion) + insertion.length;
         if (caretIndex > 1) {
             const textBeforeCaret = newMarkdown.slice(0, caretIndex);

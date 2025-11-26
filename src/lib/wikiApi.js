@@ -35,23 +35,166 @@ export async function createCategory({ userId, name, parentId = null }) {
     return data;
 }
 
-// 🔹 카테고리 soft delete + 안의 문서들 휴지통으로
-export async function softDeleteCategoryAndDocuments({ userId, categoryId }) {
-    const now = new Date().toISOString();
+/** 🔹 카테고리 이름 변경 */
+export async function updateCategoryName({ userId, categoryId, name }) {
+    const trimmed = (name || '').trim();
+    if (!trimmed) {
+        throw new Error('카테고리 이름을 입력해 줘.');
+    }
 
-    // 1) 카테고리 soft delete
-    const { error: catError } = await supabase
+    const { data, error } = await supabase
         .from('categories')
-        .update({ deleted_at: now })
+        .update({ name: trimmed })
+        .eq('id', categoryId)
+        .eq('user_id', userId)
+        .is('deleted_at', null)
+        .select('*')
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
+// 🔹 카테고리 depth + sort_order 변경
+export async function moveCategory({
+                                       userId,
+                                       categoryId,
+                                       parentId,
+                                       beforeCategoryId = null,
+                                   }) {
+    const targetParentId = parentId ?? null;
+
+    // 1) parent_id 먼저 수정 (⚠ updated_at 없음)
+    const { error: parentError } = await supabase
+        .from('categories')
+        .update({
+            parent_id: targetParentId,
+        })
         .eq('id', categoryId)
         .eq('user_id', userId);
 
+    if (parentError) {
+        console.error('moveCategory - parent update error', parentError);
+        throw parentError;
+    }
+
+    // 2) 동일 parent 아래 형제들 조회 (본인 포함)
+    let siblingQuery = supabase
+        .from('categories')
+        .select('id, parent_id, sort_order, created_at')
+        .eq('user_id', userId)
+        .is('deleted_at', null);
+
+    if (targetParentId == null) {
+        siblingQuery = siblingQuery.is('parent_id', null);
+    } else {
+        siblingQuery = siblingQuery.eq('parent_id', targetParentId);
+    }
+
+    const { data: siblings, error: siblingsError } = await siblingQuery
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true });
+
+    if (siblingsError) {
+        console.error('moveCategory - siblings fetch error', siblingsError);
+        throw siblingsError;
+    }
+    if (!siblings || siblings.length === 0) return;
+
+    // 3) 새 sort_order 순서 배열 만들기
+    const orderedIds = siblings
+        .map((s) => s.id)
+        .filter((id) => id !== categoryId);
+
+    let insertIndex;
+    if (beforeCategoryId && orderedIds.includes(beforeCategoryId)) {
+        insertIndex = orderedIds.indexOf(beforeCategoryId);
+    } else {
+        // beforeCategoryId 없으면 맨 뒤
+        insertIndex = orderedIds.length;
+    }
+    orderedIds.splice(insertIndex, 0, categoryId);
+
+    // 4) 각 카테고리에 sort_order 재할당 (⚠ updated_at 없음)
+    for (let i = 0; i < orderedIds.length; i += 1) {
+        const id = orderedIds[i];
+        const { error: orderError } = await supabase
+            .from('categories')
+            .update({
+                sort_order: i,
+            })
+            .eq('id', id)
+            .eq('user_id', userId);
+
+        if (orderError) {
+            console.error('moveCategory - sort_order update error', orderError);
+            throw orderError;
+        }
+    }
+}
+
+
+// 🔹 카테고리 soft delete + 하위 카테고리 & 그 안의 문서들까지 휴지통으로
+export async function softDeleteCategoryAndDocuments({ userId, categoryId }) {
+    const now = new Date().toISOString();
+
+    // 0) categoryId가 이상하면 그냥 종료
+    if (!categoryId) return;
+
+    // 1) 현재 유저의 살아있는 카테고리 전체 조회 (id, parent_id 만으로 트리 구성)
+    const { data: cats, error: catsError } = await supabase
+        .from('categories')
+        .select('id, parent_id')
+        .eq('user_id', userId)
+        .is('deleted_at', null);
+
+    if (catsError) {
+        console.error('softDeleteCategoryAndDocuments - fetch categories error', catsError);
+        throw catsError;
+    }
+
+    // 2) parent_id -> [childId, ...] 맵 만들기
+    const childrenMap = new Map();
+    for (const c of cats || []) {
+        const key = c.parent_id; // null 도 key 로 사용
+        if (!childrenMap.has(key)) {
+            childrenMap.set(key, []);
+        }
+        childrenMap.get(key).push(c.id);
+    }
+
+    // 3) BFS/DFS 로 categoryId 포함 모든 하위 카테고리 id 수집
+    const targetIds = [];
+    const queue = [categoryId];
+
+    while (queue.length > 0) {
+        const current = queue.shift();
+        if (targetIds.includes(current)) continue; // 중복 방지
+
+        targetIds.push(current);
+
+        const children = childrenMap.get(current) || [];
+        queue.push(...children);
+    }
+
+    if (targetIds.length === 0) {
+        // 이 카테고리가 이미 삭제됐거나 없는 경우
+        return;
+    }
+
+    // 4) 해당 카테고리들 soft delete
+    const { error: catError } = await supabase
+        .from('categories')
+        .update({ deleted_at: now })
+        .eq('user_id', userId)
+        .in('id', targetIds);
+
     if (catError) {
-        console.error('softDeleteCategoryAndDocuments - category error', catError);
+        console.error('softDeleteCategoryAndDocuments - category update error', catError);
         throw catError;
     }
 
-    // 2) 해당 카테고리의 내 문서들을 soft delete (이미 휴지통인 건 건들지 않음)
+    // 5) 그 카테고리들에 속한 내 문서들도 soft delete (이미 휴지통인 건 건들지 않음)
     const { error: docError } = await supabase
         .from('documents')
         .update({
@@ -59,11 +202,11 @@ export async function softDeleteCategoryAndDocuments({ userId, categoryId }) {
             deleted_by: userId,
         })
         .eq('user_id', userId)
-        .eq('category_id', categoryId)
+        .in('category_id', targetIds)
         .is('deleted_at', null);
 
     if (docError) {
-        console.error('softDeleteCategoryAndDocuments - documents error', docError);
+        console.error('softDeleteCategoryAndDocuments - documents update error', docError);
         throw docError;
     }
 }
@@ -801,7 +944,7 @@ export async function fetchVisibleCategories(userId) {
         return myCategories;
     }
 
-    // 5) "공유 문서가 실제로 존재하는 카테고리"만 조회
+    // 5) "공유 문서가 실제로 존재하는 카테고리" 조회 (일단 직접 사용된 카테고리들)
     const { data: friendCats, error: friendCatError } = await supabase
         .from('categories')
         .select('*')
@@ -813,13 +956,52 @@ export async function fetchVisibleCategories(userId) {
 
     if (friendCatError) throw friendCatError;
 
-    const friendCategories = friendCats ?? [];
+    let friendCategories = friendCats ?? [];
+
+    // 5-1) 위에서 가져온 카테고리들의 부모(1depth)도 함께 포함시키기
+    //      (지금 구조가 1depth / 2depth 라서 부모 한 번만 올려도 충분)
+    if (friendCategories.length > 0) {
+        // 이미 friendCategoryIdSet 은 위에서 한 번 만든 상태
+        const parentIds = Array.from(
+            new Set(
+                friendCategories
+                    .map((c) => c.parent_id)
+                    .filter(
+                        (pid) =>
+                            pid != null && !friendCategoryIdSet.has(pid),
+                    ),
+            ),
+        );
+
+        if (parentIds.length > 0) {
+            const { data: parentCats, error: parentErr } = await supabase
+                .from('categories')
+                .select('*')
+                .in('id', parentIds)
+                .is('deleted_at', null)
+                .order('parent_id', { ascending: true, nullsFirst: true })
+                .order('sort_order', { ascending: true })
+                .order('created_at', { ascending: true });
+
+            if (parentErr) throw parentErr;
+
+            // 부모를 앞에 붙여서 루트들이 먼저 오게
+            friendCategories = [
+                ...(parentCats ?? []),
+                ...friendCategories,
+            ];
+        }
+    }
 
     // 6) 내 카테고리 + 친구 카테고리 합쳐서 리턴
     return [...myCategories, ...friendCategories];
 }
 
-export async function fetchVisibleDocumentsByCategory({ userId, categoryId }) {
+export async function fetchVisibleDocumentsByCategory({
+                                                          userId,
+                                                          categoryId,
+                                                          includeChildren = false, // 🔹 추가 옵션
+                                                      }) {
     const all = await fetchVisibleDocuments(userId); // 내 + 친구공개
 
     // categoryId가 null/undefined/'' 이면 전체 문서 리턴 (전체 카테고리 용도)
@@ -833,7 +1015,28 @@ export async function fetchVisibleDocumentsByCategory({ userId, categoryId }) {
         return [];
     }
 
-    return all.filter((doc) => Number(doc.category_id) === targetId);
+    // 기본은 자기 자신만
+    let targetIds = [targetId];
+
+    if (includeChildren) {
+        // 🔹 parent_id = targetId 인 2depth 카테고리들 조회
+        const { data: children, error } = await supabase
+            .from('categories')
+            .select('id')
+            .eq('parent_id', targetId)
+            .is('deleted_at', null);
+
+        if (error) throw error;
+
+        const childIds = (children || []).map((c) => c.id);
+        targetIds = [...targetIds, ...childIds];
+    }
+
+    return all.filter(
+        (doc) =>
+            doc.category_id != null &&
+            targetIds.includes(Number(doc.category_id)),
+    );
 }
 
 export async function softDeleteDocument({ documentId, userId }) {
@@ -943,75 +1146,94 @@ export async function updateDocumentCategory({ userId, documentId, categoryId })
     return data;
 }
 
-// title: "음식점"
-export async function updateSectionLinksForTitle({
-                                                     userId,
-                                                     title,
-                                                     oldMarkdown,
-                                                     newMarkdown,
-                                                 }) {
-    const mappings = buildSectionNumberMapping(oldMarkdown, newMarkdown);
-    if (mappings.length === 0) {
+// 🔹 특정 문서의 섹션 번호가 바뀌었을 때,
+//    그 문서를 doc:ID 로 참조하는 다른 문서들의 링크를 함께 수정한다.
+export async function updateSectionLinksForDocument({
+                                                        documentId,
+                                                        oldMarkdown,
+                                                        newMarkdown,
+                                                    }) {
+    // 1) 섹션 번호 변화 계산
+    const mappings = buildSectionNumberMapping(oldMarkdown || '', newMarkdown || '');
+    if (!mappings || mappings.length === 0) {
         return; // 번호 변화 없음
     }
 
-    // 1) 이 제목을 참조하는 문서들 전체 조회 (제목 기준으로 넉넉하게)
+    // oldNumber -> newNumber 맵
+    const numberMap = new Map(
+        mappings.map((m) => [m.oldNumber, m.newNumber]),
+    );
+
+    // 2) 이 문서를 참조하는 문서들 조회
+    //    ([[doc:7#...]] / [[doc:7...]] 둘 다 있을 수 있으니,
+    //    공통으로 들어가는 "doc:7" 만 LIKE 로 찾으면 충분
+    const likePattern = `doc:${documentId}`;
+
     const { data: docs, error } = await supabase
         .from('documents')
-        .select('id, user_id, content_markdown')
-        .ilike('content_markdown', `%${title}%`);
+        .select('id, content_markdown')
+        .ilike('content_markdown', `%${likePattern}%`);
 
     if (error) throw error;
     if (!docs || docs.length === 0) return;
 
-    const updates = [];
+    const nowIso = new Date().toISOString();
 
     for (const d of docs) {
         let markdown = d.content_markdown || '';
         let updated = markdown;
 
-        for (const m of mappings) {
-            const { oldNumber, newNumber } = m;
+        for (const { oldNumber, newNumber } of mappings) {
+            // ─────────────────────────────
+            // ① 이스케이프 안 된 형태
+            //    [[doc:7#1.1|...]]
+            //    [[doc:7#1.1]]
+            // ─────────────────────────────
+            const rawOld1 = `[[doc:${documentId}#${oldNumber}|`;
+            const rawOld2 = `[[doc:${documentId}#${oldNumber}]]`;
+            const rawNew1 = `[[doc:${documentId}#${newNumber}|`;
+            const rawNew2 = `[[doc:${documentId}#${newNumber}]]`;
 
-            // 숫자 안의 . 도 \. 로 이스케이프되어 저장되어 있음
-            const escapedOldNumber = oldNumber.replace(/\./g, '\\.');
-            const escapedNewNumber = newNumber.replace(/\./g, '\\.');
+            updated = updated.split(rawOld1).join(rawNew1);
+            updated = updated.split(rawOld2).join(rawNew2);
 
-            // 🔹 DB 안에 실제로 저장되어 있는 형태:
-            //     \[\[음식점\#2\.1\|
-            //   → 문자열 리터럴에서는 \\[\\[음식점\\#2\\.1\\|
-            const pattern1 = `\\[\\[${title}\\#${escapedOldNumber}\\|`;
-            const replacement1 = `\\[\\[${title}\\#${escapedNewNumber}\\|`;
+            // ─────────────────────────────
+            // ② 예전에 저장된, 이스케이프 된 형태
+            //    \[\[doc:7\#1\.1\|...]]
+            //    \[\[doc:7\#1\.1\]\]
+            //    → sanitizeWikiSyntax 로 "패턴"만 변환해서 사용
+            // ─────────────────────────────
+            const escOld1 = sanitizeWikiSyntax(rawOld1);
+            const escOld2 = sanitizeWikiSyntax(rawOld2);
+            const escNew1 = sanitizeWikiSyntax(rawNew1);
+            const escNew2 = sanitizeWikiSyntax(rawNew2);
 
-            // 🔹 alias 없는 형태: \[\[음식점\#2\.1\]\]
-            const pattern2 = `\\[\\[${title}\\#${escapedOldNumber}\\]\\]`;
-            const replacement2 = `\\[\\[${title}\\#${escapedNewNumber}\\]\\]`;
-
-            updated = updated.split(pattern1).join(replacement1);
-            updated = updated.split(pattern2).join(replacement2);
+            updated = updated.split(escOld1).join(escNew1);
+            updated = updated.split(escOld2).join(escNew2);
         }
 
         if (updated !== markdown) {
-            updates.push({
-                id: d.id,
-                user_id: d.user_id,
-                content_markdown: updated,
-            });
+            const { error: upErr } = await supabase
+                .from('documents')
+                .update({
+                    content_markdown: updated,
+                    updated_at: nowIso,
+                })
+                .eq('id', d.id);
+
+            if (upErr) {
+                console.error('updateSectionLinksForDocument - update error', upErr);
+                // 필요하면 throw upErr; 로 바꿀 수 있음
+            }
         }
     }
+}
 
-    // 3) 실제 DB 업데이트
-    for (const u of updates) {
-        const { error: upErr } = await supabase
-            .from('documents')
-            .update({
-                content_markdown: u.content_markdown,
-                updated_at: new Date().toISOString(),
-            })
-            .eq('id', u.id);
-
-        if (upErr) {
-            console.error('updateSectionLinksForTitle - update error', upErr);
-        }
-    }
+function sanitizeWikiSyntax(str = '') {
+    return str
+        .replace(/\[/g, '\\[')
+        .replace(/\]/g, '\\]')
+        .replace(/#/g, '\\#')
+        .replace(/\|/g, '\\|')
+        .replace(/\./g, '\\.');
 }

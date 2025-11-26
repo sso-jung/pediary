@@ -14,6 +14,7 @@ export function useDocuments(categoryId) {
                 userId: user.id,
                 // "all" 같은 값은 null로 넘겨서 전체 조회
                 categoryId: categoryId === 'all' ? null : categoryId,
+                includeChildren: true, // 🔹 여기! 1depth 선택 시 자식까지 포함
             }),
     });
 }
