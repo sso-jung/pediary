@@ -415,13 +415,14 @@ export default function DocumentPage() {
                             )}
                         </div>
 
-                        {/* 오른쪽 버튼 영역 */}
-                        {canEdit && isEditing && (
-                            <>
+                        {/* 오른쪽 컨트롤 묶음 – 모바일에서 한 줄에 정렬 */}
+                        <div className="flex items-center gap-1 sm:gap-2">
+                            {/* 편집 중일 때만 공개 범위 토글 */}
+                            {canEdit && isEditing && (
                                 <div className="inline-flex items-center rounded-full bg-slate-100 p-1 text-[10px] lg:text-[11px]">
-                  <span className="ml-2 mr-1 hidden text-slate-500 sm:inline">
-                    공개 범위
-                  </span>
+      <span className="ml-2 mr-1 hidden text-slate-500 sm:inline">
+        공개 범위
+      </span>
                                     <button
                                         type="button"
                                         onClick={(e) => {
@@ -453,58 +454,62 @@ export default function DocumentPage() {
                                         친구 공개
                                     </button>
                                 </div>
+                            )}
 
-                                <Button
-                                    type="submit"
-                                    className="
-                                                !h-8 !px-4 !text-xs !w-auto       /* 모바일: 높이/폭/폰트 확 줄이기 */
-                                                sm:!h-9 sm:!text-sm sm:w-20      /* 태블릿 이상은 기존 느낌 유지 */
-                                                lg:w-24
-                                              "
-                                    disabled={updateMutation.isLoading}
-                                >
-                                    {updateMutation.isLoading ? '저장 중...' : '저장'}
-                                </Button>
-                            </>
-                        )}
-
-                        {isOwner && (
-                            <div className="inline-flex items-center rounded-full bg-slate-100 p-1 text-[10px] lg:text-[11px]">
-                                <button
-                                    type="button"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setIsEditing(false);
-                                    }}
-                                    className={
-                                        'rounded-full px-2.5 lg:px-3 py-1 transition ' +
-                                        (!isEditing
-                                            ? 'bg-white text-slate-900 shadow'
-                                            : 'text-slate-500 hover:text-slate-700')
-                                    }
-                                >
-                                    보기
-                                </button>
-
-                                {canEdit && (
+                            {/* 보기 / 편집 탭 */}
+                            {isOwner && (
+                                <div className="inline-flex items-center rounded-full bg-slate-100 p-1 text-[10px] lg:text-[11px] whitespace-nowrap">
                                     <button
                                         type="button"
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            setIsEditing(true);
+                                            setIsEditing(false);
                                         }}
                                         className={
                                             'rounded-full px-2.5 lg:px-3 py-1 transition ' +
-                                            (isEditing
+                                            (!isEditing
                                                 ? 'bg-white text-slate-900 shadow'
                                                 : 'text-slate-500 hover:text-slate-700')
                                         }
                                     >
-                                        편집
+                                        보기
                                     </button>
-                                )}
-                            </div>
-                        )}
+
+                                    {canEdit && (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setIsEditing(true);
+                                            }}
+                                            className={
+                                                'rounded-full px-2.5 lg:px-3 py-1 transition ' +
+                                                (isEditing
+                                                    ? 'bg-white text-slate-900 shadow'
+                                                    : 'text-slate-500 hover:text-slate-700')
+                                            }
+                                        >
+                                            편집
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* 저장 버튼 – 모바일에서도 보기/편집과 같은 줄에 */}
+                            {canEdit && isEditing && (
+                                <Button
+                                    type="submit"
+                                    className="
+                                        !h-8 !px-3 !text-xs !w-auto         /* 모바일용 – 작게 */
+                                        sm:!h-9 sm:!text-[11px] sm:w-20    /* 태블릿 이상은 기존 느낌 */
+                                        lg:w-24
+                                      "
+                                    disabled={updateMutation.isLoading}
+                                >
+                                    {updateMutation.isLoading ? '저장 중...' : '저장'}
+                                </Button>
+                            )}
+                        </div>
                     </div>
                 </form>
             </div>
