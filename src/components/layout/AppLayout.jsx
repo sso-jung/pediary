@@ -88,13 +88,19 @@ export default function AppLayout({ children }) {
                 {isDocs && (
                     <>
                         {/* PC용 고정 사이드바 */}
-                        <aside className="hidden lg:block w-64 shrink-0 border-r border-border-subtle bg-surface-elevated/80 backdrop-blur overflow-y-auto">
+                        <aside
+                            className="
+                                hidden min-[1420px]:block
+                                w-64 shrink-0 border-r border-border-subtle
+                                bg-surface-elevated/80 backdrop-blur overflow-y-auto
+                            "
+                        >
                             <Sidebar />
                         </aside>
 
                         {/* 모바일/태블릿용 슬라이드 사이드바 */}
                         <div
-                            className={`fixed inset-0 z-40 lg:hidden ${
+                            className={`fixed inset-0 z-40 min-[1420px]:hidden ${
                                 isSidebarOpen ? '' : 'pointer-events-none invisible'
                             }`}
                         >
@@ -137,40 +143,39 @@ export default function AppLayout({ children }) {
                 {/* 우측: 메인 + 오른쪽 패널 자리 */}
                 {isDocs ? (
                     <main className="relative flex-1 min-w-0 min-h-0">
+                        {/* 중앙 컨텐츠 영역 */}
                         <div
-                            className="relative mx-auto flex h-full min-h-0 w-full max-w-[100rem] flex-col
-                             pl-2 pr-2
-                             py-4 md:py-5 lg:py-6
-                             lg:pl-6 lg:pr-[300px]"
-                            >
+                            className="
+                                relative mx-auto flex h-full min-h-0 w-full max-w-[100rem] flex-col
+                                pl-2 pr-2
+                                py-4 md:py-5 min-[1420px]:py-6
+                                min-[1420px]:pl-6 min-[1420px]:pr-[300px]
+                            "
+                        >
                             {children}
                         </div>
 
                         {/* 오른쪽 패널 (PC: 옆에, 모바일/태블릿: bottom sheet) */}
                         {activeSidePanel && sidePanelContent && (
                             <>
-                            {/* PC용 오른쪽 고정 패널 */}
-                                <div className="hidden lg:block absolute right-[16px] top-6 bottom-6 w-[266px]">
+                                {/* PC용 오른쪽 고정 패널 */}
+                                <div className="hidden min-[1420px]:block absolute right-[16px] top-6 bottom-6 w-[266px]">
                                     <div className="panel-surface flex h-full flex-col rounded-2xl border shadow-soft">
                                         {sidePanelContent}
                                     </div>
                                 </div>
 
                                 {/* 모바일/태블릿용 bottom sheet */}
-                                <div className="fixed inset-0 z-40 flex items-end bg-black/30 lg:hidden">
+                                <div className="fixed inset-0 z-40 flex items-end bg-black/30 min-[1420px]:hidden">
                                     <div className="panel-surface w-full max-h-[75%] rounded-t-2xl border border-border-subtle shadow-xl">
                                         <div className="flex items-center justify-between border-b border-border-subtle px-4 py-2">
                                             <span className="text-xs font-semibold">
-                                                {activeSidePanel === 'friends'
-                                                    ? '친구'
-                                                    : '내 정보'}
+                                                {activeSidePanel === 'friends' ? '친구' : '내 정보'}
                                             </span>
                                             <button
                                                 type="button"
                                                 className="rounded-full px-2 py-1 text-[11px] text-slate-400 hover:bg-slate-100/60"
-                                                onClick={() =>
-                                                    setActiveSidePanel(null)
-                                                }
+                                                onClick={() => setActiveSidePanel(null)}
                                             >
                                                 닫기
                                             </button>
@@ -206,16 +211,12 @@ export default function AppLayout({ children }) {
                                     <div className="panel-surface w-full max-h-[75%] rounded-t-2xl border border-border-subtle shadow-xl">
                                         <div className="flex items-center justify-between border-b border-border-subtle px-4 py-2">
                                             <span className="text-xs font-semibold">
-                                                {activeSidePanel === 'friends'
-                                                    ? '친구'
-                                                    : '내 정보'}
+                                                {activeSidePanel === 'friends' ? '친구' : '내 정보'}
                                             </span>
                                             <button
                                                 type="button"
                                                 className="rounded-full px-2 py-1 text-[11px] text-slate-400 hover:bg-slate-100/60"
-                                                onClick={() =>
-                                                    setActiveSidePanel(null)
-                                                }
+                                                onClick={() => setActiveSidePanel(null)}
                                             >
                                                 닫기
                                             </button>

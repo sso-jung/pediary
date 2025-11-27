@@ -83,8 +83,13 @@ export default function Header({
                     <button
                         type="button"
                         onClick={onToggleSidebar}
-                        className={`inline-flex lg:hidden items-center rounded-full border border-slate-200 px-3 py-1 text-[11px] sm:text-xs transition
-                        ${isSidebarOpen ? 'bg-slate-100 text-slate-800' : 'bg-white/80 text-slate-600 hover:bg-slate-100'}`}
+                        className={`
+                          inline-flex items-center rounded-full border border-slate-200 px-3 py-1 text-[11px] transition
+                          min-[1420px]:hidden            /* ✅ 1420px 이상(데스크탑)에서는 숨김 */
+                          ${isSidebarOpen
+                            ? 'bg-slate-100 text-slate-800'
+                            : 'bg-white/80 text-slate-600 hover:bg-slate-100'}
+                        `}
                     >
                         카테고리
                     </button>
