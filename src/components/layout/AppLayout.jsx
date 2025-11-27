@@ -4,17 +4,14 @@ import { useLocation } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import FriendsPage from '../../features/friends/FriendsPage';
-import MyInfoPanel from '../../features/account/MyInfoPanel'; // ✅ 새 패널
+import MyInfoPanel from '../../features/account/MyInfoPanel';
 
 const THEME_STORAGE_KEY = 'pediary-theme';
 
 export default function AppLayout({ children }) {
     const [activeSidePanel, setActiveSidePanel] = useState(null); // 'friends' | 'me' | null
-
-    // 🔹 좌측 카테고리 사이드바 (모바일/태블릿용) 오픈 상태
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-    // 🔹 테마 상태 (light / dark) + 로컬 저장
     const [theme, setTheme] = useState(() => {
         if (typeof window === 'undefined') return 'light';
         const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
@@ -45,19 +42,28 @@ export default function AppLayout({ children }) {
 
     const location = useLocation();
     const path = location.pathname;
+
+    // 🔹 문서 영역 여부 (탭 표시용)
     const isDocs =
         path.startsWith('/wiki') ||
         path.startsWith('/category') ||
         path.startsWith('/docs') ||
         path.startsWith('/trash');
 
-    // 🔹 라우트가 바뀌면 모달/오버레이 닫기 (폴더/친구/내정보)
+    // 🔹 실제 문서 상세 페이지(/wiki/:slug) 인지 여부
+    //   - /wiki/ 로 시작하는 모든 라우트를 문서 페이지로 취급
+    const isDocumentPage =
+        path.startsWith('/wiki/'); // 필요하면 예외 추가 가능
+
+    // 🔹 좌측 카테고리 사이드바를 보여줄지 여부
+    const showSidebarLayout = isDocs && !isDocumentPage;
+
+    // 라우트 변경 시 오버레이/패널 닫기
     useEffect(() => {
         setIsSidebarOpen(false);
         setActiveSidePanel(null);
     }, [path]);
 
-    // 🔹 우측 패널에 들어갈 실제 콘텐츠
     const sidePanelContent = useMemo(() => {
         if (activeSidePanel === 'friends') return <FriendsPage />;
         if (activeSidePanel === 'me') return <MyInfoPanel />;
@@ -74,7 +80,8 @@ export default function AppLayout({ children }) {
                 <Header
                     onToggleFriends={handleToggleFriends}
                     onToggleMyInfo={handleToggleMyInfo}
-                    onToggleSidebar={isDocs ? handleToggleSidebar : undefined}
+                    // 🔹 DocumentPage에서는 카테고리 토글 버튼 자체를 비활성화
+                    onToggleSidebar={showSidebarLayout ? handleToggleSidebar : undefined}
                     activeSidePanel={activeSidePanel}
                     isSidebarOpen={isSidebarOpen}
                     theme={theme}
@@ -84,23 +91,23 @@ export default function AppLayout({ children }) {
 
             {/* 아래 영역 */}
             <div className="flex flex-1 min-h-0">
-                {/* 🔹 문서 탭에서만 좌측 Sidebar (PC: 고정, 모바일/태블릿: 오버레이) */}
-                {isDocs && (
+                {/* 🔹 문서 탭이면서, DocumentPage가 아닐 때만 좌측 카테고리 영역 사용 */}
+                {showSidebarLayout && (
                     <>
-                        {/* PC용 고정 사이드바 */}
+                        {/* PC용 고정 사이드바 (lg 이상) */}
                         <aside
                             className="
-                                hidden min-[1420px]:block
-                                w-64 shrink-0 border-r border-border-subtle
+                                hidden lg:block
+                                w-[220px] shrink-0 border-r border-border-subtle
                                 bg-surface-elevated/80 backdrop-blur overflow-y-auto
                             "
                         >
                             <Sidebar />
                         </aside>
 
-                        {/* 모바일/태블릿용 슬라이드 사이드바 */}
+                        {/* 모바일/태블릿용 슬라이드 사이드바 (lg 미만) */}
                         <div
-                            className={`fixed inset-0 z-40 min-[1420px]:hidden ${
+                            className={`fixed inset-0 z-40 lg:hidden ${
                                 isSidebarOpen ? '' : 'pointer-events-none invisible'
                             }`}
                         >
@@ -143,7 +150,7 @@ export default function AppLayout({ children }) {
                 {/* 우측: 메인 + 오른쪽 패널 자리 */}
                 {isDocs ? (
                     <main className="relative flex-1 min-w-0 min-h-0">
-                        {/* 중앙 컨텐츠 영역 */}
+                        {/* 중앙 컨텐츠 영역 (문서 레이아웃) */}
                         <div
                             className="
                                 relative mx-auto flex h-full min-h-0 w-full max-w-[100rem] flex-col
@@ -190,7 +197,7 @@ export default function AppLayout({ children }) {
                     </main>
                 ) : (
                     <main className="relative flex-1 min-w-0 min-h-0">
-                        {/* 가운데 콘텐츠 영역: max-w + 오른쪽 패널 자리 확보 */}
+                        {/* 홈 레이아웃 */}
                         <div
                             className="relative mx-auto flex h-full min-h-0 w-full max-w-[90rem] flex-col
                             pl-2 pr-2 py-6 lg:pl-[147px] lg:pr-[147px]"
@@ -198,7 +205,7 @@ export default function AppLayout({ children }) {
                             {children}
                         </div>
 
-                        {/* 오른쪽 패널 (PC: 옆에, 모바일/태블릿: bottom sheet) */}
+                        {/* 오른쪽 패널 (홈에서도 동일 로직) */}
                         {activeSidePanel && sidePanelContent && (
                             <>
                                 <div className="hidden lg:block absolute right-[16px] top-6 bottom-6 w-[266px]">

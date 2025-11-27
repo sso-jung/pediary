@@ -24,6 +24,8 @@ function extractSectionsFromMarkdown(markdown) {
     const counters = [0, 0, 0, 0, 0, 0, 0]; // 1~6 레벨 카운터
     const sections = [];
 
+    let lastHeadingKey = null;
+
     for (const line of lines) {
         const match = line.match(/^(#{1,6})\s+(.*)$/); // "# 제목" ~ "###### 제목"
         if (!match) continue;
@@ -32,6 +34,16 @@ function extractSectionsFromMarkdown(markdown) {
         const level = hashes.length;
         const rawText = match[2].trim();
         const plainText = stripHeadingText(rawText);
+
+        // 1) 내용이 없는 헤딩은 무시
+        if (!plainText) continue;
+
+        // 2) 바로 앞 헤딩과 레벨+텍스트가 같으면 중복으로 간주
+        const headingKey = `${level}|${plainText}`;
+        if (headingKey === lastHeadingKey) {
+            continue;
+        }
+        lastHeadingKey = headingKey;
 
         counters[level] += 1;
         for (let i = level + 1; i < counters.length; i++) {
@@ -91,13 +103,27 @@ export default function MarkdownEditor({
                                            onChange,
                                            allDocs = [],
                                            fullHeight = false,   // 카드 전체 높이 쓸지 여부
+                                           onManualSave,
                                        }) {
     const editorRef = useRef(null);
+    // 외부 value → 에디터 동기화 (이미 있을 가능성 높음)
+    useEffect(() => {
+        const instance = editorRef.current?.getInstance?.();
+        if (!instance) return;
+
+        const current = instance.getMarkdown();
+        if (current !== value) {
+            instance.setMarkdown(value || '');
+        }
+    }, [value]);
 
     // 🔹 내부 링크 자동완성 팝업 상태
     const [isLinkPaletteOpen, setIsLinkPaletteOpen] = useState(false);
     const [linkQuery, setLinkQuery] = useState('');
     const [highlightIndex, setHighlightIndex] = useState(0);
+
+    // 🔹 팝업 리스트 컨테이너 ref (스크롤 따라가기용)
+    const paletteListRef = useRef(null);
 
     // 팝업 열림 상태 ref (keydown에서 최신값 쓰려고)
     const isLinkPaletteOpenRef = useRef(false);
@@ -272,7 +298,7 @@ export default function MarkdownEditor({
         setLinkQuery('');
         setHighlightIndex(0);
 
-        // 커서를 삽입된 ]] 뒤로 옮기기 (기존 로직 그대로 사용)
+        // 커서를 삽입된 ]] 뒤로 옮기기
         const caretIndex = newMarkdown.indexOf(insertion) + insertion.length;
         if (caretIndex > 1) {
             const textBeforeCaret = newMarkdown.slice(0, caretIndex);
@@ -397,6 +423,37 @@ export default function MarkdownEditor({
         return () => window.removeEventListener('keydown', handleHeadingShortcut, true);
     }, []);
 
+    // 🔹 하이라이트가 바뀔 때 리스트 스크롤도 같이 이동
+    useEffect(() => {
+        const container = paletteListRef.current;
+        if (!container) return;
+        if (filteredCandidates.length === 0) return;
+
+        const safeIndex = Math.min(highlightIndex, filteredCandidates.length - 1);
+        const itemEl = container.children[safeIndex];
+        if (itemEl && itemEl.scrollIntoView) {
+            itemEl.scrollIntoView({ block: 'nearest' });
+        }
+    }, [highlightIndex, filteredCandidates.length]);
+
+    // 🔹 Ctrl+S / Cmd+S 단축키 → onManualSave 실행
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            const isMac = navigator.platform.toUpperCase().includes('MAC');
+            const isSaveKey = isMac
+                ? e.metaKey && e.key === 's'
+                : e.ctrlKey && e.key === 's';
+
+            if (isSaveKey) {
+                e.preventDefault();
+                onManualSave?.(); // 👉 이게 수동 저장 버튼 역할
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [onManualSave]);
+
     return (
         <div className={fullHeight ? 'h-full' : ''}>
             <Editor
@@ -432,7 +489,7 @@ export default function MarkdownEditor({
                 onChange={handleChange}
             />
 
-            {/* 🔹 내부 링크 자동완성 팝업 (기존 그대로) */}
+            {/* 🔹 내부 링크 자동완성 팝업 */}
             {isLinkPaletteOpen && (
                 <div className="absolute bottom-4 left-1/2 z-20 w-80 -translate-x-1/2 rounded-xl border border-slate-200 bg-white shadow-lg">
                     <div className="border-b border-slate-100 px-3 py-2 text-[11px] text-slate-500">
@@ -453,7 +510,10 @@ export default function MarkdownEditor({
                                 일치하는 문서가 없어.
                             </div>
                         ) : (
-                            <ul className="max-h-52 space-y-1 overflow-y-auto py-1 text-[12px]">
+                            <ul
+                                ref={paletteListRef}
+                                className="max-h-52 space-y-1 overflow-y-auto py-1 text-[12px]"
+                            >
                                 {filteredCandidates.map((item, idx) => (
                                     <li
                                         key={

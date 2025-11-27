@@ -57,13 +57,14 @@ body {
   white-space: pre-line;
 }
 
-/* 위키 내부 링크 스타일 */
-.wiki-link {
+/* 위키 내부 링크 스타일 (Toast UI 보다 더 세게) */
+.toastui-editor-contents a {
   color: #2563eb;
   text-decoration: none !important;
   font-weight: 600;
 }
-.wiki-link:hover {
+
+.toastui-editor-contents a:hover {
   text-decoration: none;
   color: #1d4ed8;
 }
@@ -137,21 +138,40 @@ body {
 .app-shell[data-theme='light'] {
   --color-bg-app: #f3f4f8;
   --color-bg-header: rgba(255, 255, 255, 0.9);
+
   --color-surface: #ffffff;
   --color-surface-elevated: #ffffff;
+
   --color-border-subtle: rgba(148, 163, 184, 0.35);
+
   --color-text-main: #0f172a;
+  --color-text-muted: #6b7280;          /* 🔹 서브 텍스트 */
+
+  --color-badge-muted-bg: #e5e7eb;      /* 🔹 기본 배지 배경 */
+  --color-badge-muted-fg: #6b7280;      /* 🔹 기본 배지 텍스트 */
+
+  --wiki-heading-number-color: #536ea8; /* 🔹 문서 제목 번호 색 */
 }
 
 .app-shell[data-theme='dark'] {
   --color-bg-app: #020617;
   --color-bg-header: rgba(15, 23, 42, 0.92);
+
   --color-surface: #020617;
   --color-surface-elevated: #020617;
+
   --color-border-subtle: rgba(148, 163, 184, 0.45);
+
   --color-text-main: #e5e7eb;
+  --color-text-muted: #9ca3af;
+
+  --color-badge-muted-bg: #111827;
+  --color-badge-muted-fg: #e5e7eb;
+
+  --wiki-heading-number-color: #9ca3af;
 }
 
+/* app 루트 */
 .app-shell {
   background-color: var(--color-bg-app);
   color: var(--color-text-main);
@@ -173,6 +193,50 @@ body {
 /* 사이드바 고정 영역 배경 */
 .bg-surface-elevated\/80 {
   background-color: color-mix(in srgb, var(--color-surface-elevated) 80%, transparent);
+}
+
+/* ===========================
+   페이지/카드 공통 유틸리티
+   =========================== */
+
+@layer components {
+  /* 메인 카드 (전체 문서, 휴지통 같은 큰 카드) */
+  .page-card {
+    @apply rounded-2xl shadow-soft border;
+    background-color: var(--color-surface-elevated);
+    border-color: var(--color-border-subtle);
+    color: var(--color-text-main);
+  }
+
+  .page-card-body {
+    @apply p-3 sm:p-4;
+  }
+
+  .page-text-main {
+    color: var(--color-text-main);
+  }
+
+  .page-text-muted {
+    color: var(--color-text-muted);
+  }
+
+  /* 리스트 행 공통 스타일 */
+  .page-list-item {
+    @apply rounded-xl border px-3 py-2;
+    border-color: var(--color-border-subtle);
+    background-color: transparent;
+  }
+
+  .page-list-item-hover {
+    @apply hover:bg-primary-50;
+  }
+
+  /* 기본 회색 배지 (친구 공개 말고 나머지) */
+  .badge-muted {
+    @apply inline-flex items-center rounded-full px-2 py-[2px] text-[10px];
+    background-color: var(--color-badge-muted-bg);
+    color: var(--color-badge-muted-fg);
+  }
 }
 
 /* ===========================
