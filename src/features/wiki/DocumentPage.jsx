@@ -497,17 +497,18 @@ export default function DocumentPage() {
 
                             {/* 저장 버튼 – 모바일에서도 보기/편집과 같은 줄에 */}
                             {canEdit && isEditing && (
-                                <Button
+                                <button
                                     type="submit"
                                     className="
-                                        !h-8 !px-3 !text-xs !w-auto         /* 모바일용 – 작게 */
-                                        sm:!h-9 sm:!text-[11px] sm:w-20    /* 태블릿 이상은 기존 느낌 */
-                                        lg:w-24
+                                        text-[11px] w-12
+                                        px-2.5 lg:px-3 !py-1
+                                        bg-[#8498c4] rounded-xl text-white
+                                        hover:bg-[#687ba6]
                                       "
                                     disabled={updateMutation.isLoading}
                                 >
                                     {updateMutation.isLoading ? '저장 중...' : '저장'}
-                                </Button>
+                                </button>
                             )}
                         </div>
                     </div>

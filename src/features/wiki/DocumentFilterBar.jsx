@@ -15,25 +15,44 @@ export default function DocumentFilterBar({
     const isTitleSort = sortBy === 'title';
 
     return (
-        <div className="flex flex-col gap-2 rounded-2xl bg-white p-3 shadow-soft sm:flex-row sm:items-center sm:justify-between">
+        <div
+            className="
+        flex flex-col gap-2 rounded-2xl bg-white
+        p-2.5 sm:p-3
+        shadow-[0_0_10px_rgba(15,23,42,0.07)]
+        sm:flex-row sm:items-center sm:justify-between
+      "
+        >
             {/* 왼쪽: 검색어 */}
             <div className="flex-1">
                 <Input
                     placeholder="문서 제목 검색"
-                    // 🔹 좀 더 얄쌍하고 각진 느낌으로
-                    className="h-8 text-[13px] rounded-md border border-slate-200 bg-slate-50 px-3 py-1 shadow-none focus:bg-white focus:border-primary-300 focus:ring-1 focus:ring-primary-200"
+                    className="
+            h-7 sm:h-8
+            text-[12px] sm:text-[13px]
+            rounded-md border border-slate-200 bg-slate-50
+            px-2.5 py-[3px] sm:px-3
+            shadow-none
+            focus:bg-white focus:border-primary-300
+            focus:ring-1 focus:ring-primary-200
+          "
                     value={searchText}
                     onChange={(e) => handleChange({ searchText: e.target.value })}
                 />
             </div>
 
             {/* 오른쪽: 정렬 + 즐겨찾기 필터 */}
-            <div className="mt-1 flex flex-wrap items-center gap-3 text-[11px] text-slate-600 sm:mt-0 sm:justify-end">
-                <span className="text-[11px] text-slate-500">정렬</span>
+            <div className="mt-1 flex flex-wrap items-center gap-2.5 text-[10px] text-slate-600 sm:mt-0 sm:justify-end sm:text-[11px]">
+                <span className="text-[10px] sm:text-[11px] text-slate-500">정렬</span>
 
-                {/* 무엇으로 정렬할지 */}
                 <select
-                    className="h-8 rounded-full border border-slate-200 bg-white px-2 text-[11px] outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-100"
+                    className="
+            h-7 sm:h-8
+            rounded-full border border-slate-200 bg-white
+            px-2 text-[10px] sm:text-[11px]
+            outline-none focus:border-primary-400
+            focus:ring-1 focus:ring-primary-100
+          "
                     value={sortBy}
                     onChange={(e) => handleChange({ sortBy: e.target.value })}
                 >
@@ -42,9 +61,14 @@ export default function DocumentFilterBar({
                     <option value="title">제목</option>
                 </select>
 
-                {/* 방향: 제목이면 오름/내림, 날짜면 최신/오래된 */}
                 <select
-                    className="h-8 rounded-full border border-slate-200 bg-white px-2 text-[11px] outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-100"
+                    className="
+            h-7 sm:h-8
+            rounded-full border border-slate-200 bg-white
+            px-2 text-[10px] sm:text-[11px]
+            outline-none focus:border-primary-400
+            focus:ring-1 focus:ring-primary-100
+          "
                     value={sortDir}
                     onChange={(e) => handleChange({ sortDir: e.target.value })}
                 >
@@ -62,9 +86,8 @@ export default function DocumentFilterBar({
                 </select>
 
                 {showFavoritesFilter && (
-                    <div className="flex items-center gap-2">
-                        {/* 🔹 즐겨찾기 우선 옵션 */}
-                        <label className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-slate-50 px-2 py-[3px]">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                        <label className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-slate-50 px-2 py-[3px] text-[10px] sm:text-[11px]">
                             <input
                                 type="checkbox"
                                 className="h-3 w-3"
@@ -76,8 +99,7 @@ export default function DocumentFilterBar({
                             <span>즐겨찾기 우선</span>
                         </label>
 
-                        {/* 🔹 즐겨찾기만 보기 옵션 */}
-                        <label className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-slate-50 px-2 py-[3px]">
+                        <label className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-slate-50 px-2 py-[3px] text-[10px] sm:text-[11px]">
                             <input
                                 type="checkbox"
                                 className="h-3 w-3"
