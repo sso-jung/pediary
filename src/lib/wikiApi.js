@@ -1237,3 +1237,40 @@ function sanitizeWikiSyntax(str = '') {
         .replace(/\|/g, '\\|')
         .replace(/\./g, '\\.');
 }
+
+/** 내 즐겨찾기 목록 (document_id 만) */
+export async function fetchMyDocumentFavorites(userId) {
+    if (!userId) return [];
+
+    const { data, error } = await supabase
+        .from('document_favorites')
+        .select('document_id')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+}
+
+/** 즐겨찾기 추가 */
+export async function addDocumentFavorite({ userId, documentId }) {
+    const { error } = await supabase
+        .from('document_favorites')
+        .upsert(
+            { user_id: userId, document_id: documentId },
+            { onConflict: 'user_id,document_id' },
+        );
+
+    if (error) throw error;
+}
+
+/** 즐겨찾기 삭제 */
+export async function removeDocumentFavorite({ userId, documentId }) {
+    const { error } = await supabase
+        .from('document_favorites')
+        .delete()
+        .eq('user_id', userId)
+        .eq('document_id', documentId);
+
+    if (error) throw error;
+}

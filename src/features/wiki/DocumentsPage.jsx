@@ -1,5 +1,5 @@
 // src/features/wiki/DocumentsPage.jsx
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useVisibleDocuments } from './hooks/useVisibleDocuments';
 import { useCategories } from './hooks/useCategories';
@@ -9,6 +9,9 @@ import { useSnackbar } from '../../components/ui/SnackbarContext';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import SectionHeader from '../../components/ui/SectionHeader';
 import EmptyState from '../../components/ui/EmptyState';
+import DocumentFilterBar from './DocumentFilterBar';
+import { useDocumentFavorites, useToggleFavoriteDocument } from './hooks/useDocumentFavorites';
+import { sortAndFilterDocuments } from './utils/documentListUtils';
 
 export default function DocumentsPage() {
     const { data: docs, isLoading } = useVisibleDocuments();
@@ -19,6 +22,27 @@ export default function DocumentsPage() {
     const deleteDocumentMutation = useDeleteDocument();
     const { showSnackbar } = useSnackbar();
     const [docToDelete, setDocToDelete] = useState(null);
+
+    const { data: favorites } = useDocumentFavorites();
+    const toggleFavoriteMutation = useToggleFavoriteDocument();
+
+    const [query, setQuery] = useState({
+        searchText: '',
+        sortBy: 'updated_at',
+        sortDir: 'desc',
+        onlyFavorites: false,
+        favoriteFirst: true,
+    });
+
+    const favoriteIdSet = useMemo(
+        () => new Set((favorites || []).map((f) => f.document_id)),
+        [favorites],
+    );
+
+    const sortedDocs = useMemo(
+        () => sortAndFilterDocuments(docs || [], query, favoriteIdSet),
+        [docs, query, favoriteIdSet],
+    );
 
     const getCategoryName = (categoryId) => {
         if (!categoryId || !categories) return '미분류';
@@ -33,9 +57,14 @@ export default function DocumentsPage() {
                 subtitle="카테고리와 상관없이, 내가 볼 수 있는 문서를 모두 모아 볼 수 있어."
             />
 
+            {/* 🔹 조회조건 바 */}
+            <div className="mt-4 mb-4">
+                <DocumentFilterBar value={query} onChange={setQuery} />
+            </div>
+
             {isLoading ? (
                 <p className="mt-6 text-sm text-slate-500">문서를 불러오는 중...</p>
-            ) : !docs || docs.length === 0 ? (
+            ) : !sortedDocs || sortedDocs.length === 0 ? (
                 <EmptyState
                     icon="docs"
                     title="아직 볼 수 있는 문서가 없어."
@@ -45,53 +74,70 @@ export default function DocumentsPage() {
                 />
             ) : (
                 <ul className="space-y-2">
-                    {docs.map((doc) => {
+                    {sortedDocs.map((doc) => {
                         const isOwner = doc.user_id === user?.id;
                         const categoryName = getCategoryName(doc.category_id);
+                        const isFavorite = favoriteIdSet.has(doc.id);
 
                         return (
                             <li
                                 key={doc.id}
                                 className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2 text-sm hover:bg-primary-50"
                             >
-                                <div className="flex flex-col flex-1">
-                                    <div className="flex items-center gap-2">
-                                        {/* 카테고리 | 제목 */}
-                                        <span className="text-[12px] text-slate-400">
-                                            {categoryName} |
-                                        </span>
-                                        <Link
-                                            to={`/wiki/${doc.slug}`}
-                                            className="font-medium text-slate-800 hover:text-primary-600"
-                                        >
-                                            {doc.title}
-                                        </Link>
+                                <div className="flex flex-1 items-start gap-2">
+                                    {/* 🔹 즐겨찾기 버튼 */}
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            toggleFavoriteMutation.mutate({
+                                                documentId: doc.id,
+                                                isFavorite,
+                                            })
+                                        }
+                                        className={
+                                            'mt-[1px] text-lg leading-none ' +
+                                            (isFavorite
+                                                ? 'text-amber-400'
+                                                : 'text-slate-300 hover:text-slate-500')
+                                        }
+                                        aria-label={isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+                                    >
+                                        {isFavorite ? '★' : '☆'}
+                                    </button>
 
-                                        {/* 공개 범위 뱃지 */}
-                                        <span
-                                            className={
-                                                'inline-flex items-center rounded-full px-2 py-[2px] text-[10px] ' +
-                                                (doc.visibility === 'friends'
-                                                    ? 'bg-purple-100 text-purple-700'
-                                                    : 'bg-slate-100 text-slate-500')
-                                            }
-                                        >
-                                            {doc.visibility === 'friends'
-                                                ? '친구 공개'
-                                                : '나만 보기'}
-                                        </span>
+                                    <div className="flex flex-col flex-1">
+                                        <div className="flex items-center gap-2">
+                                            {/* 카테고리 | 제목 */}
+                                            <span className="text-[12px] text-slate-400">
+                      {categoryName} |
+                    </span>
+                                            <Link
+                                                to={`/wiki/${doc.slug}`}
+                                                className="font-medium text-slate-800 hover:text-primary-600"
+                                            >
+                                                {doc.title}
+                                            </Link>
+
+                                            {/* 공개 범위 뱃지 */}
+                                            <span
+                                                className={
+                                                    'inline-flex items-center rounded-full px-2 py-[2px] text-[10px] ' +
+                                                    (doc.visibility === 'friends'
+                                                        ? 'bg-purple-100 text-purple-700'
+                                                        : 'bg-slate-100 text-slate-500')
+                                                }
+                                            >
+                      {doc.visibility === 'friends' ? '친구 공개' : '나만 보기'}
+                    </span>
+                                        </div>
+
+                                        <span className="mt-0.5 text-[11px] text-slate-400">
+                    작성:{' '}
+                                            {new Date(doc.created_at).toLocaleString()}{' '}
+                                            · 수정:{' '}
+                                            {new Date(doc.updated_at).toLocaleString()}
+                  </span>
                                     </div>
-
-                                    <span className="mt-0.5 text-[11px] text-slate-400">
-                                        작성:{' '}
-                                        {new Date(
-                                            doc.created_at,
-                                        ).toLocaleString()}{' '}
-                                        · 수정:{' '}
-                                        {new Date(
-                                            doc.updated_at,
-                                        ).toLocaleString()}
-                                    </span>
                                 </div>
 
                                 <div className="ml-3 flex items-center gap-2 text-xs">

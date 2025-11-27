@@ -73,18 +73,32 @@ body {
   color: #1d4ed8;        /* 살짝 더 진한 파랑 */
 }
 
-/* Toast UI Viewer / Editor 안의 링크 공통 스타일 */
-.toastui-editor-contents a,
-.toastui-viewer-contents a {
-  color: #4566c4 !important;
-  text-decoration: none !important;
-  font-weight: 600 !important;
+/* 🔹 Toast UI Editor: 모바일에서 가로 넘침 방지 (편집/보기 공통) */
+.tui-editor-defaultUI,
+.toastui-editor-defaultUI {
+  width: 100% !important;
+  min-width: 0 !important;
+  overflow-x: hidden !important;
 }
 
-.toastui-editor-contents a:hover,
-.toastui-viewer-contents a:hover {
-  text-decoration: none; /* hover에도 밑줄 X */
-  color: #193ea6 !important;        /* 살짝 더 진한 파랑 */
+/* 에디터 내부 main 영역도 100% 안으로 고정 */
+.tui-editor-defaultUI .te-editor,
+.toastui-editor-defaultUI .toastui-editor-main {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* WYSIWYG 컨테이너 */
+.tui-editor-defaultUI .te-ww-container,
+.toastui-editor-defaultUI .toastui-editor-ww-container {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* 본문 컨텐츠도 카드 폭 안으로 */
+.tui-editor-contents,
+.toastui-editor-contents {
+  max-width: 100% !important;
 }
 
 :root {
@@ -97,6 +111,62 @@ body {
   color: var(--wiki-heading-number-color);
   font-weight: 600;
 }
+
+/* === 공통 테마 토큰 === */
+/* AppLayout의 최상단 div (.app-shell)에 data-theme 속성이 붙어 있음 */
+
+.app-shell[data-theme='light'] {
+  --color-bg-app: #f3f4f8;             /* softbg 느낌 */
+  --color-bg-header: rgba(255, 255, 255, 0.9);
+  --color-surface: #ffffff;
+  --color-surface-elevated: #ffffff;
+  --color-border-subtle: rgba(148, 163, 184, 0.35);
+  --color-text-main: #0f172a;
+}
+
+.app-shell[data-theme='dark'] {
+  --color-bg-app: #020617;             /* slate-950 근처 */
+  --color-bg-header: rgba(15, 23, 42, 0.92);
+  --color-surface: #020617;
+  --color-surface-elevated: #020617;   /* 필요하면 #020617 ~ #0b1120 사이로 조절 */
+  --color-border-subtle: rgba(148, 163, 184, 0.45);
+  --color-text-main: #e5e7eb;
+}
+
+/* 전체 앱 배경/텍스트 */
+.app-shell {
+  background-color: var(--color-bg-app);
+  color: var(--color-text-main);
+}
+
+/* 헤더 공통 스타일 (Tailwind bg/border보다 우선 적용됨) */
+.app-header {
+  background-color: var(--color-bg-header);
+  border-bottom: 1px solid var(--color-border-subtle);
+  backdrop-filter: blur(12px);
+}
+
+/* 패널/카드 공통 (사이드바 카드, 오른쪽 패널 등) */
+.panel-surface {
+  background-color: var(--color-surface-elevated);
+  border-color: var(--color-border-subtle);
+}
+
+/* 사이드바 고정 영역 배경 (PC에서 Sidebar 감싸는 bg-surface-elevated/80용) */
+.bg-surface-elevated\/80 {
+  background-color: color-mix(in srgb, var(--color-surface-elevated) 80%, transparent);
+}
+
+/* 테마 확장할 때는 아래 형태로 추가하면 됨
+.app-shell[data-theme='sepia'] {
+  --color-bg-app: #f7efe5;
+  --color-bg-header: #f1e4d5;
+  --color-surface: #fffaf3;
+  --color-surface-elevated: #fffaf3;
+  --color-border-subtle: rgba(148, 116, 82, 0.4);
+  --color-text-main: #3f2a16;
+}
+*/
 
 /* ─────────────────────────────
    카테고리 트리 라인
@@ -125,4 +195,51 @@ body {
   width: 0.8rem;
   border-top: 1px dashed #e2e8f0; /* 가로선도 점선 */
   transform: translateY(-0.5px);
+}
+
+/* 🔹 모바일에서 편집 카드/에디터 가로 잘림 방지 */
+@media (max-width: 640px) {
+
+  /* 문서 메인 카드 자체를 화면 안에 고정 */
+  .wiki-doc-main-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  /* 카드 안쪽 래퍼도 폭 고정 */
+  .wiki-doc-main-card > div {
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  /* Toast UI Editor 전체를 화면 폭 안으로 */
+  .toastui-editor-defaultUI {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box;
+  }
+
+  /* 에디터 안쪽 main, 컨텐츠도 카드 폭 안으로 제한 */
+  .toastui-editor-defaultUI .toastui-editor-main,
+  .toastui-editor-defaultUI .toastui-editor-ww-container,
+  .toastui-editor-contents,
+  .tui-editor-contents {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  /* 툴바가 가로로 너무 길어져서 튀어나가는 것 방지 – 줄바꿈 허용 */
+  .toastui-editor-defaultUI-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    row-gap: 4px;
+  }
+
+  .toastui-editor-defaultUI-toolbar .toastui-editor-toolbar-group {
+    flex-wrap: wrap;
+  }
 }

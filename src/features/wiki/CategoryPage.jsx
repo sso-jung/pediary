@@ -1,5 +1,5 @@
 // src/features/wiki/CategoryPage.jsx
-import { useState } from 'react';
+import {useMemo, useState} from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useCategories } from './hooks/useCategories';
 import { useDocuments } from './hooks/useDocuments';
@@ -12,6 +12,9 @@ import { useSnackbar } from '../../components/ui/SnackbarContext';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import SectionHeader from '../../components/ui/SectionHeader';
 import EmptyState from '../../components/ui/EmptyState';
+import DocumentFilterBar from './DocumentFilterBar';
+import { useDocumentFavorites, useToggleFavoriteDocument } from './hooks/useDocumentFavorites';
+import { sortAndFilterDocuments } from './utils/documentListUtils';
 
 export default function CategoryPage() {
     const navigate = useNavigate();
@@ -29,6 +32,30 @@ export default function CategoryPage() {
     const [newDocTitle, setNewDocTitle] = useState('');
     const [newVisibility, setNewVisibility] = useState('private');
     const [docToDelete, setDocToDelete] = useState(null);
+
+    // 🔹 새 문서 모달 오픈 여부
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+    const { data: favorites } = useDocumentFavorites();
+    const toggleFavoriteMutation = useToggleFavoriteDocument();
+
+    const [query, setQuery] = useState({
+        searchText: '',
+        sortBy: 'updated_at',
+        sortDir: 'desc',
+        onlyFavorites: false,
+        favoriteFirst: true,
+    });
+
+    const favoriteIdSet = useMemo(
+        () => new Set((favorites || []).map((f) => f.document_id)),
+        [favorites],
+    );
+
+    const sortedDocs = useMemo(
+        () => sortAndFilterDocuments(documents || [], query, favoriteIdSet),
+        [documents, query, favoriteIdSet],
+    );
 
     const currentCategory =
         categoryId === 'all'
@@ -50,6 +77,7 @@ export default function CategoryPage() {
                 onSuccess: (newDoc) => {
                     setNewDocTitle('');
                     setNewVisibility('private');
+                    setIsCreateModalOpen(false);   // 🔹 생성 후 모달 닫기
                     navigate(`/wiki/${newDoc.slug}`);
                 },
             },
@@ -82,122 +110,105 @@ export default function CategoryPage() {
                 subtitle="이 카테고리 안의 문서를 관리해 보자."
             />
 
-            {/* 문서 추가 폼 */}
-            {isMyCategory && (
-                <form
-                    onSubmit={handleCreateDocument}
-                    className="flex flex-col gap-2 rounded-2xl bg-white p-4 shadow-soft sm:flex-row"
-                >
-                    <div className="flex-1 space-y-2">
-                        <Input
-                            placeholder="새 문서 제목"
-                            className="h-8"
-                            value={newDocTitle}
-                            onChange={(e) => setNewDocTitle(e.target.value)}
-                        />
-                        <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-600">
-                            <span className="text-[11px] text-slate-500">
-                                공개 범위
-                            </span>
-                            <label className="inline-flex items-center gap-1">
-                                <input
-                                    type="radio"
-                                    className="h-3 w-3"
-                                    value="private"
-                                    checked={newVisibility === 'private'}
-                                    onChange={() => setNewVisibility('private')}
-                                />
-                                <span>나만 보기</span>
-                            </label>
-                            <label className="inline-flex items-center gap-1">
-                                <input
-                                    type="radio"
-                                    className="h-3 w-3"
-                                    value="friends"
-                                    checked={newVisibility === 'friends'}
-                                    onChange={() => setNewVisibility('friends')}
-                                />
-                                <span>친구 공개</span>
-                            </label>
-                        </div>
-                    </div>
+            {/* 🔹 조회조건 컴포넌트 */}
+            <DocumentFilterBar value={query} onChange={setQuery} />
 
-                    <Button
-                        type="submit"
-                        className="shrink-0 sm:w-32 h-8"
-                        disabled={createDocumentMutation.isLoading}
-                    >
-                        {createDocumentMutation.isLoading ? '생성 중...' : '문서 추가'}
-                    </Button>
-                </form>
-            )}
-
-            {/* 문서 목록 */}
+            {/* 문서 목록 + 상단 '문서 추가' 버튼 */}
             <div className="rounded-2xl bg-white p-4 shadow-soft">
+                <div className="mb-3 flex items-center justify-between">
+    <span className="text-[11px] text-slate-400">
+      총 {sortedDocs ? sortedDocs.length : 0}개 문서
+    </span>
+
+                    {isMyCategory && (
+                        <Button
+                            type="button"
+                            className="h-8 px-4 text-sm"
+                            onClick={() => setIsCreateModalOpen(true)}
+                        >
+                            문서 추가
+                        </Button>
+                    )}
+                </div>
+
                 {isLoading ? (
                     <p className="text-sm text-slate-500">문서를 불러오는 중...</p>
-                ) : !documents || documents.length === 0 ? (
+                ) : !sortedDocs || sortedDocs.length === 0 ? (
                     <EmptyState
                         icon="docs"
                         title="아직 이 카테고리에 문서가 없어."
                         description={
-                            '위의 입력창에서 새 문서를 추가하고\n이 카테고리에 차곡차곡 정리해 보자.'
+                            '오른쪽 위의 "문서 추가" 버튼을 눌러서\n첫 문서를 만들어 보자.'
                         }
                     />
                 ) : (
                     <ul className="space-y-2">
-                        {documents.map((doc) => {
+                        {sortedDocs.map((doc) => {
                             const isOwner = doc.user_id === user?.id;
+                            const isFavorite = favoriteIdSet.has(doc.id);
 
                             return (
                                 <li
                                     key={doc.id}
                                     className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2 text-sm hover:bg-primary-50"
                                 >
-                                    <div className="flex flex-col flex-1">
-                                        <div className="flex items-center gap-2">
-                                            {/* 제목 */}
-                                            <Link
-                                                to={`/wiki/${doc.slug}`}
-                                                className="font-medium text-slate-800 hover:text-primary-600"
-                                            >
-                                                {doc.title}
-                                            </Link>
+                                    {/* 왼쪽: 즐겨찾기 + 제목/메타 */}
+                                    <div className="flex flex-1 items-start gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                toggleFavoriteMutation.mutate({
+                                                    documentId: doc.id,
+                                                    isFavorite,
+                                                })
+                                            }
+                                            className={
+                                                'mt-[1px] text-lg leading-none ' +
+                                                (isFavorite
+                                                    ? 'text-amber-400'
+                                                    : 'text-slate-300 hover:text-slate-500')
+                                            }
+                                            aria-label={isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
+                                        >
+                                            {isFavorite ? '★' : '☆'}
+                                        </button>
 
-                                            {/* 공개 범위 뱃지 */}
-                                            <span
-                                                className={
-                                                    'inline-flex items-center rounded-full px-2 py-[2px] text-[10px] ' +
-                                                    (doc.visibility === 'friends'
-                                                        ? 'bg-purple-100 text-purple-700'
-                                                        : 'bg-slate-100 text-slate-500')
-                                                }
-                                            >
-                                                {doc.visibility === 'friends'
-                                                    ? '친구 공개'
-                                                    : '나만 보기'}
-                                            </span>
+                                        <div className="flex flex-col flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <Link
+                                                    to={`/wiki/${doc.slug}`}
+                                                    className="font-medium text-slate-800 hover:text-primary-600"
+                                                >
+                                                    {doc.title}
+                                                </Link>
+
+                                                <span
+                                                    className={
+                                                        'inline-flex items-center rounded-full px-2 py-[2px] text-[10px] ' +
+                                                        (doc.visibility === 'friends'
+                                                            ? 'bg-purple-100 text-purple-700'
+                                                            : 'bg-slate-100 text-slate-500')
+                                                    }
+                                                >
+                    {doc.visibility === 'friends' ? '친구 공개' : '나만 보기'}
+                  </span>
+                                            </div>
+
+                                            <span className="mt-0.5 text-[11px] text-slate-400">
+                  작성:{' '}
+                                                {new Date(doc.created_at).toLocaleString()}{' '}
+                                                · 수정:{' '}
+                                                {new Date(doc.updated_at).toLocaleString()}
+                </span>
                                         </div>
-
-                                        <span className="mt-0.5 text-[11px] text-slate-400">
-                                            작성:{' '}
-                                            {new Date(
-                                                doc.created_at,
-                                            ).toLocaleString()}{' '}
-                                            · 수정:{' '}
-                                            {new Date(
-                                                doc.updated_at,
-                                            ).toLocaleString()}
-                                        </span>
                                     </div>
 
+                                    {/* 오른쪽: 편집/삭제 */}
                                     <div className="ml-3 flex items-center gap-2 text-xs">
                                         <button
                                             type="button"
                                             onClick={() =>
-                                                navigate(
-                                                    `/wiki/${doc.slug}?mode=edit`,
-                                                )
+                                                navigate(`/wiki/${doc.slug}?mode=edit`)
                                             }
                                             className="text-slate-400 hover:text-slate-700"
                                         >
@@ -206,9 +217,7 @@ export default function CategoryPage() {
                                         {isOwner && (
                                             <button
                                                 type="button"
-                                                onClick={() =>
-                                                    setDocToDelete(doc)
-                                                }
+                                                onClick={() => setDocToDelete(doc)}
                                                 className="text-rose-400 hover:text-rose-700"
                                             >
                                                 삭제
@@ -221,6 +230,69 @@ export default function CategoryPage() {
                     </ul>
                 )}
             </div>
+
+            {/* 새 문서 추가 모달 */}
+            {isMyCategory && isCreateModalOpen && (
+                <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40">
+                    <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-lg">
+                        <h2 className="mb-3 text-sm font-semibold text-slate-800">
+                            새 문서 추가
+                        </h2>
+
+                        <form onSubmit={handleCreateDocument} className="space-y-3">
+                            <Input
+                                placeholder="새 문서 제목"
+                                className="h-9 text-sm"
+                                value={newDocTitle}
+                                onChange={(e) => setNewDocTitle(e.target.value)}
+                                autoFocus
+                            />
+
+                            <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-600">
+                                <span className="text-[11px] text-slate-500">공개 범위</span>
+                                <label className="inline-flex items-center gap-1">
+                                    <input
+                                        type="radio"
+                                        className="h-3 w-3"
+                                        value="private"
+                                        checked={newVisibility === 'private'}
+                                        onChange={() => setNewVisibility('private')}
+                                    />
+                                    <span>나만 보기</span>
+                                </label>
+                                <label className="inline-flex items-center gap-1">
+                                    <input
+                                        type="radio"
+                                        className="h-3 w-3"
+                                        value="friends"
+                                        checked={newVisibility === 'friends'}
+                                        onChange={() => setNewVisibility('friends')}
+                                    />
+                                    <span>친구 공개</span>
+                                </label>
+                            </div>
+
+                            <div className="flex justify-end gap-2 pt-1">
+                                <Button
+                                    type="button"
+                                    className="h-8 px-3 text-sm bg-gray-400/90 text-slate-600 hover:bg-gray-500/80"
+                                    onClick={() => setIsCreateModalOpen(false)}
+                                    disabled={createDocumentMutation.isLoading}
+                                >
+                                    취소
+                                </Button>
+                                <Button
+                                    type="submit"
+                                    className="h-8 px-4 text-sm"
+                                    disabled={createDocumentMutation.isLoading}
+                                >
+                                    {createDocumentMutation.isLoading ? '생성 중...' : '추가'}
+                                </Button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* 삭제 확인 다이얼로그 */}
             <ConfirmDialog

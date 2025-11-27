@@ -4,7 +4,15 @@ import { useAuthStore } from '../../store/authStore';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import pediaryMark from '../../assets/logo.png';
 
-export default function Header({ onToggleFriends, onToggleMyInfo, activeSidePanel }) {
+export default function Header({
+                                   onToggleFriends,
+                                   onToggleMyInfo,
+                                   onToggleSidebar,
+                                   activeSidePanel,
+                                   isSidebarOpen,
+                                   theme,
+                                   onToggleTheme,
+                               }) {
     const user = useAuthStore((s) => s.user);
     const signOut = useAuthStore((s) => s.signOut);
 
@@ -25,11 +33,11 @@ export default function Header({ onToggleFriends, onToggleMyInfo, activeSidePane
 
     return (
         <div className="mx-auto flex max-w-[100rem] items-center justify-between px-4 py-[10px] lg:px-8">
-            {/* 왼쪽: 로고 + 탭 */}
-            <div className="flex items-center gap-4">
+            {/* 왼쪽: 로고 + 탭 + (모바일용 카테고리 버튼) */}
+            <div className="flex items-center gap-3">
                 <Link to="/" className="flex items-center gap-2">
                     <div className="flex items-center gap-2">
-                        <div className="h-[36px] h-[36px] rounded-3xl bg-primary-100 overflow-hidden">
+                        <div className="h-[36px] w-[36px] rounded-3xl bg-primary-100 overflow-hidden">
                             <img
                                 src={pediaryMark}
                                 alt="Pediary"
@@ -42,7 +50,8 @@ export default function Header({ onToggleFriends, onToggleMyInfo, activeSidePane
                     </div>
                 </Link>
 
-                <div className="hidden sm:inline-flex rounded-full bg-slate-100 p-1 text-xs">
+                {/* 상단 탭 (홈 / 문서) */}
+                <div className="sm:inline-flex rounded-full bg-slate-100 p-1 text-xs">
                     <button
                         type="button"
                         onClick={() => navigate('/')}
@@ -68,48 +77,71 @@ export default function Header({ onToggleFriends, onToggleMyInfo, activeSidePane
                         문서
                     </button>
                 </div>
+
+                {/* 모바일/태블릿용 카테고리 토글 버튼 (문서 화면에서만) */}
+                {isDocs && onToggleSidebar && (
+                    <button
+                        type="button"
+                        onClick={onToggleSidebar}
+                        className={`sm:hidden inline-flex items-center rounded-full border border-slate-200 px-3 py-1 text-[11px] transition
+                            ${isSidebarOpen ? 'bg-slate-100 text-slate-800' : 'bg-white/80 text-slate-600 hover:bg-slate-100'}`}
+                    >
+                        카테고리
+                    </button>
+                )}
             </div>
 
-            {/* 오른쪽: 유저 정보 + 내정보/친구/로그아웃 */}
+            {/* 오른쪽: 유저 정보 + 테마 + 내정보/친구/로그아웃 */}
             <div className="flex items-center gap-2">
+                {/* 테마 토글 버튼 (로그인 여부와 무관하게 노출해도 되고, 지금은 로그인한 경우에만) */}
+                {user && (
+                    <button
+                        type="button"
+                        onClick={onToggleTheme}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white/80 text-[13px] text-slate-500 shadow-sm hover:bg-slate-100"
+                        aria-label="테마 전환"
+                    >
+                        {theme === 'dark' ? '🌙' : '☀️'}
+                    </button>
+                )}
+
                 {user && (
                     <>
-                        <span className="text-xs text-slate-500">
+                        <span className="hidden sm:inline-block text-xs text-slate-500 max-w-[160px] truncate">
                             {user.email}
                         </span>
 
                         {/* ✅ 내정보 버튼 */}
                         <Button
-                          type="button"
-                          size="xs"
-                          variant="ghost"
-                          className={
-                            'hidden lg:block rounded-full px-[7px] py-[5px] text-xs transition ' +
-                            (isMyInfoOpen
-                              ? '!bg-gray-500 !text-white shadow-sm hover:!bg-gray-500'
-                              : 'bg-transparent text-slate-600 hover:bg-slate-100')
-                          }
-                          onClick={onToggleMyInfo}
+                            type="button"
+                            size="xs"
+                            variant="ghost"
+                            className={
+                                'hidden sm:inline-flex rounded-full px-[7px] py-[5px] text-xs transition ' +
+                                (isMyInfoOpen
+                                    ? '!bg-gray-500 !text-white shadow-sm hover:!bg-gray-500'
+                                    : 'bg-transparent text-slate-600 hover:bg-slate-100')
+                            }
+                            onClick={onToggleMyInfo}
                         >
-                          내정보
+                            내정보
                         </Button>
 
                         {/* ✅ 친구 버튼 */}
                         <Button
-                          type="button"
-                          size="xs"
-                          variant="ghost"
-                          className={
-                            'hidden lg:block rounded-full px-[7px] py-[5px] text-xs transition ' +
-                            (isFriendsOpen
-                              ? '!bg-gray-500 !text-white shadow-sm hover:!bg-gray-500'
-                              : 'bg-transparent text-slate-600 hover:bg-slate-100')
-                          }
-                          onClick={onToggleFriends}
+                            type="button"
+                            size="xs"
+                            variant="ghost"
+                            className={
+                                'hidden sm:inline-flex rounded-full px-[7px] py-[5px] text-xs transition ' +
+                                (isFriendsOpen
+                                    ? '!bg-gray-500 !text-white shadow-sm hover:!bg-gray-500'
+                                    : 'bg-transparent text-slate-600 hover:bg-slate-100')
+                            }
+                            onClick={onToggleFriends}
                         >
-                          친구
+                            친구
                         </Button>
-
 
                         <Button
                             type="button"

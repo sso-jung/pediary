@@ -15,7 +15,7 @@ import Button from '../../components/ui/Button';
 import { useSnackbar } from '../../components/ui/SnackbarContext';
 import { parseInternalLinks } from '../../lib/internalLinkParser';
 import { useAuthStore } from '../../store/authStore';
-import {logDocumentActivity, updateSectionLinksForDocument} from '../../lib/wikiApi';
+import { logDocumentActivity, updateSectionLinksForDocument } from '../../lib/wikiApi';
 import MarkdownEditor from './MarkdownEditor';
 import { applyTextAlignBlocks } from '../../lib/wikiTextAlign';
 import { parseInternalLinkInner } from '../../lib/internalLinkFormat';
@@ -54,8 +54,8 @@ function buildSectionTree(markdown) {
     for (const line of lines) {
         const match = line.match(/^(#{1,6})\s+(.*)$/); // "# 제목" ~ "###### 제목"
         if (match) {
-            const hashes = match[1];         // "##"
-            const level = hashes.length;     // 2
+            const hashes = match[1]; // "##"
+            const level = hashes.length; // 2
             const rawText = match[2].trim(); // 원래 제목 텍스트
             const plainText = stripHeadingText(rawText);
 
@@ -75,12 +75,10 @@ function buildSectionTree(markdown) {
             headings.push({ id, level, text: plainText, number });
 
             // 🔹 Viewer용 마크다운 줄 만들기
-            //    항상 앞에 빈 줄을 하나 넣어서 Markdown 파서가 확실히 헤딩으로 인식하도록 한다.
             newLines.push(''); // 빈 줄
             newLines.push(`<a id="${id}"></a>`);
-            // newLines.push(`${hashes} ${number} ${rawText}`);
             newLines.push(
-               `${hashes} <span class="wiki-heading-number">${number}.</span> ${rawText}`,
+                `${hashes} <span class="wiki-heading-number">${number}.</span> ${rawText}`,
             );
         } else {
             newLines.push(line);
@@ -117,8 +115,7 @@ export default function DocumentPage() {
 
     // 🔹 소유자 여부 / 편집 가능 여부
     const isOwner = doc && user && doc.user_id === user.id;
-    // 나중에 친구 편집 허용 플래그 붙일 수 있는 자리
-    const canEdit = isOwner; // || doc?.allow_friend_edit === true;
+    const canEdit = isOwner; // 나중에 친구 편집 허용 플래그
 
     const viewLoggedRef = useRef(false);
     const viewerContainerRef = useRef(null);
@@ -136,7 +133,6 @@ export default function DocumentPage() {
             setContent(doc.content_markdown || '');
             setVisibility(doc.visibility || 'private');
 
-            // URL에 mode=edit 이 있어도, 편집 권한 없으면 강제로 보기 모드
             const mode = searchParams.get('mode');
             if (mode === 'edit' && canEdit) {
                 setIsEditing(true);
@@ -171,7 +167,7 @@ export default function DocumentPage() {
     // 🔹 섹션 트리 & 앵커 생성
     const { markdownWithAnchors, headings } = buildSectionTree(parsedMarkdown);
 
-    // 🔹 사이드바에서 섹션 클릭 시 스크롤
+    // 🔹 사이드바에서 섹션 클릭 시 스크롤 (보기 모드에서만)
     const handleClickHeading = (id) => {
         const container = viewerContainerRef.current;
         if (!container) return;
@@ -190,23 +186,23 @@ export default function DocumentPage() {
         });
     };
 
-    // 🔹 URL 해시(#sec-2-1)가 바뀔 때마다 해당 섹션으로 스크롤
+    // 🔹 URL 해시(#sec-2-1)가 바뀔 때마다 해당 섹션으로 스크롤 (보기 모드에서만)
     useEffect(() => {
         const { hash } = location;
+        if (!hash) return;
+        if (isEditing) return;
+
         const container = viewerContainerRef.current;
         if (!container) return;
-        if (!hash) return;
-        if (isEditing) return; // 편집 모드에서는 이동 안 함
 
-        const id = hash.slice(1); // "#sec-2-1" → "sec-2-1"
+        const id = hash.slice(1);
         const el = container.querySelector(`#${id}`);
         if (!el) return;
 
         const containerRect = container.getBoundingClientRect();
         const elRect = el.getBoundingClientRect();
 
-        const offset =
-            elRect.top - containerRect.top + container.scrollTop - 8;
+        const offset = elRect.top - containerRect.top + container.scrollTop - 8;
 
         container.scrollTo({
             top: offset,
@@ -215,10 +211,6 @@ export default function DocumentPage() {
     }, [location.hash, isEditing, markdownWithAnchors]);
 
     // 🔹 역링크 계산
-    //  - 다른 문서의 마크다운을 한 줄씩 보면서
-    //  - heading 번호(1, 1.1, 1.1.1 ...)를 계산
-    //  - 그 섹션 안에 [[현재제목]] / [[현재제목#...]] 이 있으면
-    //    → 그 섹션 하나를 "업무#1.1.1" 같은 링크로 한 번만 추가
     const backlinks = useMemo(() => {
         if (!doc || !Array.isArray(allDocs)) return [];
         const currentDocId = doc.id;
@@ -232,7 +224,6 @@ export default function DocumentPage() {
             const raw = other.content_markdown || '';
             if (!raw) continue;
 
-            // sanitizer가 붙인 역슬래시를 한 번 풀어준다
             const normalized = raw
                 .replace(/\\\[/g, '[')
                 .replace(/\\\]/g, ']')
@@ -240,7 +231,6 @@ export default function DocumentPage() {
                 .replace(/\\\|/g, '|')
                 .replace(/\\\./g, '.');
 
-            // 실제 [[ 가 없으면 스킵
             if (!normalized.includes('[[')) continue;
 
             const lines = normalized.split('\n');
@@ -269,7 +259,7 @@ export default function DocumentPage() {
                 const linkRegex = /\[\[([^[\]]+)\]\]/g;
                 let m;
                 while ((m = linkRegex.exec(line)) !== null) {
-                    const inner = m[1]; // "doc:123#1.1|보쌈 & 무김치"
+                    const inner = m[1];
 
                     const parsed = parseInternalLinkInner(inner);
                     if (!parsed) continue;
@@ -317,14 +307,12 @@ export default function DocumentPage() {
         }
 
         try {
-            // 1) 섹션 번호 변경에 따른 링크 자동 수정 (doc:id 기반)
             await updateSectionLinksForDocument({
                 documentId: doc.id,
                 oldMarkdown: doc.content_markdown || '',
                 newMarkdown: content || '',
             });
 
-            // 2) 실제 이 문서 저장
             updateMutation.mutate(
                 {
                     title: doc.title,
@@ -348,11 +336,10 @@ export default function DocumentPage() {
         }
     };
 
-
     const handleChangeCategory = (e) => {
         const value = e.target.value;
         const newCatId = value === '' ? null : Number(value);
-        setCategoryId(newCatId);   // 🔹 여기까지만 (서버 호출 X)
+        setCategoryId(newCatId);
     };
 
     const handleClickTitleArea = () => {
@@ -368,16 +355,13 @@ export default function DocumentPage() {
     }
 
     return (
-        <div className="flex h-full min-h-0 flex-col space-y-[10px]">
-        {/* 🔹 상단 바: 섹션 패널 폭만큼 띄우고 오른쪽에 제목/버튼 배치 */}
-            <div className="grid gap-4 md:grid-cols-[260px,minmax(0,1fr)]">
-                {/* 섹션 패널 자리만 확보하는 빈 칸 */}
-                <div className="hidden md:block"/>
-                <form
-                    onSubmit={handleSave}
-                    className="flex flex-col gap-2"
-                >
-                    {/* 🔹 상단 바 전체를 한 번 더 감싸는 래퍼 */}
+        <div className="flex h-full min-h-0 flex-col space-y-2 lg:space-y-[10px]">
+            {/* 🔹 상단 바: (데스크톱에서만) 섹션 패널 폭만큼 띄우고 오른쪽에 제목/버튼 배치 */}
+            <div className="grid gap-3 lg:grid-cols-[190px,minmax(0,1fr)] xl:grid-cols-[230px,minmax(0,1fr)]">
+                {/* 섹션 패널 자리만 확보하는 빈 칸 – lg 이상에서만 필요 */}
+                <div className="hidden lg:block" />
+
+                <form onSubmit={handleSave} className="flex flex-col gap-2">
                     <div
                         className={`flex flex-col gap-2 sm:flex-row sm:items-center ${
                             !isEditing ? 'cursor-pointer' : ''
@@ -389,7 +373,6 @@ export default function DocumentPage() {
                             {/* 🔹 편집 모드에서 보이는 카테고리 말머리 */}
                             {isOwner && isEditing && (
                                 <div className="mb flex flex-wrap items-center gap-2 text-[10pt] pl-[10px]">
-                                    {/* 카테고리 셀렉트 기존 그대로 */}
                                     <span className="text-slate-400">카테고리</span>
                                     <select
                                         className="rounded-full border border-slate-200 bg-white px-2 py-[3px] text-[10pt] outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-100"
@@ -409,10 +392,10 @@ export default function DocumentPage() {
                                 </div>
                             )}
 
-                            {/* 🔹 보기 모드: 제목 + 공개범위 뱃지 */}
+                            {/* 보기 모드: 제목 + 공개범위 뱃지 */}
                             {!isEditing && (
-                                <div className="flex flex-wrap items-baseline gap-3">
-                                    <h1 className="text-2xl font-semibold italic tracking-tight text-slate-900">
+                                <div className="flex flex-wrap items-baseline gap-2">
+                                    <h1 className="text-xl lg:text-[20px] xl:text-2xl font-semibold italic tracking-tight text-slate-900">
                                         {doc.title}
                                     </h1>
 
@@ -425,119 +408,128 @@ export default function DocumentPage() {
                                                     : 'bg-slate-100 text-slate-500')
                                             }
                                         >
-              {visibility === 'friends' ? '친구 공개' : '나만 보기'}
-            </span>
+                      {visibility === 'friends' ? '친구 공개' : '나만 보기'}
+                    </span>
                                     )}
                                 </div>
                             )}
                         </div>
 
                         {/* 오른쪽 버튼 영역 */}
-                        <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
-                            {canEdit && isEditing && (
-                                <>
-                                    <div className="inline-flex items-center rounded-full bg-slate-100 p-1 text-[11px]">
-            <span className="ml-2 mr-1 hidden text-slate-500 sm:inline">
-              공개 범위
-            </span>
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation(); // 🔹 상단바 onClick 막기
-                                                setVisibility('private');
-                                            }}
-                                            className={
-                                                'rounded-full px-3 py-1 ' +
-                                                (visibility === 'private'
-                                                    ? 'bg-white text-slate-900 shadow'
-                                                    : 'text-slate-500 hover:text-slate-700')
-                                            }
-                                        >
-                                            나만 보기
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation(); // 🔹 상단바 onClick 막기
-                                                setVisibility('friends');
-                                            }}
-                                            className={
-                                                'rounded-full px-3 py-1 ' +
-                                                (visibility === 'friends'
-                                                    ? 'bg-white text-slate-900 shadow'
-                                                    : 'text-slate-500 hover:text-slate-700')
-                                            }
-                                        >
-                                            친구 공개
-                                        </button>
-                                    </div>
-
-                                    <Button
-                                        type="submit"
-                                        className="sm:w-24"
-                                        disabled={updateMutation.isLoading}
-                                        // submit 버튼은 어차피 편집 모드에서만 보이고,
-                                        // 이때는 상단 래퍼에 onClick이 안 걸려 있어서 stopPropagation 필요 X
-                                    >
-                                        {updateMutation.isLoading ? '저장 중...' : '저장'}
-                                    </Button>
-                                </>
-                            )}
-
-                            {isOwner && (
-                                <div
-                                    className="inline-flex items-center rounded-full bg-slate-100 p-1 text-xs sm:text-sm">
+                        {canEdit && isEditing && (
+                            <>
+                                <div className="inline-flex items-center rounded-full bg-slate-100 p-1 text-[10px] lg:text-[11px]">
+                  <span className="ml-2 mr-1 hidden text-slate-500 sm:inline">
+                    공개 범위
+                  </span>
                                     <button
                                         type="button"
                                         onClick={(e) => {
-                                            e.stopPropagation(); // 🔹 보기 버튼 눌러도 상단바 onClick 안 타게
-                                            setIsEditing(false);
+                                            e.stopPropagation();
+                                            setVisibility('private');
                                         }}
                                         className={
-                                            'rounded-full px-3 py-1 transition ' +
-                                            (!isEditing
+                                            'rounded-full px-2.5 lg:px-3 py-1 ' +
+                                            (visibility === 'private'
                                                 ? 'bg-white text-slate-900 shadow'
                                                 : 'text-slate-500 hover:text-slate-700')
                                         }
                                     >
-                                        보기
+                                        나만 보기
                                     </button>
-
-                                    {canEdit && (
-                                        <button
-                                            type="button"
-                                            onClick={(e) => {
-                                                e.stopPropagation(); // 🔹 편집 버튼도 마찬가지
-                                                setIsEditing(true);
-                                            }}
-                                            className={
-                                                'rounded-full px-3 py-1 transition ' +
-                                                (isEditing
-                                                    ? 'bg-white text-slate-900 shadow'
-                                                    : 'text-slate-500 hover:text-slate-700')
-                                            }
-                                        >
-                                            편집
-                                        </button>
-                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setVisibility('friends');
+                                        }}
+                                        className={
+                                            'rounded-full px-2.5 lg:px-3 py-1 ' +
+                                            (visibility === 'friends'
+                                                ? 'bg-white text-slate-900 shadow'
+                                                : 'text-slate-500 hover:text-slate-700')
+                                        }
+                                    >
+                                        친구 공개
+                                    </button>
                                 </div>
-                            )}
-                        </div>
+
+                                <Button
+                                    type="submit"
+                                    className="
+                                                !h-8 !px-4 !text-xs !w-auto       /* 모바일: 높이/폭/폰트 확 줄이기 */
+                                                sm:!h-9 sm:!text-sm sm:w-20      /* 태블릿 이상은 기존 느낌 유지 */
+                                                lg:w-24
+                                              "
+                                    disabled={updateMutation.isLoading}
+                                >
+                                    {updateMutation.isLoading ? '저장 중...' : '저장'}
+                                </Button>
+                            </>
+                        )}
+
+                        {isOwner && (
+                            <div className="inline-flex items-center rounded-full bg-slate-100 p-1 text-[10px] lg:text-[11px]">
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setIsEditing(false);
+                                    }}
+                                    className={
+                                        'rounded-full px-2.5 lg:px-3 py-1 transition ' +
+                                        (!isEditing
+                                            ? 'bg-white text-slate-900 shadow'
+                                            : 'text-slate-500 hover:text-slate-700')
+                                    }
+                                >
+                                    보기
+                                </button>
+
+                                {canEdit && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsEditing(true);
+                                        }}
+                                        className={
+                                            'rounded-full px-2.5 lg:px-3 py-1 transition ' +
+                                            (isEditing
+                                                ? 'bg-white text-slate-900 shadow'
+                                                : 'text-slate-500 hover:text-slate-700')
+                                        }
+                                    >
+                                        편집
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </form>
             </div>
 
             {/* 섹션 트리 + 내용 영역 */}
-            <div className="flex-1 min-h-0 grid auto-rows-[minmax(0,1fr)] gap-4 md:grid-cols-[260px,minmax(0,1fr)]">
+            <div
+                className="flex-1 min-h-0 grid auto-rows-[minmax(0,1fr)] gap-3
+           md:grid-cols-[160px,minmax(0,1fr)]
+           lg:grid-cols-[190px,minmax(0,1fr)]
+           xl:grid-cols-[230px,minmax(0,1fr)]"
+            >
                 {/* 섹션 트리 패널 */}
-                <aside className="hidden h-full overflow-y-auto rounded-2xl bg-white p-3 text-xs shadow-soft md:block">
-                    <h2 className="mb-2 text-[11px] font-semibold text-slate-500">
+                <aside
+                    className="hidden md:block h-full overflow-y-auto rounded-2xl bg-white
+             p-2 text-[10px] shadow-soft
+             lg:p-2.5 xl:p-3"
+                >
+                    <h2 className="mb-2 text-[10px] font-semibold text-slate-500">
                         섹션
                     </h2>
 
                     {headings.length === 0 ? (
                         <p className="text-[11px] text-slate-400">
-                            에디터에서 제목(Heading)을 추가하면<br/>
+                            에디터에서 제목(Heading)을 추가하면
+                            <br />
                             여기에서 섹션 트리를 볼 수 있어.
                         </p>
                     ) : (
@@ -546,13 +538,13 @@ export default function DocumentPage() {
                                 <li key={h.id}>
                                     <button
                                         type="button"
-                                        onClick={() => handleClickHeading(h.id)}
+                                        onClick={() => !isEditing && handleClickHeading(h.id)}
                                         className="w-full text-left text-[12px] text-slate-700 hover:text-primary-600"
-                                        style={{paddingLeft: (h.level - 1) * 12}}
+                                        style={{ paddingLeft: (h.level - 1) * 12 }}
                                     >
-                                        <span className="mr-1 text-[11px] text-slate-400">
-                                            {h.number}.
-                                        </span>
+                    <span className="mr-1 text-[11px] text-slate-400">
+                      {h.number}.
+                    </span>
                                         {h.text}
                                     </button>
                                 </li>
@@ -561,11 +553,11 @@ export default function DocumentPage() {
                     )}
                 </aside>
 
-                {/* 내용 영역 – 여기만 스크롤 */}
-                <div className="h-full overflow-hidden rounded-2xl bg-white p-4 shadow-soft">
+                {/* 메인 내용 카드 – 보기/편집 공통 레이아웃 */}
+                <div className="wiki-doc-main-card h-full rounded-2xl bg-white shadow-soft overflow-x-hidden">
                     {isEditing ? (
-                        // 편집 모드: 에디터도 h-full로 맞춤
-                        <div className="h-full">
+                        // 🔹 편집 모드: 에디터는 내용만, 스크롤은 카드가 담당
+                        <div className="h-full w-full overflow-y-auto p-3 lg:p-4 box-border">
                             <MarkdownEditor
                                 value={content}
                                 onChange={setContent}
@@ -573,10 +565,10 @@ export default function DocumentPage() {
                             />
                         </div>
                     ) : (
-                        // 보기 모드: Viewer 래퍼에만 스크롤
+                        // 🔹 보기 모드: Viewer도 같은 카드 안에서 스크롤
                         <div
                             ref={viewerContainerRef}
-                            className="tui-viewer-wrapper h-full overflow-y-auto"
+                            className="tui-viewer-wrapper h-full overflow-y-auto p-3 lg:p-4"
                         >
                             <Viewer
                                 key={markdownWithAnchors}
@@ -587,26 +579,25 @@ export default function DocumentPage() {
                 </div>
             </div>
 
-            {/* 🔹 역링크 패널 – 접었다 펼치는 아코디언 형태 */}
+            {/* 🔹 역링크 패널 – 보기 모드에서만 */}
             {!isEditing && (
-                <div className="rounded-2xl bg-white p-3 shadow-soft text-xs">
+                <div className="rounded-2xl bg-white p-2.5 lg:p-3 shadow-soft text-xs">
                     <button
                         type="button"
                         onClick={() => setShowBacklinks((v) => !v)}
                         className="flex w-full items-center justify-between text-left"
                     >
-                        <span className="text-[11px] font-semibold text-slate-500">
-                            이 문서를 참조하는 문서
-                            {totalBacklinkCount > 0 && (
-                                <span
-                                    className="ml-2 inline-flex items-center rounded-full bg-slate-100 px-2 py-[1px] text-[10px] text-slate-500">
-                                    {totalBacklinkCount}개
-                                </span>
-                            )}
-                        </span>
+            <span className="text-[11px] font-semibold text-slate-500">
+              이 문서를 참조하는 문서
+                {totalBacklinkCount > 0 && (
+                    <span className="ml-2 inline-flex items-center rounded-full bg-slate-100 px-2 py-[1px] text-[10px] text-slate-500">
+                  {totalBacklinkCount}개
+                </span>
+                )}
+            </span>
                         <span className="text-[10px] text-slate-400">
-                            {showBacklinks ? '숨기기 ▲' : '보기 ▼'}
-                        </span>
+              {showBacklinks ? '숨기기 ▲' : '보기 ▼'}
+            </span>
                     </button>
 
                     {showBacklinks && (
