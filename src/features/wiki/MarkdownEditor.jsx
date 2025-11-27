@@ -86,7 +86,12 @@ function findOpenInternalLink(markdown) {
     };
 }
 
-export default function MarkdownEditor({ value, onChange, allDocs = [] }) {
+export default function MarkdownEditor({
+                                           value,
+                                           onChange,
+                                           allDocs = [],
+                                           fullHeight = false,   // 카드 전체 높이 쓸지 여부
+                                       }) {
     const editorRef = useRef(null);
 
     // 🔹 내부 링크 자동완성 팝업 상태
@@ -110,6 +115,32 @@ export default function MarkdownEditor({ value, onChange, allDocs = [] }) {
             instance.setMarkdown(value || '');
         }
     }, [value]);
+
+    // 🔹 에디터 명령 실행 헬퍼
+    const execCommand = (cmd, payload) => {
+        const instance = editorRef.current?.getInstance();
+        if (!instance) return;
+
+        const tryExec = (name) => {
+            if (!name) return false;
+            try {
+                instance.exec(name, payload);
+                return true;
+            } catch {
+                return false;
+            }
+        };
+
+        if (tryExec(cmd)) return;
+        // PascalCase 대소문자 차이 처리용
+        const alt =
+            cmd && cmd.length > 0
+                ? cmd[0].toUpperCase() + cmd.slice(1)
+                : cmd;
+        if (alt !== cmd) {
+            tryExec(alt);
+        }
+    };
 
     // 🔹 에디터 내용 변경 시
     const handleChange = () => {
@@ -336,28 +367,61 @@ export default function MarkdownEditor({ value, onChange, allDocs = [] }) {
         return () => window.removeEventListener('keydown', handleKey, true);
     }, [filteredCandidates, highlightIndex]);
 
+    // 🔹 헤딩 단축키 (Alt+1~6 → H1~H6)
+    useEffect(() => {
+        const handleHeadingShortcut = (ev) => {
+            // Alt 만 눌렸을 때만 처리 (Ctrl / Cmd / Shift 같이 눌리면 무시)
+            if (!ev.altKey || ev.ctrlKey || ev.metaKey || ev.shiftKey) return;
+
+            const key = ev.key;
+            if (key < '1' || key > '6') return;
+
+            const instance = editorRef.current?.getInstance();
+            const root = editorRef.current?.getRootElement?.();
+            if (!instance || !root) return;
+
+            const active = document.activeElement;
+            if (active && !root.contains(active)) {
+                // 에디터에 포커스 없으면 무시
+                return;
+            }
+
+            ev.preventDefault();
+            ev.stopPropagation();
+
+            const level = Number(key); // 1~6
+            execCommand('heading', { level });
+        };
+
+        window.addEventListener('keydown', handleHeadingShortcut, true);
+        return () => window.removeEventListener('keydown', handleHeadingShortcut, true);
+    }, []);
+
     return (
-        <div className="relative rounded-xl border border-slate-200 bg-white">
+        <div className={fullHeight ? 'h-full' : ''}>
             <Editor
                 ref={editorRef}
                 initialValue={value || ''}
                 previewStyle="vertical"
-                height="auto"
+                // 🔹 fullHeight일 땐 부모 div 높이 100% 채우고, 그 안에서 스크롤
+                height={fullHeight ? '100%' : 'auto'}
                 minHeight="200px"
-                lg:minHeight="730px"
                 initialEditType="wysiwyg"
                 hideModeSwitch={true}
                 useCommandShortcut={true}
                 plugins={[
-                   [colorSyntax, {
-                       preset: [
-                           '#333333', '#666666', '#FFFFFF',
-                           '#f33c3c', '#F97316', '#EAB308',
-                           '#22C55E', '#0EA5E9', '#6366F1', '#7e59de',
-                           '#89caff', '#dfc9ea', '#ffbfdd', '#e0e0e0', '#a5c7ae', '#ffd2bf',
-                       ],
-                   }],
-               ]}
+                    [
+                        colorSyntax,
+                        {
+                            preset: [
+                                '#333333', '#666666', '#FFFFFF',
+                                '#f33c3c', '#F97316', '#EAB308',
+                                '#22C55E', '#0EA5E9', '#6366F1', '#7e59de',
+                                '#89caff', '#dfc9ea', '#ffbfdd', '#e0e0e0', '#a5c7ae', '#ffd2bf',
+                            ],
+                        },
+                    ],
+                ]}
                 toolbarItems={[
                     ['heading', 'bold', 'italic', 'strike'],
                     ['hr', 'quote'],
@@ -368,7 +432,7 @@ export default function MarkdownEditor({ value, onChange, allDocs = [] }) {
                 onChange={handleChange}
             />
 
-            {/* 🔹 내부 링크 자동완성 팝업 */}
+            {/* 🔹 내부 링크 자동완성 팝업 (기존 그대로) */}
             {isLinkPaletteOpen && (
                 <div className="absolute bottom-4 left-1/2 z-20 w-80 -translate-x-1/2 rounded-xl border border-slate-200 bg-white shadow-lg">
                     <div className="border-b border-slate-100 px-3 py-2 text-[11px] text-slate-500">

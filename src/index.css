@@ -10,17 +10,15 @@ body,
   height: 100%;
 }
 
+/* 공통 바디 스타일 */
 body {
   margin: 0;
   overflow: hidden; /* ✅ 브라우저 전체 스크롤 막기 */
-}
-
-body {
   @apply bg-softbg text-slate-800;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
-/* Pediary 헤더 전용 폰트 클래스 */
+/* Pediary 헤더 전용 폰트 */
 .pediary-heading {
   font-family: 'Pretendard Variable', system-ui, -apple-system,
   BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -41,21 +39,19 @@ body {
   animation: fade-in-down 0.25s ease-out;
 }
 
+/* 정렬 유틸 */
 .wiki-align-left {
   text-align: left;
   white-space: pre-line;
 }
-
 .wiki-align-center {
   text-align: center;
   white-space: pre-line;
 }
-
 .wiki-align-right {
   text-align: right;
   white-space: pre-line;
 }
-
 .wiki-align-justify {
   text-align: justify;
   white-space: pre-line;
@@ -67,13 +63,16 @@ body {
   text-decoration: none !important;
   font-weight: 600;
 }
-
 .wiki-link:hover {
-  text-decoration: none; /* hover에도 밑줄 X */
-  color: #1d4ed8;        /* 살짝 더 진한 파랑 */
+  text-decoration: none;
+  color: #1d4ed8;
 }
 
-/* 🔹 Toast UI Editor: 모바일에서 가로 넘침 방지 (편집/보기 공통) */
+/* ===========================
+   Toast UI Editor 공통 레이아웃
+   =========================== */
+
+/* 루트 컨테이너: 폭 100%, 가로 스크롤 방지 */
 .tui-editor-defaultUI,
 .toastui-editor-defaultUI {
   width: 100% !important;
@@ -81,7 +80,7 @@ body {
   overflow-x: hidden !important;
 }
 
-/* 에디터 내부 main 영역도 100% 안으로 고정 */
+/* 에디터 내부 main 영역도 100% */
 .tui-editor-defaultUI .te-editor,
 .toastui-editor-defaultUI .toastui-editor-main {
   width: 100% !important;
@@ -101,22 +100,42 @@ body {
   max-width: 100% !important;
 }
 
+/* 본문 헤더 번호 색 */
 :root {
-  /* 기본 색상 (예: slate-500 근처) */
   --wiki-heading-number-color: #536ea8;
 }
-
-/* 본문 헤더 번호 */
 .wiki-heading-number {
   color: var(--wiki-heading-number-color);
   font-weight: 600;
 }
 
-/* === 공통 테마 토큰 === */
-/* AppLayout의 최상단 div (.app-shell)에 data-theme 속성이 붙어 있음 */
+/* 🔹 툴바 sticky + 그림자 */
+.toastui-editor-defaultUI-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background-color: #ffffff;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9); /* slate-200 느낌 */
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.04);
+}
+
+/* 본문은 툴바보다 아래 레이어 */
+.toastui-editor-main {
+  position: relative;
+  z-index: 0;
+}
+
+/* 루트가 sticky를 잘 동작하게 – 수직은 visible, 가로는 위에서 hidden 처리 */
+.toastui-editor-defaultUI {
+  overflow-y: visible !important;
+}
+
+/* ===========================
+   테마 토큰
+   =========================== */
 
 .app-shell[data-theme='light'] {
-  --color-bg-app: #f3f4f8;             /* softbg 느낌 */
+  --color-bg-app: #f3f4f8;
   --color-bg-header: rgba(255, 255, 255, 0.9);
   --color-surface: #ffffff;
   --color-surface-elevated: #ffffff;
@@ -125,95 +144,84 @@ body {
 }
 
 .app-shell[data-theme='dark'] {
-  --color-bg-app: #020617;             /* slate-950 근처 */
+  --color-bg-app: #020617;
   --color-bg-header: rgba(15, 23, 42, 0.92);
   --color-surface: #020617;
-  --color-surface-elevated: #020617;   /* 필요하면 #020617 ~ #0b1120 사이로 조절 */
+  --color-surface-elevated: #020617;
   --color-border-subtle: rgba(148, 163, 184, 0.45);
   --color-text-main: #e5e7eb;
 }
 
-/* 전체 앱 배경/텍스트 */
 .app-shell {
   background-color: var(--color-bg-app);
   color: var(--color-text-main);
 }
 
-/* 헤더 공통 스타일 (Tailwind bg/border보다 우선 적용됨) */
+/* 헤더 공통 스타일 */
 .app-header {
   background-color: var(--color-bg-header);
   border-bottom: 1px solid var(--color-border-subtle);
   backdrop-filter: blur(12px);
 }
 
-/* 패널/카드 공통 (사이드바 카드, 오른쪽 패널 등) */
+/* 패널/카드 공통 */
 .panel-surface {
   background-color: var(--color-surface-elevated);
   border-color: var(--color-border-subtle);
 }
 
-/* 사이드바 고정 영역 배경 (PC에서 Sidebar 감싸는 bg-surface-elevated/80용) */
+/* 사이드바 고정 영역 배경 */
 .bg-surface-elevated\/80 {
   background-color: color-mix(in srgb, var(--color-surface-elevated) 80%, transparent);
 }
 
-/* 테마 확장할 때는 아래 형태로 추가하면 됨
-.app-shell[data-theme='sepia'] {
-  --color-bg-app: #f7efe5;
-  --color-bg-header: #f1e4d5;
-  --color-surface: #fffaf3;
-  --color-surface-elevated: #fffaf3;
-  --color-border-subtle: rgba(148, 116, 82, 0.4);
-  --color-text-main: #3f2a16;
-}
-*/
-
-/* ─────────────────────────────
+/* ===========================
    카테고리 트리 라인
-   ───────────────────────────── */
+   =========================== */
 
 .tree-line {
   position: absolute;
-  left: 0.4rem;          /* 세로선 x 위치 */
+  left: 0.4rem;
   top: 0;
   bottom: 0;
-  border-left: 1px dashed #e2e8f0; /* slate-200 */
+  border-left: 1px dashed #e2e8f0;
 }
 
 .tree-line-last {
   position: absolute;
   left: 0.4rem;
   top: 0;
-  bottom: 50%;           /* 마지막 항목은 가운데까지만 내려오게 */
+  bottom: 50%;
   border-left: 1px dashed #e2e8f0;
 }
 
 .tree-branch {
   position: absolute;
-  left: 0.4rem;          /* 세로선과 정확히 만나는 x 위치 */
-  top: 50%;              /* 항목의 중앙 y 위치 */
+  left: 0.4rem;
+  top: 50%;
   width: 0.8rem;
-  border-top: 1px dashed #e2e8f0; /* 가로선도 점선 */
+  border-top: 1px dashed #e2e8f0;
   transform: translateY(-0.5px);
 }
 
-/* 🔹 모바일에서 편집 카드/에디터 가로 잘림 방지 */
-@media (max-width: 640px) {
+/* ===========================
+   모바일용 레이아웃 보정
+   =========================== */
 
-  /* 문서 메인 카드 자체를 화면 안에 고정 */
+@media (max-width: 640px) {
+  /* 문서 메인 카드 */
   .wiki-doc-main-card {
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box;
   }
 
-  /* 카드 안쪽 래퍼도 폭 고정 */
   .wiki-doc-main-card > div {
     max-width: 100% !important;
     box-sizing: border-box;
   }
 
-  /* Toast UI Editor 전체를 화면 폭 안으로 */
+  /* Toast UI Editor 가로 잘림 방지 */
   .toastui-editor-defaultUI {
     width: 100% !important;
     max-width: 100% !important;
@@ -221,7 +229,6 @@ body {
     box-sizing: border-box;
   }
 
-  /* 에디터 안쪽 main, 컨텐츠도 카드 폭 안으로 제한 */
   .toastui-editor-defaultUI .toastui-editor-main,
   .toastui-editor-defaultUI .toastui-editor-ww-container,
   .toastui-editor-contents,
@@ -231,7 +238,7 @@ body {
     box-sizing: border-box;
   }
 
-  /* 툴바가 가로로 너무 길어져서 튀어나가는 것 방지 – 줄바꿈 허용 */
+  /* 툴바 버튼이 너무 길어질 때 줄바꿈 허용 */
   .toastui-editor-defaultUI-toolbar {
     display: flex;
     flex-wrap: wrap;

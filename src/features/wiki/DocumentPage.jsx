@@ -562,13 +562,16 @@ export default function DocumentPage() {
                 {/* 메인 내용 카드 – 보기/편집 공통 레이아웃 */}
                 <div className="wiki-doc-main-card h-full rounded-2xl bg-white shadow-soft overflow-x-hidden">
                     {isEditing ? (
-                        // 🔹 편집 모드: 에디터는 내용만, 스크롤은 카드가 담당
-                        <div className="h-full w-full overflow-y-auto p-3 lg:p-4 box-border">
-                            <MarkdownEditor
-                                value={content}
-                                onChange={setContent}
-                                allDocs={allDocs || []}
-                            />
+                        // 🔹 편집 모드: 카드 전체 높이를 에디터에게 주고, 스크롤은 에디터 내부에서
+                        <div className="h-full w-full p-3 lg:p-4 box-border">
+                            <div className="h-full">
+                                <MarkdownEditor
+                                    value={content}
+                                    onChange={setContent}
+                                    allDocs={allDocs || []}
+                                    fullHeight   // 👈 새 prop 추가
+                                />
+                            </div>
                         </div>
                     ) : (
                         // 🔹 보기 모드: Viewer도 같은 카드 안에서 스크롤
