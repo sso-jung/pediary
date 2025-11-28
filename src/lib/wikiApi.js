@@ -584,7 +584,14 @@ export async function fetchTodayActivity(userId) {
         id,
         title,
         slug,
-        deleted_at
+        content_markdown,
+        category_id,
+        updated_at,
+        deleted_at,
+        category:category_id (
+          id,
+          name
+        )
       )
     `
         )

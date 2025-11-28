@@ -11,18 +11,30 @@ export const useAuthStore = create((set) => ({
 
     // 앱 시작 시 세션 확인
     async initSession() {
-        try {
-            const { data, error } = await supabase.auth.getUser();
-            if (error) {
-                console.error(error);
-                set({ user: null, loading: false });
-                return;
-            }
-            set({ user: data.user ?? null, loading: false });
-        } catch (e) {
-            console.error(e);
-            set({ user: null, loading: false });
+      try {
+        // 1️⃣ 현재 세션 먼저 확인 (세션 없어도 error 안 던짐)
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
+
+        if (error) {
+          console.error('getSession error', error);
+          set({ user: null, loading: false });
+          return;
         }
+
+        // 세션이 있으면 user 세팅, 없으면 null
+        set({ user: session?.user ?? null, loading: false });
+
+        // 2️⃣ 로그인 / 로그아웃 / 계정 전환 시 자동 반영
+        supabase.auth.onAuthStateChange((_event, newSession) => {
+          set({ user: newSession?.user ?? null });
+        });
+      } catch (e) {
+        console.error('initSession exception', e);
+        set({ user: null, loading: false });
+      }
     },
 
     // 로그인
