@@ -97,7 +97,7 @@ export default function AppLayout({ children }) {
                         {/* PC용 고정 사이드바 (lg 이상) */}
                         <aside
                             className="
-                                hidden lg:block
+                                hidden basic:block
                                 w-[220px] shrink-0 border-r border-border-subtle
                                 bg-surface-elevated/80 backdrop-blur overflow-y-auto
                             "
@@ -107,7 +107,7 @@ export default function AppLayout({ children }) {
 
                         {/* 모바일/태블릿용 슬라이드 사이드바 (lg 미만) */}
                         <div
-                            className={`fixed inset-0 z-40 lg:hidden ${
+                            className={`fixed inset-0 z-40 basic:hidden ${
                                 isSidebarOpen ? '' : 'pointer-events-none invisible'
                             }`}
                         >

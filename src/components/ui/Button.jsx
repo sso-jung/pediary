@@ -7,7 +7,7 @@ export default function Button({
     ...props
 }) {
     const base =
-        'inline-flex items-center justify-center rounded-2xl px-[12px] py-[6px] text-sm font-medium shadow-soft transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2';
+        'inline-flex items-center justify-center rounded-2xl px-[10px] py-[4px] text-sm font-medium shadow-soft transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2';
 
     const variants = {
         primary: [

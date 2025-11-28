@@ -240,7 +240,7 @@ function DocumentHeader({
                 {/* 보기 모드: 제목 + 공개범위 뱃지 */}
                 {!isEditing && (
                     <div className="flex flex-wrap items-baseline gap-2">
-                        <h1 className="text-xl lg:text-[20px] xl:text-2xl font-semibold italic tracking-tight text-slate-900">
+                        <h1 className="text-xl lg:text-[20px] xl:text-2xl font-semibold tracking-tight text-slate-900">
                             {doc.title}
                         </h1>
 
@@ -271,11 +271,11 @@ function DocumentHeader({
                             onClickGoList?.();
                         }}
                         className="
-                          lg:hidden
+                          md:hidden
                           inline-flex items-center
                           rounded-md border border-slate-200
                           bg-white px-2.5 py-1
-                          text-[10px] lg:text-[11px] text-slate-600
+                          text-[10px] md:text-[11px] text-slate-600
                           shadow-sm hover:bg-slate-50
                         "
                     >
@@ -716,19 +716,18 @@ export default function DocumentPage() {
     return (
         <div className="flex h-full min-h-0 flex-col space-y-2 lg:space-y-[10px]">
             {/* 상단 바 */}
-            <div className="grid gap-3 lg:grid-cols-[190px,minmax(0,1fr)] xl:grid-cols-[230px,minmax(0,1fr)]">
+            <div className="grid gap-3 md:grid-cols-[200px,minmax(0,1fr)] basic:grid-cols-[210px,minmax(0,1fr)]
+                                       lg:grid-cols-[220px,minmax(0,1fr)] xl:grid-cols-[240px,minmax(0,1fr)]">
                 {/* 🔹 데스크탑 전용 왼쪽 영역: 목록 버튼 */}
-                <div className="hidden lg:flex items-end">
+                <div className="hidden md:flex items-end">
                     <button
                         type="button"
-                        onClick={handleGoList}   // ✅ 아래에서 정의한 함수
-                        className="
-                        inline-flex items-center text-center
-                        rounded-md border border-slate-200
-                        bg-white px-2 py-[5px]
-                        text-[11px] text-slate-600
-                        shadow-sm hover:bg-slate-50
-                      "
+                        onClick={handleGoList}
+                        className="inline-flex items-center text-center
+                                   rounded-md border border-slate-200
+                                   bg-white px-2 py-[5px]
+                                   text-[11px] text-slate-600
+                                   shadow-sm hover:bg-slate-50"
                     >
                         <ListIcon />
                     </button>
@@ -759,8 +758,9 @@ export default function DocumentPage() {
             {/* 섹션 트리 + 내용 영역 */}
             <div
                 className="flex-1 min-h-0 grid auto-rows-[minmax(0,1fr)] gap-3
-           md:grid-cols-[160px,minmax(0,1fr)]
-           lg:grid-cols-[190px,minmax(0,1fr)]
+           md:grid-cols-[190px,minmax(0,1fr)]
+           basic:grid-cols-[200px,minmax(0,1fr)]
+           lg:grid-cols-[210px,minmax(0,1fr)]
            xl:grid-cols-[230px,minmax(0,1fr)]"
             >
                 <SectionSidebar

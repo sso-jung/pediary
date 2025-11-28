@@ -93,7 +93,7 @@ export default function Header({
               inline-flex items-center rounded-full border border-slate-200
               px-2 py-[2px] text-[9px]
               bg-slate-100 transition shrink-0
-              lg:hidden
+              basic:hidden
               ${
                             isSidebarOpen
                                 ? 'bg-slate-100 text-slate-800'
