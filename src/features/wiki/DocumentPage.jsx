@@ -402,7 +402,7 @@ function SectionSidebar({ headings, isEditing, onClickHeading }) {
         <aside
             className="hidden md:block h-full overflow-y-auto rounded-2xl bg-white
              p-2 text-[10px] shadow-soft
-             lg:p-2.5 xl:p-3"
+             basic:p-2.5 xl:p-3"
         >
             <h2 className="mb-2 text-[10px] font-semibold text-slate-500">
                 섹션
