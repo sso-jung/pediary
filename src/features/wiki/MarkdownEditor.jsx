@@ -103,19 +103,9 @@ export default function MarkdownEditor({
                                            onChange,
                                            allDocs = [],
                                            fullHeight = false,   // 카드 전체 높이 쓸지 여부
-                                           onManualSave,
+                                           onManualSave={handleSave},
                                        }) {
     const editorRef = useRef(null);
-    // 외부 value → 에디터 동기화 (이미 있을 가능성 높음)
-    useEffect(() => {
-        const instance = editorRef.current?.getInstance?.();
-        if (!instance) return;
-
-        const current = instance.getMarkdown();
-        if (current !== value) {
-            instance.setMarkdown(value || '');
-        }
-    }, [value]);
 
     // 🔹 내부 링크 자동완성 팝업 상태
     const [isLinkPaletteOpen, setIsLinkPaletteOpen] = useState(false);
@@ -131,15 +121,17 @@ export default function MarkdownEditor({
         isLinkPaletteOpenRef.current = isLinkPaletteOpen;
     }, [isLinkPaletteOpen]);
 
-    // 🔹 외부 value → 에디터 동기화
+    const hasInitializedFromValueRef = useRef(false);
+
     useEffect(() => {
-        const instance = editorRef.current?.getInstance();
+        const instance = editorRef.current?.getInstance?.();
         if (!instance) return;
 
-        const current = instance.getMarkdown();
-        if ((value || '') !== current) {
-            instance.setMarkdown(value || '');
-        }
+        // 이미 한 번 초기화했으면 더 이상 건드리지 않음
+        if (hasInitializedFromValueRef.current) return;
+
+        instance.setMarkdown(value || '');
+        hasInitializedFromValueRef.current = true;
     }, [value]);
 
     // 🔹 에디터 명령 실행 헬퍼

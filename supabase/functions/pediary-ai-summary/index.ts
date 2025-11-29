@@ -26,14 +26,21 @@ type ActivitySummary = {
   totalActions: number;
 };
 
+type DiffBlock = {
+  kind: "added" | "removed" | "changed";
+  before?: string;
+  after?: string;
+};
+
 type DocLike = {
   id: number | string;
   title?: string | null;
   categoryId?: number | null;
-  categoryName?: string | null; // 🔹 여기엔 "업무 / 회의" 같은 경로로 채움
+  categoryName?: string | null;
   updatedAt?: string | null;
   content?: string | null;
   editCount?: number | null;
+  diffBlocks?: DiffBlock[]; // 🔹 스냅샷 기준 diff 정보
 };
 
 type BuildPromptArgs = {
@@ -87,18 +94,259 @@ function buildUpdateSessionStats(
   return stats;
 }
 
-// 🔹 카테고리 경로 문자열 만들기 (부모/자식)
-function buildCategoryPath(category: any | null | undefined): string | null {
-  if (!category) return null;
+/**
+ * 긴 문서를 그대로 다 보내지 않고,
+ * - 짧으면 전체 내용
+ * - 길면 앞부분 + 뒷부분을 잘라서 보내기
+ */
+function buildExcerpt(content: string, maxLen = 1600): string {
+  if (!content) return "";
 
-  // Postgrest nested: category: { id, name, parent: { id, name } }
-  const name: string | undefined = category.name ?? undefined;
-  const parentName: string | undefined = category.parent?.name ?? undefined;
+  const text = content.toString();
 
-  if (parentName && name) return `${parentName} / ${name}`;
-  if (name) return name;
-  if (parentName) return parentName;
-  return null;
+  if (text.length <= maxLen) {
+    return text;
+  }
+
+  // 예: 60% 앞 / 40% 뒤
+  const headLen = Math.floor(maxLen * 0.6);
+  const tailLen = maxLen - headLen;
+
+  const head = text.slice(0, headLen);
+  const tail = text.slice(-tailLen);
+
+  return `[문서 앞부분]\n${head}\n\n[최근 내용(뒷부분)]\n${tail}`;
+}
+
+// 🔹 문단 단위 diff 계산 (아주 심플한 버전)
+//  - \n\n 기준으로 문단 나누기
+//  - 길이가 너무 짧은 변경은 무시 (한 글자짜리 "과" 같은 건 버림)
+//  - 최대 maxBlocks 개까지만
+function computeParagraphDiff(
+  oldContent: string,
+  newContent: string,
+  maxBlocks = 5,
+): DiffBlock[] {
+  const MIN_LEN = 20; // 너무 짧은 변경은 무시
+
+  const splitParas = (txt: string): string[] =>
+    txt
+      .split(/\n\s*\n/)
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
+
+  const oldParas = splitParas(oldContent || "");
+  const newParas = splitParas(newContent || "");
+
+  const blocks: DiffBlock[] = [];
+  const len = Math.max(oldParas.length, newParas.length);
+
+  for (let i = 0; i < len; i++) {
+    const before = oldParas[i] || "";
+    const after = newParas[i] || "";
+
+    if (before === after) continue;
+
+    // 너무 짧은 건 스킵 (양쪽 합쳐서 길이 기준)
+    const combined = (before + after).replace(/\s+/g, "");
+    if (combined.length < MIN_LEN) continue;
+
+    if (!before && after) {
+      blocks.push({ kind: "added", after });
+    } else if (before && !after) {
+      blocks.push({ kind: "removed", before });
+    } else {
+      blocks.push({ kind: "changed", before, after });
+    }
+
+    if (blocks.length >= maxBlocks) break;
+  }
+
+  return blocks;
+}
+
+// 🔹 프롬프트 빌더
+function buildPrompt({
+  userName,
+  activitySummary,
+  docs,
+}: BuildPromptArgs): string {
+  const { createdCount, updatedCount, viewedCount, totalActions } =
+    activitySummary;
+
+  const docsSection = (docs || [])
+    .map((d, idx) => {
+      const header = `
+# 문서 ${idx + 1}
+제목: ${d.title}
+문서 ID: ${d.id}
+카테고리 ID: ${d.categoryId ?? "null"}
+카테고리 이름: ${d.categoryName ?? "알 수 없음"}
+수정일: ${d.updatedAt ?? "알 수 없음"}
+수정 세션 수: ${d.editCount ?? "알 수 없음"}
+`;
+
+      const diffBlocks = d.diffBlocks || [];
+      if (diffBlocks.length > 0) {
+        const diffText = diffBlocks
+          .map((b, i) => {
+            if (b.kind === "added") {
+              return `- 변경 ${i + 1} (추가된 내용)\n${b.after}`;
+            }
+            if (b.kind === "removed") {
+              return `- 변경 ${i + 1} (삭제된 내용)\n${b.before}`;
+            }
+            return `- 변경 ${i + 1} (수정 전 → 수정 후)\n[수정 전]\n${b.before}\n\n[수정 후]\n${b.after}`;
+          })
+          .join("\n\n");
+
+        return `${header}
+[최근에 달라진 문단들]
+${diffText}
+`;
+      } else {
+        // diff 정보가 없으면 기존처럼 앞/뒤 일부만 잘라서 보낸다
+        const excerpt = buildExcerpt(d.content || "");
+        return `${header}
+[내용 일부]
+${excerpt}
+`;
+      }
+    })
+    .join("\n");
+
+  return `
+너는 "피디어리(Pediary)"라는 개인 위키/다이어리 서비스의 전용 AI 비서야.
+
+[사용자 이름]
+${userName || "사용자"}
+
+[최근 활동량 요약]
+- 새로 쓴 문서 수: ${createdCount}
+- 수정한 문서 수(30분 단위 세션): ${updatedCount}
+- 열어본 문서 수: ${viewedCount}
+- 총 활동 횟수(세션 기준): ${totalActions}
+
+[최근에 자주 다뤄진 문서들]
+${docsSection}
+
+[목표]
+1. 위 문서들과 활동량을 기반으로, 사용자의 관심사를
+   - 업무 위주 / 일상 위주 / 취미 위주
+   세 가지 비율로 퍼센트 값으로 추정해라.
+2. 문서 내용 속에서 "해야 할 일"로 만들 수 있는 부분이 있으면
+   구체적인 체크리스트 항목으로 최대 5개까지 작성해라.
+3. 해야 할 일이 거의 없다면,
+   체크리스트는 0~2개 이내로만 작성하고,
+   대신 사용자의 현재 상태를 정리해주고 응원/조언 중심으로 써라.
+4. 마지막으로 "피디어리의 한 마디"라는 이름의 조언 문장을
+   최소 150자, 최대 350자 정도로 작성해라.
+   - 너무 진단적이거나 의학/치료/약물 관련 조언은 절대 하지 마라.
+   - 사용자를 비난하지 말고, 다정하지만 현실적인 톤으로 이야기해라.
+   - 한국어 반말로 작성해라.
+
+[출력 형식 - 반드시 아래 JSON만 출력할 것]
+{
+  "focusSummary": {
+    "workPercent": number,
+    "lifePercent": number,
+    "hobbyPercent": number,
+    "comment": "string"
+  },
+  "checklist": [
+    {
+      "text": "해야 할 일 한 줄",
+      "reason": "이걸 왜 해야 하는지 한 줄 설명"
+    }
+  ],
+  "pediaryMessage": {
+    "text": "150~350자 정도의 응원/조언"
+  }
+}
+JSON 이외의 다른 텍스트는 절대 출력하지 마라.
+`;
+}
+
+// 🔹 스냅샷 읽어서 diff 붙이기
+async function attachDiffBlocksFromSnapshots(
+  userId: string,
+  docs: DocLike[],
+): Promise<DocLike[]> {
+  const docIds = docs
+    .map((d) => d.id)
+    .filter((id) => id !== null && id !== undefined);
+
+  if (docIds.length === 0) return docs;
+
+  // 🔹 이 문서들에 대한 기존 스냅샷 읽기
+  const { data: snapshots, error } = await supabase
+    .from("document_snapshots")
+    .select("document_id, content_markdown")
+    .eq("user_id", userId)
+    .eq("snapshot_kind", "analysis")
+    .in("document_id", docIds as any[]);
+
+  if (error) {
+    console.error("document_snapshots select error", error);
+  }
+
+  const snapshotMap = new Map<number | string, string>();
+  for (const row of snapshots || []) {
+    snapshotMap.set(row.document_id, row.content_markdown || "");
+  }
+
+  // 🔹 각 문서에 대해 스냅샷 vs 현재 content 기준 diff 계산
+  const withDiffs: DocLike[] = docs.map((d) => {
+    const current = (d.content || "").toString();
+    const baseline = snapshotMap.has(d.id)
+      ? snapshotMap.get(d.id)!
+      : current; // 스냅샷 없으면 "현재 내용 == 기준" 으로 취급 → diff 없음
+
+    const diffBlocks =
+      baseline === current
+        ? []
+        : computeParagraphDiff(baseline, current, 5);
+
+    return {
+      ...d,
+      diffBlocks,
+    };
+  });
+
+  return withDiffs;
+}
+
+// 🔹 분석이 끝난 후, 현재 내용을 기준으로 스냅샷 upsert
+async function updateSnapshotsAfterAnalysis(
+  userId: string,
+  docs: DocLike[],
+) {
+  const rows = docs
+    .filter(
+      (d) =>
+        d.id != null &&
+        d.content &&
+        d.content.toString().trim().length > 0,
+    )
+    .map((d) => ({
+      user_id: userId,
+      document_id: d.id,
+      snapshot_kind: "analysis",
+      content_markdown: d.content,
+      updated_at: new Date().toISOString(),
+    }));
+
+  if (rows.length === 0) return;
+
+  const { error } = await supabase
+    .from("document_snapshots")
+    .upsert(rows, {
+      onConflict: "user_id,document_id,snapshot_kind",
+    });
+
+  if (error) {
+    console.error("document_snapshots upsert error", error);
+  }
 }
 
 // ───────────────────────────────────
@@ -174,7 +422,7 @@ serve(async (req) => {
       };
     })();
 
-    // 🔹 recentDocs: 최대 10개 (클라이언트에서 보낼 수도 있으니 그대로 사용 가능)
+    // 🔹 recentDocs: 최대 10개
     const trimmedRecentDocs: DocLike[] = Array.isArray(recentDocs)
       ? recentDocs.slice(0, 10)
       : [];
@@ -239,65 +487,6 @@ serve(async (req) => {
 
       return Array.from(map.values());
     })();
-
-    // 🔹 여기서 문서 메타데이터를 Supabase에서 가져와서 title / content / 카테고리 경로 채워넣기
-    let enrichedDocs: DocLike[] = mergedDocs;
-
-    if (mergedDocs.length > 0) {
-      const docIds = mergedDocs
-        .map((d) => d.id)
-        .filter((id) => id !== null && id !== undefined);
-
-      try {
-        const { data: docsMeta, error: docsError } = await supabase
-          .from("documents")
-          .select(`
-            id,
-            title,
-            content_markdown,
-            updated_at,
-            category_id,
-            category:category_id (
-              id,
-              name,
-              parent_id,
-              parent:parent_id (
-                id,
-                name
-              )
-            )
-          `)
-          .in("id", docIds as any[]);
-
-        if (docsError) {
-          console.error("docs meta fetch error", docsError);
-        } else if (docsMeta && docsMeta.length > 0) {
-          const metaMap = new Map<any, any>(
-            docsMeta.map((m: any) => [m.id, m]),
-          );
-
-          enrichedDocs = mergedDocs.map((d) => {
-            const meta = metaMap.get(d.id);
-
-            if (!meta) return d;
-
-            const catPath = buildCategoryPath(meta.category);
-
-            return {
-              ...d,
-              title: meta.title ?? d.title ?? null,
-              content: meta.content_markdown ?? d.content ?? null,
-              updatedAt: meta.updated_at ?? d.updatedAt ?? null,
-              categoryId: meta.category_id ?? d.categoryId ?? null,
-              // 🔹 "부모 / 자식" 형식의 카테고리 경로를 categoryName에 넣어줌
-              categoryName: catPath ?? d.categoryName ?? null,
-            };
-          });
-        }
-      } catch (e) {
-        console.error("docs meta fetch exception", e);
-      }
-    }
 
     // 1️⃣ 최소 문서 수 체크 (deleted 아닌 문서 기준)
     const { count: docCount, error: countError } = await supabase
@@ -385,11 +574,17 @@ serve(async (req) => {
       });
     }
 
-    // 3️⃣ 캐시가 없으면 Gemini 호출
+    // 3️⃣ 캐시가 없으면 → 스냅샷 기준 diff 붙이고 Gemini 호출
+    //    (스냅샷 없으면 diffBlocks는 빈 배열로 남음 → 기존 excerpt 방식처럼 동작)
+    const docsWithDiffs = await attachDiffBlocksFromSnapshots(
+      userId,
+      mergedDocs,
+    );
+
     const prompt = buildPrompt({
       userName,
       activitySummary,
-      docs: enrichedDocs, // 🔹 카테고리 경로까지 포함된 버전 사용
+      docs: docsWithDiffs,
     });
 
     const geminiRes = await fetch(
@@ -499,6 +694,10 @@ serve(async (req) => {
       console.error("ai_daily_summaries insert error", insertError);
     }
 
+    // 5️⃣ 분석이 끝났으니, 현재 내용을 기준으로 스냅샷 업데이트
+    //     (다음 분석 때는 이 버전과의 diff 기준으로 동작)
+    await updateSnapshotsAfterAnalysis(userId, mergedDocs);
+
     return new Response(JSON.stringify(finalPayload), {
       headers: {
         ...corsHeaders,
@@ -516,102 +715,3 @@ serve(async (req) => {
     });
   }
 });
-
-/**
- * 긴 문서를 그대로 다 보내지 않고,
- * - 짧으면 전체 내용
- * - 길면 앞부분 + 뒷부분을 잘라서 보내기
- */
-function buildExcerpt(content: string, maxLen = 1600): string {
-  if (!content) return "";
-
-  const text = content.toString();
-
-  if (text.length <= maxLen) {
-    return text;
-  }
-
-  // 예: 60% 앞 / 40% 뒤
-  const headLen = Math.floor(maxLen * 0.6);
-  const tailLen = maxLen - headLen;
-
-  const head = text.slice(0, headLen);
-  const tail = text.slice(-tailLen);
-
-  return `[문서 앞부분]\n${head}\n\n[최근 내용(뒷부분)]\n${tail}`;
-}
-
-// 🔹 프롬프트 빌더
-function buildPrompt({
-  userName,
-  activitySummary,
-  docs,
-}: BuildPromptArgs): string {
-  const { createdCount, updatedCount, viewedCount, totalActions } =
-    activitySummary;
-
-  return `
-너는 "피디어리(Pediary)"라는 개인 위키/다이어리 서비스의 전용 AI 비서야.
-
-[사용자 이름]
-${userName || "사용자"}
-
-[최근 활동량 요약]
-- 새로 쓴 문서 수: ${createdCount}
-- 수정한 문서 수(30분 단위 세션): ${updatedCount}
-- 열어본 문서 수: ${viewedCount}
-- 총 활동 횟수(세션 기준): ${totalActions}
-
-[최근에 자주 다뤄진 문서들]
-${(docs || [])
-  .map(
-    (d, idx) => `
-# 문서 ${idx + 1}
-제목: ${d.title}
-문서 ID: ${d.id}
-카테고리 ID: ${d.categoryId ?? "null"}
-카테고리 이름(경로): ${d.categoryName ?? "알 수 없음"}
-수정일: ${d.updatedAt ?? "알 수 없음"}
-수정 세션 수: ${d.editCount ?? "알 수 없음"}
-내용 일부:
-${buildExcerpt(d.content || "")}
-`,
-  )
-  .join("\n")}
-
-[목표]
-1. 위 문서들과 활동량을 기반으로, 사용자의 관심사를
-   - 업무 위주 / 일상 위주 / 취미 위주
-   세 가지 비율로 퍼센트 값으로 추정해라.
-2. 문서 내용 속에서 "해야 할 일"로 만들 수 있는 부분이 있으면
-   구체적인 체크리스트 항목으로 최대 5개까지 작성해라.
-3. 해야 할 일이 거의 없다면,
-   체크리스트는 0~2개 이내로만 작성하고,
-   대신 사용자의 현재 상태를 정리해주고 응원/조언 중심으로 써라.
-4. 마지막으로 "피디어리의 한 마디"라는 이름의 조언 문장을
-   최소 150자, 최대 450자 정도로 작성해라.
-   - 너무 진단적이거나 의학/치료/약물 관련 조언은 절대 하지 마라.
-   - 사용자를 비난하지 말고, 다정하지만 현실적인 톤으로 이야기해라.
-   - 한국어 반말로 작성해라.
-
-[출력 형식 - 반드시 아래 JSON만 출력할 것]
-{
-  "focusSummary": {
-    "workPercent": number,
-    "lifePercent": number,
-    "hobbyPercent": number,
-    "comment": "string"
-  },
-  "checklist": [
-    {
-      "text": "해야 할 일 한 줄",
-      "reason": "이걸 왜 해야 하는지 한 줄 설명"
-    }
-  ],
-  "pediaryMessage": {
-    "text": "150~350자 정도의 응원/조언"
-  }
-}
-JSON 이외의 다른 텍스트는 절대 출력하지 마라.
-`;
-}

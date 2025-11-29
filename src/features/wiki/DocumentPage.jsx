@@ -546,14 +546,46 @@ export default function DocumentPage() {
         }
     };
 
-// 문서 로딩 시 기본 값 세팅 (isEditing은 손대지 않음)
+    const initializedRef = useRef(false);
+    const lastUpdateLogRef = useRef({
+        time: 0,
+        documentId: null,
+    });
+
+    // 문서 로딩 / 변경 시 기본 값 세팅
     useEffect(() => {
         if (!doc) return;
 
-        setCategoryId(doc.category_id ?? null);
-        setContent(doc.content_markdown || '');
-        setVisibility(doc.visibility || 'private');
-    }, [doc]);
+        const baseVisibility = doc.visibility || 'private';
+        const baseCategoryId = doc.category_id ?? null;
+        const baseContent = doc.content_markdown || '';
+
+        // 공통: 항상 최신 카테고리/가시성은 반영
+        setCategoryId(baseCategoryId);
+        setVisibility(baseVisibility);
+
+        // 1) 첫 초기화 시점: 무조건 문서 내용까지 세팅
+        if (!initializedRef.current) {
+            setContent(baseContent);
+            lastSavedRef.current = {
+                content: baseContent,
+                visibility: baseVisibility,
+                categoryId: baseCategoryId,
+            };
+            initializedRef.current = true;
+            return;
+        }
+
+        // 2) 그 이후에는 "편집 중이 아닐 때만" 서버 내용 반영
+        if (!isEditing) {
+            setContent(baseContent);
+            lastSavedRef.current = {
+                content: baseContent,
+                visibility: baseVisibility,
+                categoryId: baseCategoryId,
+            };
+        }
+    }, [doc, isEditing]);
 
     // 최초 viewed 로그
     useEffect(() => {
@@ -621,53 +653,90 @@ export default function DocumentPage() {
         [backlinks],
     );
 
-    // 공용 저장 함수
+    const AUTO_LOG_MIN_INTERVAL_MS = 5 * 60 * 1000; // 5분
+
     const saveDocument = async ({ isAuto = false } = {}) => {
-        if (!doc) return;
+      if (!doc) return;
 
-        try {
-            await updateSectionLinksForDocument({
-                documentId: doc.id,
-                oldMarkdown: doc.content_markdown || '',
-                newMarkdown: content || '',
+      try {
+        await updateSectionLinksForDocument({
+          documentId: doc.id,
+          oldMarkdown: doc.content_markdown || '',
+          newMarkdown: content || '',
+        });
+
+        await new Promise((resolve, reject) => {
+          updateMutation.mutate(
+            {
+              title: doc.title,
+              contentMarkdown: content,
+              visibility,
+              categoryId,
+            },
+            {
+              onSuccess: () => resolve(),
+              onError: () => reject(),
+            },
+          );
+        });
+
+        // ✅ 마지막 저장 스냅샷 업데이트
+        lastSavedRef.current = {
+          content,
+          visibility,
+          categoryId,
+        };
+
+        // ✅ 여기서 updated 활동 로그 찍기 (자동/수동 분리)
+        if (user) {
+          const now = Date.now();
+          const last = lastUpdateLogRef.current;
+
+          if (!isAuto) {
+            // 👉 수동 저장은 무조건 로그 남김
+            logDocumentActivity({
+              userId: user.id,
+              documentId: doc.id,
+              action: 'updated',
             });
-
-            await new Promise((resolve, reject) => {
-                updateMutation.mutate(
-                    {
-                        title: doc.title,
-                        contentMarkdown: content,
-                        visibility,
-                        categoryId,
-                    },
-                    {
-                        onSuccess: () => resolve(),
-                        onError: () => reject(),
-                    },
-                );
-            });
-
-            lastSavedRef.current = {
-                content,
-                visibility,
-                categoryId,
+            lastUpdateLogRef.current = {
+              time: now,
+              documentId: doc.id,
             };
+          } else {
+            // 👉 자동 저장은 5분에 1번만 로그 남김
+            const sameDoc = last.documentId === doc.id;
+            const tooOld = !last.time || now - last.time > AUTO_LOG_MIN_INTERVAL_MS;
 
-            if (isAuto) {
-                setAutosaveStatus('saved');
-            } else {
-                showSnackbar('저장 완료!');
-                setIsEditing(false);
+            if (!sameDoc || tooOld) {
+              logDocumentActivity({
+                userId: user.id,
+                documentId: doc.id,
+                action: 'updated',
+              });
+              lastUpdateLogRef.current = {
+                time: now,
+                documentId: doc.id,
+              };
             }
-        } catch (err) {
-            console.error(err);
-
-            if (isAuto) {
-                setAutosaveStatus('error');
-            } else {
-                showSnackbar('저장에 실패했습니다. 잠시 후 다시 시도해 주세요.');
-            }
+          }
         }
+
+        if (isAuto) {
+          setAutosaveStatus('saved');
+        } else {
+          showSnackbar('저장 완료!');
+          setIsEditing(false);
+        }
+      } catch (err) {
+        console.error(err);
+
+        if (isAuto) {
+          setAutosaveStatus('error');
+        } else {
+          showSnackbar('저장에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+        }
+      }
     };
 
     const handleSave = async (e) => {
