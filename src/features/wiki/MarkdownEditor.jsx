@@ -103,7 +103,7 @@ export default function MarkdownEditor({
                                            onChange,
                                            allDocs = [],
                                            fullHeight = false,   // 카드 전체 높이 쓸지 여부
-                                           onManualSave={handleSave},
+                                           onManualSave=() => {},
                                        }) {
     const editorRef = useRef(null);
 
