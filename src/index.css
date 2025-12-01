@@ -262,7 +262,7 @@ body {
 .toastui-editor-ww-container table,
 .toastui-editor-ww-container .ProseMirror table {
   width: 90% !important;
-  max-width: 90% !important;
+  max-width: 100% !important;
   table-layout: fixed;
   border-collapse: collapse;
   box-sizing: border-box;
