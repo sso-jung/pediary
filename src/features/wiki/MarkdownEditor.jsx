@@ -451,49 +451,33 @@ export default function MarkdownEditor({
     useEffect(() => {
         if (!activeHeading) return;
 
-        const instance = editorRef.current?.getInstance?.();
-        const root = editorRef.current?.getRootElement?.();
-        if (!instance || !root) return;
+        // DOM 업데이트가 끝난 뒤에 찾도록 한 틱 미루기
+        requestAnimationFrame(() => {
+            // TUI 에디터 내부 렌더 영역
+            const contents = document.querySelector('.toastui-editor-contents');
+            if (!contents) return;
 
-        // WYSIWYG 내용 영역 (toastui-editor-contents)
-        const contents = root.querySelector('.toastui-editor-contents') || root;
+            const targetText = (activeHeading.text || '')
+                .replace(/\s+/g, ' ')
+                .trim();
+            if (!targetText) return;
 
-        const targetText = (activeHeading.text || '').replace(/\s+/g, ' ').trim();
-        if (!targetText) return;
+            const headingEls = contents.querySelectorAll('h1,h2,h3,h4,h5,h6');
+            if (!headingEls.length) return;
 
-        const headingEls = contents.querySelectorAll('h1,h2,h3,h4,h5,h6');
-        if (!headingEls.length) return;
+            const targetEl = Array.from(headingEls).find((el) => {
+                const text = (el.textContent || '')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                return text === targetText;
+            });
 
-        const targetEl = Array.from(headingEls).find((el) => {
-            const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
-            return text === targetText;
-        });
+            if (!targetEl || !targetEl.scrollIntoView) return;
 
-        if (!targetEl) return;
-
-        // 스크롤 가능한 부모 찾기
-        const getScrollableParent = (el) => {
-            let parent = el.parentElement;
-            while (parent && parent !== document.body) {
-                const style = window.getComputedStyle(parent);
-                const overflowY = style.overflowY;
-                if (overflowY === 'auto' || overflowY === 'scroll') {
-                    return parent;
-                }
-                parent = parent.parentElement;
-            }
-            return null;
-        };
-
-        const scrollParent = getScrollableParent(contents) || contents;
-        const parentRect = scrollParent.getBoundingClientRect();
-        const elRect = targetEl.getBoundingClientRect();
-
-        const offset = elRect.top - parentRect.top + scrollParent.scrollTop - 16;
-
-        scrollParent.scrollTo({
-            top: offset,
-            behavior: 'smooth',
+            targetEl.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start',
+            });
         });
     }, [activeHeading]);
 
