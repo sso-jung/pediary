@@ -361,6 +361,52 @@ function splitTextWithStrikeSafe(text, maxLen) {
     return result;
 }
 
+// 🔹 markdownToLines 결과에 heading 번호 1 / 1.1 / 1.1.1 ... 붙이기
+function addHeadingNumbers(lines = []) {
+    const counters = [0, 0, 0, 0, 0, 0, 0]; // 1~6
+
+    return lines.map((line) => {
+        if (!line.isHeading || !line.level) return line;
+
+        const level = Math.min(Math.max(line.level, 1), 6);
+        counters[level] += 1;
+        for (let i = level + 1; i < counters.length; i += 1) {
+            counters[i] = 0;
+        }
+
+        const nums = counters.slice(1, level + 1).filter((n) => n > 0);
+        const number = nums.join('.');
+
+        return {
+            ...line,
+            number,
+        };
+    });
+}
+
+// 🔹 엑셀 시트명 유니크하게 만들기 (31자 제한 + 중복 방지)
+function makeUniqueSheetName(baseName, usedNames) {
+    let name = (baseName || 'Sheet').replace(/[\\/?*\[\]:]/g, ' ');
+    name = name.slice(0, 31).trim() || 'Sheet';
+
+    if (!usedNames.has(name)) {
+        usedNames.add(name);
+        return name;
+    }
+
+    let idx = 2;
+    // "이름-2", "이름-3" ... 식으로 붙여가며 중복 피하기
+    while (true) {
+        const suffix = `-${idx}`;
+        const truncated = name.slice(0, 31 - suffix.length) + suffix;
+        if (!usedNames.has(truncated)) {
+            usedNames.add(truncated);
+            return truncated;
+        }
+        idx += 1;
+    }
+}
+
 // 🔹 실제 엑셀 파일 생성 + 다운로드 (exceljs)
 export async function downloadMyDocumentsExcel(userId) {
     if (!userId) {
@@ -582,4 +628,140 @@ export async function downloadMyDocumentsExcel(userId) {
     });
     const fileName = `pediary-backup-${dateStr}.xlsx`;
     saveAs(blob, fileName);
+}
+
+
+// =========================================================
+// 🔹 단일 문서 엑셀 다운로드 (보기 화면에서 쓰는 용도)
+//    - 파일명: 문서 제목.xlsx
+//    - 시트명: 문서 안의 H1 헤딩들
+//    - Heading 텍스트: "1. 제목", "1.1. 소제목" 처럼 번호 붙임
+//    - [[doc:7#2.1|라벨]] → "라벨" 로만 보이도록 stripInternalLinks 재사용
+// =========================================================
+export async function downloadDocumentExcel(doc) {
+    if (!doc) {
+        throw new Error('문서 정보가 없어.');
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    const usedSheetNames = new Set();
+
+    const markdown = doc.content_markdown || '';
+
+    // 🔹 기존 파서 재사용 (내부 링크 label만 남기는 stripInternalLinks 포함)
+    const allLines = markdownToLines(markdown, ''); // 제목은 일부러 안 넣음
+    const numberedLines = addHeadingNumbers(allLines);
+
+    // 🔹 H1 기준으로 시트 나누기
+    const sections = [];
+    let currentSection = null;
+    let h1Index = 0;
+
+    numberedLines.forEach((line) => {
+        if (line.isHeading && line.level === 1) {
+            const baseName = line.text || `섹션 ${h1Index + 1}`;
+            const sheetName = makeUniqueSheetName(baseName, usedSheetNames);
+
+            if (currentSection) {
+                sections.push(currentSection);
+            }
+
+            h1Index += 1;
+            currentSection = {
+                sheetName,
+                lines: [],
+            };
+        }
+
+        // H1 나오기 전에 내용이 있으면, 문서 제목으로 기본 시트 생성
+        if (!currentSection) {
+            const baseName = doc.title || '문서';
+            const sheetName = makeUniqueSheetName(baseName, usedSheetNames);
+            currentSection = {
+                sheetName,
+                lines: [],
+            };
+        }
+
+        currentSection.lines.push(line);
+    });
+
+    if (currentSection) {
+        sections.push(currentSection);
+    }
+
+    const MAX_CHARS_PER_ROW = 80;
+
+    // 🔹 각 섹션(=시트)에 내용 쓰기
+    for (const section of sections) {
+        const ws = workbook.addWorksheet(section.sheetName);
+        ws.getColumn(1).width = 100; // 대략 80자 정도 보이도록
+
+        for (const line of section.lines) {
+            // Heading 은 "1. 제목" 형태로 표시
+            const baseText = line.text || '';
+            const displayText =
+                line.isHeading && line.number
+                    ? `${line.number}. ${baseText}`
+                    : baseText;
+
+            if (!displayText) continue;
+
+            const chunks = splitTextWithStrikeSafe(displayText, MAX_CHARS_PER_ROW);
+
+            // ── Heading 레벨에 따라 폰트 크기/굵기 조절
+            let fontSize = 10;
+            let fontBold = !!line.bold;
+            const fontItalic = !!line.italic;
+            const fontUnderline = line.underline ? true : undefined;
+            const fontColor = line.color || 'FF000000';
+
+            if (line.isHeading) {
+                const lvl = line.level || 1;
+                if (lvl === 1) fontSize = 16;      // H1
+                else if (lvl === 2) fontSize = 14; // H2
+                else fontSize = 12;                // H3~
+                fontBold = true;
+            }
+
+            const baseFont = {
+                name: '맑은 고딕',
+                size: fontSize,
+                bold: fontBold,
+                italic: fontItalic,
+                underline: fontUnderline,
+                color: { argb: fontColor },
+            };
+
+            chunks.forEach((chunkText, idx) => {
+                const row = ws.addRow([null]);
+                const rowIndex = row.number;
+                const cell = ws.getCell(rowIndex, 1);
+
+                // Heading 첫 줄은 높이를 조금 더 줌
+                if (line.isHeading && idx === 0) {
+                    const approxHeight = fontSize * 1.5;
+                    row.height = Math.max(row.height || 0, approxHeight);
+                }
+
+                // ~~취소선~~은 부분 스트로크로
+                cell.value = buildRichTextFromChunk(chunkText, baseFont);
+                cell.alignment = {
+                    wrapText: true,
+                    vertical: 'top',
+                    horizontal: 'left',
+                };
+            });
+        }
+    }
+
+    // 🔹 파일명: 문서 제목.xlsx
+    const safeTitle =
+        (doc.title || '문서').replace(/[\\/:*?"<>|]/g, ' ').trim() || '문서';
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    saveAs(blob, `${safeTitle}.xlsx`);
 }

@@ -18,6 +18,7 @@ import { logDocumentActivity, updateSectionLinksForDocument } from '../../lib/wi
 import MarkdownEditor from './MarkdownEditor';
 import { parseInternalLinkInner } from '../../lib/internalLinkFormat';
 import ListIcon from '../../components/icons/ListIcon.jsx'
+import { downloadDocumentExcel } from '../../lib/exportMyDocumentsExcel';
 
 // =========================
 // 유틸 함수들
@@ -199,6 +200,8 @@ function DocumentHeader({
                             onClickView,
                             onClickEdit,
                             onClickGoList,
+                            onClickExportExcel,
+                            exporting,
                         }) {
     const handleChangeCategory = (e) => {
         const value = e.target.value;
@@ -262,6 +265,26 @@ function DocumentHeader({
 
             {/* 오른쪽 컨트롤 묶음 */}
             <div className="flex items-center gap-1 sm:gap-2">
+                {/* 보기 모드 전용: 엑셀 다운로드 */}
+                {!isEditing && (
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onClickExportExcel?.();
+                        }}
+                        disabled={exporting}
+                        className="
+                          inline-flex items-center
+                          rounded-md border border-slate-200
+                          bg-white px-2.5 py-1
+                          text-[10px] lg:text-[11px] text-slate-600
+                          shadow-sm hover:bg-slate-50
+                        "
+                    >
+                        {exporting ? '엑셀 생성 중…' : '엑셀 다운로드'}
+                    </button>
+                )}
                 {/* 🔹 보기 모드 전용: 목록으로 이동 버튼 (모바일/태블릿 전용) */}
                 {!isEditing && (
                     <button
@@ -524,6 +547,7 @@ export default function DocumentPage() {
     const [isEditing, setIsEditing] = useState(initialIsEditing);
     const [showBacklinks, setShowBacklinks] = useState(false);
     const [visibility, setVisibility] = useState('private');
+    const [exporting, setExporting] = useState(false);
 
     const [autosaveStatus, setAutosaveStatus] = useState('idle');
     const lastSavedRef = useRef({
@@ -748,6 +772,21 @@ export default function DocumentPage() {
         saveDocument({ isAuto: false });
     };
 
+    const handleExportExcel = async () => {
+        if (!doc) return;
+        if (exporting) return;
+
+        try {
+            setExporting(true);
+            await downloadDocumentExcel(doc);
+        } catch (err) {
+            console.error(err);
+            showSnackbar('엑셀 다운로드 중 오류가 발생했어.');
+        } finally {
+            setExporting(false);
+        }
+    };
+
     const handleClickTitleArea = () => {
         setIsEditing(false);
     };
@@ -820,6 +859,8 @@ export default function DocumentPage() {
                         onClickView={() => setIsEditing(false)}
                         onClickEdit={() => canEdit && setIsEditing(true)}
                         onClickGoList={handleGoList}
+                        onClickExportExcel={handleExportExcel}
+                        exporting={exporting}
                     />
                 </form>
             </div>

@@ -475,6 +475,7 @@ export default function MarkdownEditor({
                     ['heading', 'bold', 'italic', 'strike'],
                     ['hr', 'quote'],
                     ['ul', 'ol', 'task'],
+                    ['table'],
                     ['link'],
                     ['code', 'codeblock'],
                 ]}
