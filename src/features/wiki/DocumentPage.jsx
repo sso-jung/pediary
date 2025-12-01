@@ -452,7 +452,8 @@ function SectionSidebar({ headings, isEditing, onClickHeading }) {
                         <li key={h.id}>
                             <button
                                 type="button"
-                                onClick={() => !isEditing && onClickHeading(h.id)}
+                                // 👉 편집/보기 상관없이 항상 콜백 호출, 대신 heading 객체 전체를 넘김
+                                onClick={() => onClickHeading?.(h)}
                                 className="w-full text-left text-[12px] text-slate-700 hover:text-primary-600"
                                 style={{ paddingLeft: (h.level - 1) * 12 }}
                             >
@@ -637,11 +638,40 @@ export default function DocumentPage() {
     const { markdownWithAnchors, headings } = buildSectionTree(parsedMarkdown);
 
     // 사이드바 섹션 클릭 시 스크롤
-    const handleClickHeading = (id) => {
+    const handleClickHeading = (heading) => {
+        if (!heading) return;
+
+        // 🔹 편집 모드일 때: 에디터 쪽으로 스크롤
+        if (isEditing) {
+            // DOM 렌더 이후에 찾도록
+            requestAnimationFrame(() => {
+                const editorBody = document.querySelector('.toastui-editor-contents');
+                if (!editorBody) return;
+
+                const targetText = (heading.text || '').replace(/\s+/g, ' ').trim();
+
+                const headingEls = editorBody.querySelectorAll('h1, h2, h3, h4, h5, h6');
+
+                const targetEl = Array.from(headingEls).find((el) => {
+                    const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+                    return text === targetText;
+                });
+
+                if (targetEl && targetEl.scrollIntoView) {
+                    targetEl.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start',
+                    });
+                }
+            });
+            return;
+        }
+
+        // 🔹 보기 모드일 때: 기존 Viewer 컨테이너 스크롤
         const container = viewerContainerRef.current;
         if (!container) return;
 
-        const el = container.querySelector(`#${id}`);
+        const el = container.querySelector(`#${heading.id}`);
         if (!el) return;
 
         const containerRect = container.getBoundingClientRect();
@@ -811,6 +841,19 @@ export default function DocumentPage() {
             categoryId !== lastSavedRef.current.categoryId;
 
         if (!hasChanged) return;
+
+        const isEmptyDraft =
+            !content || content.trim() === '';
+
+        const wasEmptyBefore =
+            !lastSavedRef.current.content ||
+            lastSavedRef.current.content.trim() === '';
+
+        // 🔹 이전 저장본은 내용이 있었는데, 지금은 완전 비어 있으면 → 자동저장 스킵
+        if (isEmptyDraft && !wasEmptyBefore) {
+            setAutosaveStatus('idle');
+            return;
+        }
 
         setAutosaveStatus('dirty');
 
