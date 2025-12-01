@@ -801,21 +801,22 @@ export async function downloadDocumentExcel(doc) {
 
             if (!displayText.trim()) continue;
 
-            // 들여쓰기 시작 컬럼 결정
-            let startCol = 1;
+            // 들여쓰기 정도 (셀은 그대로 1번, indent 로만 밀기)
+            let indentLevel = 0;
 
-            if (line.isHeading && line.level) {
-                // H1 → col1, H2 → col2, ...
-                startCol = Math.min(line.level, MAX_INDENT_COL);
-            } else {
-                // 리스트(•) 는 마지막 헤딩보다 한 칸 더 들여쓰기
+              if (line.isHeading && line.level) {
+                // H1: 0, H2: 1, H3: 2 ...  (대략 1단계당 20~25px 느낌)
+                    indentLevel = Math.max(0, line.level - 1);
+              } else {
                 const isBullet = displayText.trimStart().startsWith('• ');
                 if (isBullet) {
-                    startCol = Math.min(lastHeadingLevel + 1, MAX_INDENT_COL);
-                } else {
-                    startCol = Math.min(lastHeadingLevel, MAX_INDENT_COL);
-                }
-            }
+                      // 리스트는 마지막 헤딩보다 한 단계 더 깊게
+                          indentLevel = Math.max(1, lastHeadingLevel);
+                    } else {
+                      // 일반 텍스트는 마지막 헤딩 레벨 기준
+                          indentLevel = Math.max(0, lastHeadingLevel - 1);
+                    }
+              }
 
             const chunks = splitTextWithStrikeSafe(displayText, MAX_CHARS_PER_ROW);
 
@@ -846,7 +847,7 @@ export async function downloadDocumentExcel(doc) {
             chunks.forEach((chunkText, idxChunk) => {
                 const row = ws.addRow([]);
                 const rowIndex = row.number;
-                const cell = ws.getCell(rowIndex, startCol);
+                const cell = ws.getCell(rowIndex, 1);
 
                 // Heading 첫 줄은 높이를 조금 더 줌
                 if (line.isHeading && idxChunk === 0) {
@@ -860,6 +861,7 @@ export async function downloadDocumentExcel(doc) {
                     wrapText: true,
                     vertical: 'top',
                     horizontal: 'left',
+                    indent: indentLevel,
                 };
             });
         }
