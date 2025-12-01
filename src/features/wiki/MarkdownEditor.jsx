@@ -104,6 +104,7 @@ export default function MarkdownEditor({
                                            allDocs = [],
                                            fullHeight = false,   // 카드 전체 높이 쓸지 여부
                                            onManualSave=() => {},
+                                           activeHeading,
                                        }) {
     const editorRef = useRef(null);
 
@@ -446,6 +447,56 @@ export default function MarkdownEditor({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [onManualSave]);
 
+    // 🔹 DocumentPage에서 넘어온 activeHeading 기준으로 에디터 안 헤딩으로 스크롤
+    useEffect(() => {
+        if (!activeHeading) return;
+
+        const instance = editorRef.current?.getInstance?.();
+        const root = editorRef.current?.getRootElement?.();
+        if (!instance || !root) return;
+
+        // WYSIWYG 내용 영역 (toastui-editor-contents)
+        const contents = root.querySelector('.toastui-editor-contents') || root;
+
+        const targetText = (activeHeading.text || '').replace(/\s+/g, ' ').trim();
+        if (!targetText) return;
+
+        const headingEls = contents.querySelectorAll('h1,h2,h3,h4,h5,h6');
+        if (!headingEls.length) return;
+
+        const targetEl = Array.from(headingEls).find((el) => {
+            const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+            return text === targetText;
+        });
+
+        if (!targetEl) return;
+
+        // 스크롤 가능한 부모 찾기
+        const getScrollableParent = (el) => {
+            let parent = el.parentElement;
+            while (parent && parent !== document.body) {
+                const style = window.getComputedStyle(parent);
+                const overflowY = style.overflowY;
+                if (overflowY === 'auto' || overflowY === 'scroll') {
+                    return parent;
+                }
+                parent = parent.parentElement;
+            }
+            return null;
+        };
+
+        const scrollParent = getScrollableParent(contents) || contents;
+        const parentRect = scrollParent.getBoundingClientRect();
+        const elRect = targetEl.getBoundingClientRect();
+
+        const offset = elRect.top - parentRect.top + scrollParent.scrollTop - 16;
+
+        scrollParent.scrollTo({
+            top: offset,
+            behavior: 'smooth',
+        });
+    }, [activeHeading]);
+
     return (
         <div className={fullHeight ? 'h-full' : ''}>
             <Editor
@@ -473,11 +524,10 @@ export default function MarkdownEditor({
                 ]}
                 toolbarItems={[
                     ['heading', 'bold', 'italic', 'strike'],
-                    ['hr', 'quote'],
                     ['ul', 'ol', 'task'],
                     ['table'],
                     ['link'],
-                    ['code', 'codeblock'],
+                    ['hr', 'quote', 'code', 'codeblock'],
                 ]}
                 onChange={handleChange}
             />

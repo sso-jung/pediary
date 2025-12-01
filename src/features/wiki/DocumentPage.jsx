@@ -558,6 +558,7 @@ export default function DocumentPage() {
     const [showBacklinks, setShowBacklinks] = useState(false);
     const [visibility, setVisibility] = useState('private');
     const [exporting, setExporting] = useState(false);
+    const [activeHeading, setActiveHeading] = useState(null);
 
     const [autosaveStatus, setAutosaveStatus] = useState('idle');
     const lastSavedRef = useRef({
@@ -637,37 +638,17 @@ export default function DocumentPage() {
     let parsedMarkdown = parseInternalLinks(content || '', allDocs);
     const { markdownWithAnchors, headings } = buildSectionTree(parsedMarkdown);
 
-    // 사이드바 섹션 클릭 시 스크롤
+// 사이드바 섹션 클릭 시 스크롤
     const handleClickHeading = (heading) => {
         if (!heading) return;
 
-        // 🔹 편집 모드일 때: 에디터 쪽으로 스크롤
+        // 🔹 편집 모드: 에디터에 “이 헤딩으로 스크롤 해줘”라고 신호만 보냄
         if (isEditing) {
-            // DOM 렌더 이후에 찾도록
-            requestAnimationFrame(() => {
-                const editorBody = document.querySelector('.toastui-editor-contents');
-                if (!editorBody) return;
-
-                const targetText = (heading.text || '').replace(/\s+/g, ' ').trim();
-
-                const headingEls = editorBody.querySelectorAll('h1, h2, h3, h4, h5, h6');
-
-                const targetEl = Array.from(headingEls).find((el) => {
-                    const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
-                    return text === targetText;
-                });
-
-                if (targetEl && targetEl.scrollIntoView) {
-                    targetEl.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start',
-                    });
-                }
-            });
+            setActiveHeading(heading);
             return;
         }
 
-        // 🔹 보기 모드일 때: 기존 Viewer 컨테이너 스크롤
+        // 🔹 보기 모드: 기존 Viewer 컨테이너 스크롤
         const container = viewerContainerRef.current;
         if (!container) return;
 
@@ -684,6 +665,12 @@ export default function DocumentPage() {
             behavior: 'smooth',
         });
     };
+
+    useEffect(() => {
+        if (!isEditing) {
+            setActiveHeading(null);
+        }
+    }, [isEditing]);
 
     // URL 해시 → 해당 섹션으로 스크롤
     useEffect(() => {
@@ -940,6 +927,7 @@ export default function DocumentPage() {
                                     onChange={setContent}
                                     allDocs={allDocs || []}
                                     fullHeight
+                                    activeHeading={activeHeading}
                                 />
                             </div>
                         </div>
