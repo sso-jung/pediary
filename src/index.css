@@ -256,12 +256,16 @@ body {
   }
 }
 
-/* Toast UI Editor / Viewer - 표 스타일 */
+/* Toast UI Editor / Viewer - 표 스타일 (모든 해상도 공통, 강제 풀폭) */
 .toastui-editor-contents table,
-.tui-editor-contents table {
-  width: 100%;           /* 가로 꽉 차게 */
+.tui-editor-contents table,
+.toastui-editor-ww-container table,
+.toastui-editor-ww-container .ProseMirror table {
+  width: 100% !important;
+  max-width: 100% !important;
   table-layout: fixed;
   border-collapse: collapse;
+  box-sizing: border-box;
 }
 
 .toastui-editor-contents th,

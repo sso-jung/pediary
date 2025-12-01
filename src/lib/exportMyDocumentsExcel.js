@@ -706,11 +706,6 @@ export async function downloadDocumentExcel(doc) {
     for (const section of sections) {
         const ws = workbook.addWorksheet(section.sheetName);
 
-        // 들여쓰기용 컬럼 폭 (대략 25px 정도 느낌)
-        for (let c = 1; c <= MAX_INDENT_COL; c += 1) {
-            ws.getColumn(c).width = 4; // 문자 기준이라 딱 25px 은 아니지만, 좁은 인덴트용
-        }
-
         let lastHeadingLevel = 1;
 
         for (let i = 0; i < section.lines.length; i += 1) {
@@ -847,6 +842,9 @@ export async function downloadDocumentExcel(doc) {
             chunks.forEach((chunkText, idxChunk) => {
                 const row = ws.addRow([]);
                 const rowIndex = row.number;
+
+                // 🔹 A ~ S 컬럼까지 병합 (1 ~ 19)
+                ws.mergeCells(rowIndex, 1, rowIndex, 19);
                 const cell = ws.getCell(rowIndex, 1);
 
                 // Heading 첫 줄은 높이를 조금 더 줌
@@ -861,7 +859,7 @@ export async function downloadDocumentExcel(doc) {
                     wrapText: true,
                     vertical: 'top',
                     horizontal: 'left',
-                    indent: indentLevel,
+                    indent: indentLevel, // 들여쓰기 유지
                 };
             });
         }
