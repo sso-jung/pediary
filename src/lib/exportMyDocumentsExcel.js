@@ -407,6 +407,14 @@ function makeUniqueSheetName(baseName, usedNames) {
     }
 }
 
+// 🔹 마크다운 테이블 한 줄 파싱: "| a | b |" → ["a", "b"]
+function parseMarkdownTableRow(text = '') {
+    let t = text.trim();
+    if (t.startsWith('|')) t = t.slice(1);
+    if (t.endsWith('|')) t = t.slice(0, -1);
+    return t.split('|').map((c) => c.trim());
+}
+
 // 🔹 실제 엑셀 파일 생성 + 다운로드 (exceljs)
 export async function downloadMyDocumentsExcel(userId) {
     if (!userId) {
@@ -637,6 +645,7 @@ export async function downloadMyDocumentsExcel(userId) {
 //    - 시트명: 문서 안의 H1 헤딩들
 //    - Heading 텍스트: "1. 제목", "1.1. 소제목" 처럼 번호 붙임
 //    - [[doc:7#2.1|라벨]] → "라벨" 로만 보이도록 stripInternalLinks 재사용
+//    - Heading 레벨별로 한 칸씩 오른쪽 셀부터 시작 (들여쓰기)
 // =========================================================
 export async function downloadDocumentExcel(doc) {
     if (!doc) {
@@ -691,21 +700,122 @@ export async function downloadDocumentExcel(doc) {
     }
 
     const MAX_CHARS_PER_ROW = 80;
+    const MAX_INDENT_COL = 10; // 들여쓰기에 쓸 최대 컬럼 수
 
     // 🔹 각 섹션(=시트)에 내용 쓰기
     for (const section of sections) {
         const ws = workbook.addWorksheet(section.sheetName);
-        ws.getColumn(1).width = 100; // 대략 80자 정도 보이도록
 
-        for (const line of section.lines) {
-            // Heading 은 "1. 제목" 형태로 표시
-            const baseText = line.text || '';
+        // 들여쓰기용 컬럼 폭 (대략 25px 정도 느낌)
+        for (let c = 1; c <= MAX_INDENT_COL; c += 1) {
+            ws.getColumn(c).width = 4; // 문자 기준이라 딱 25px 은 아니지만, 좁은 인덴트용
+        }
+
+        let lastHeadingLevel = 1;
+
+        for (let i = 0; i < section.lines.length; i += 1) {
+            const line = section.lines[i];
+            const rawText = line.text || '';
+            const trimmed = rawText.trim();
+
+            // 현재 헤딩 레벨 기억
+            if (line.isHeading && line.level) {
+                lastHeadingLevel = line.level;
+            }
+
+            // ─────────────────────────────
+            // 1) 마크다운 테이블 처리
+            //    "| a | b |" + "| --- | --- |" 구조를 잡아서
+            //    실제 여러 컬럼으로 뿌려줌
+            // ─────────────────────────────
+            const next = section.lines[i + 1];
+            const nextTrimmed = next?.text ? next.text.trim() : '';
+
+            const looksLikeTableHeader =
+                trimmed.startsWith('|') && trimmed.includes('|');
+            const looksLikeTableDivider =
+                nextTrimmed &&
+                nextTrimmed.startsWith('|') &&
+                /---/.test(nextTrimmed);
+
+            if (looksLikeTableHeader && looksLikeTableDivider) {
+                const headerCells = parseMarkdownTableRow(trimmed);
+                const bodyRows = [];
+
+                // 두 번째 줄(구분선)은 건너뛰기
+                let j = i + 2;
+
+                while (j < section.lines.length) {
+                    const t = (section.lines[j].text || '').trim();
+                    if (!t.startsWith('|') || !t.includes('|')) break;
+                    bodyRows.push(parseMarkdownTableRow(t));
+                    j += 1;
+                }
+
+                // 들여쓰기 기준: 마지막 헤딩 레벨
+                const startCol = Math.min(lastHeadingLevel, MAX_INDENT_COL);
+
+                // 헤더 행
+                const headerRow = ws.addRow([]);
+                let colIdx = startCol;
+                headerCells.forEach((val) => {
+                    const cell = headerRow.getCell(colIdx++);
+                    cell.value = val;
+                    applyHeaderStyle(cell); // 회색 배경 + bold + 가운데 정렬
+                });
+
+                // 바디 행
+                bodyRows.forEach((rowCells) => {
+                    const row = ws.addRow([]);
+                    let cIdx = startCol;
+                    rowCells.forEach((val) => {
+                        const cell = row.getCell(cIdx++);
+                        cell.value = val || '';
+                        cell.font = {
+                            name: '맑은 고딕',
+                            size: 10,
+                            color: { argb: 'FF000000' },
+                        };
+                        cell.alignment = {
+                            vertical: 'top',
+                            horizontal: 'left',
+                            wrapText: true,
+                        };
+                    });
+                });
+
+                // i를 테이블 마지막 줄까지 스킵
+                i = j - 1;
+                continue;
+            }
+
+            // ─────────────────────────────
+            // 2) 일반 텍스트 / 헤딩 처리
+            //    → 헤딩 레벨별로 들여쓰기 컬럼 달리 사용
+            // ─────────────────────────────
+            const baseText = rawText;
             const displayText =
                 line.isHeading && line.number
                     ? `${line.number}. ${baseText}`
                     : baseText;
 
-            if (!displayText) continue;
+            if (!displayText.trim()) continue;
+
+            // 들여쓰기 시작 컬럼 결정
+            let startCol = 1;
+
+            if (line.isHeading && line.level) {
+                // H1 → col1, H2 → col2, ...
+                startCol = Math.min(line.level, MAX_INDENT_COL);
+            } else {
+                // 리스트(•) 는 마지막 헤딩보다 한 칸 더 들여쓰기
+                const isBullet = displayText.trimStart().startsWith('• ');
+                if (isBullet) {
+                    startCol = Math.min(lastHeadingLevel + 1, MAX_INDENT_COL);
+                } else {
+                    startCol = Math.min(lastHeadingLevel, MAX_INDENT_COL);
+                }
+            }
 
             const chunks = splitTextWithStrikeSafe(displayText, MAX_CHARS_PER_ROW);
 
@@ -733,13 +843,13 @@ export async function downloadDocumentExcel(doc) {
                 color: { argb: fontColor },
             };
 
-            chunks.forEach((chunkText, idx) => {
-                const row = ws.addRow([null]);
+            chunks.forEach((chunkText, idxChunk) => {
+                const row = ws.addRow([]);
                 const rowIndex = row.number;
-                const cell = ws.getCell(rowIndex, 1);
+                const cell = ws.getCell(rowIndex, startCol);
 
                 // Heading 첫 줄은 높이를 조금 더 줌
-                if (line.isHeading && idx === 0) {
+                if (line.isHeading && idxChunk === 0) {
                     const approxHeight = fontSize * 1.5;
                     row.height = Math.max(row.height || 0, approxHeight);
                 }

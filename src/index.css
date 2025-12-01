@@ -330,4 +330,28 @@ body {
   .toastui-editor-defaultUI-toolbar .toastui-editor-toolbar-group {
     flex-wrap: wrap;
   }
+
+  /* Toast UI Editor / Viewer - 표 스타일 */
+  .toastui-editor-contents table,
+  .tui-editor-contents table {
+    width: 100%;           /* 가로 꽉 차게 */
+    table-layout: fixed;
+    border-collapse: collapse;
+  }
+
+  .toastui-editor-contents th,
+  .toastui-editor-contents td,
+  .tui-editor-contents th,
+  .tui-editor-contents td {
+    min-width: 80px;
+    padding: 4px 6px;
+  }
+
+  /* 헤더 배경/글자색 */
+  .toastui-editor-contents th,
+  .tui-editor-contents th {
+    background-color: #e5e7eb; /* tailwind slate-200 정도 */
+    color: #111827;            /* slate-900 */
+    font-weight: 600;
+  }
 }
