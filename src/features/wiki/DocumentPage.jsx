@@ -274,15 +274,24 @@ function DocumentHeader({
                             onClickExportExcel?.();
                         }}
                         disabled={exporting}
-                        className="
-                          inline-flex items-center
-                          rounded-md border border-slate-200
-                          bg-white px-2.5 py-1
-                          text-[10px] lg:text-[11px] text-slate-600
-                          shadow-sm hover:bg-slate-50
-                        "
+                        className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 shadow-sm hover:bg-emerald-100 disabled:opacity-60"
                     >
-                        {exporting ? '엑셀 생성 중…' : '엑셀 다운로드'}
+                        <svg
+                            className="h-4 w-4"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <path d="M4 4h16v6H4z" />
+                            <path d="M9 4v6" />
+                            <path d="M15 4v6" />
+                            <path d="M6 14l3 3-3 3" />
+                            <path d="M10 20h8" />
+                        </svg>
+                        <span>{exporting ? '엑셀 생성 중...' : '엑셀다운로드'}</span>
                     </button>
                 )}
                 {/* 🔹 보기 모드 전용: 목록으로 이동 버튼 (모바일/태블릿 전용) */}
