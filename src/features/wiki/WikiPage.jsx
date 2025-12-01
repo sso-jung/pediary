@@ -65,7 +65,7 @@ export default function WikiPage() {
       viewMode === 'today' &&
       canAnalyze &&
       !isLoading &&          // 활동 데이터 로딩 끝
-      hasActivity &&         // 오늘 활동이 한 개 이상 있을 때만
+      // hasActivity &&         // 오늘 활동이 한 개 이상 있을 때만
       !aiLoading &&
       !aiResult
     ) {
@@ -75,7 +75,7 @@ export default function WikiPage() {
     viewMode,
     canAnalyze,
     isLoading,
-    hasActivity,
+    // hasActivity,
     aiLoading,
     aiResult,
     analyze,
