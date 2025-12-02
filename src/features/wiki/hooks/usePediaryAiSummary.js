@@ -53,7 +53,7 @@ export function usePediaryAiSummary(rawActivity = [], recentDocsOverride = null)
             ? recentDocsOverride
             : activityBasedDocs;
 
-    // 3) 많이 수정된 문서 후보 (오늘+어제 활동 기준)
+    // 3) 많이 수정된 문서 후보 (오늘+어제 활동 기준, 프론트 레벨)
     const updateCountMap = new Map();
     for (const row of safeActivity) {
       if (row.action === 'updated' && row.document_id != null) {
@@ -91,7 +91,33 @@ export function usePediaryAiSummary(rawActivity = [], recentDocsOverride = null)
     }
 
     try {
-      // ... (나머지 supabase 프로필, Edge Function 호출 로직은 그대로)
+      // 🔹 1) 먼저 displayName 만들기 (닉네임 > 이메일 > user.email)
+      let displayName = '사용자';
+
+      try {
+        const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('nickname, email')
+            .eq('id', user.id)
+            .maybeSingle();
+
+        if (profileError) {
+          console.error('fetch profile for AI error', profileError);
+        }
+
+        if (profile?.nickname && profile.nickname.trim()) {
+          displayName = profile.nickname.trim();
+        } else if (profile?.email) {
+          displayName = profile.email;
+        } else if (user.email) {
+          displayName = user.email;
+        }
+      } catch (e) {
+        console.error('profile fetch exception', e);
+        // 실패해도 그냥 기본 displayName('사용자')로 진행
+      }
+
+      // 🔹 2) Edge Function 에 넘길 payload
       const payload = {
         userId: user.id,
         userName: displayName,
