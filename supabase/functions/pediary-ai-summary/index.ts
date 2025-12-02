@@ -166,17 +166,12 @@ function computeParagraphDiff(
 }
 
 // 🔹 프롬프트 빌더
-function buildPrompt({
-  userName,
-  activitySummary,
-  docs,
-}: BuildPromptArgs): string {
-  const { createdCount, updatedCount, viewedCount, totalActions } =
-    activitySummary;
+function buildPrompt({ userName, activitySummary, docs }: BuildPromptArgs): string {
+  const { createdCount, updatedCount, viewedCount, totalActions } = activitySummary;
 
   const docsSection = (docs || [])
-    .map((d, idx) => {
-      const header = `
+      .map((d, idx) => {
+        const header = `
 # 문서 ${idx + 1}
 제목: ${d.title}
 문서 ID: ${d.id}
@@ -186,34 +181,37 @@ function buildPrompt({
 수정 세션 수: ${d.editCount ?? "알 수 없음"}
 `;
 
-      const diffBlocks = d.diffBlocks || [];
-      if (diffBlocks.length > 0) {
-        const diffText = diffBlocks
-          .map((b, i) => {
-            if (b.kind === "added") {
-              return `- 변경 ${i + 1} (추가된 내용)\n${b.after}`;
-            }
-            if (b.kind === "removed") {
-              return `- 변경 ${i + 1} (삭제된 내용)\n${b.before}`;
-            }
-            return `- 변경 ${i + 1} (수정 전 → 수정 후)\n[수정 전]\n${b.before}\n\n[수정 후]\n${b.after}`;
-          })
-          .join("\n\n");
+        const diffBlocks = d.diffBlocks || [];
+        const excerpt = buildExcerpt(d.content || "");
 
-        return `${header}
+        if (diffBlocks.length > 0) {
+          const diffText = diffBlocks
+              .map((b, i) => {
+                if (b.kind === "added") {
+                  return `- 변경 ${i + 1} (추가된 내용)\n${b.after}`;
+                }
+                if (b.kind === "removed") {
+                  return `- 변경 ${i + 1} (삭제된 내용)\n${b.before}`;
+                }
+                return `- 변경 ${i + 1} (수정 전 → 수정 후)\n[수정 전]\n${b.before}\n\n[수정 후]\n${b.after}`;
+              })
+              .join("\n\n");
+
+          return `${header}
 [최근에 달라진 문단들]
 ${diffText}
+
+[문서 전체에서 발췌한 내용 일부]
+${excerpt}
 `;
-      } else {
-        // diff 정보가 없으면 기존처럼 앞/뒤 일부만 잘라서 보낸다
-        const excerpt = buildExcerpt(d.content || "");
-        return `${header}
+        } else {
+          return `${header}
 [내용 일부]
 ${excerpt}
 `;
-      }
-    })
-    .join("\n");
+        }
+      })
+      .join("\n");
 
   return `
 너는 "피디어리(Pediary)"라는 개인 위키/다이어리 서비스의 전용 AI 비서야.
@@ -427,42 +425,106 @@ serve(async (req) => {
       ? recentDocs.slice(0, 10)
       : [];
 
-    // 🔹 topEditedDocs: 들어오더라도, 여기서 “세션 기준 editCount” 로 다시 계산
+// 🔹 최근 N일 기준으로 "가장 많이 수정된 문서" 계산에 사용할 기간
+    const LONG_RANGE_DAYS = 30; // ➜ 전체로 하고 싶으면 365 등으로 늘리면 됨
+
+// ... activitySummary 계산, trimmedRecentDocs 까지 그대로 둔 다음에 이 부분 추가
+
+// 🔹 최근 N일간의 document_activity를 따로 조회해서 "전체 기준" topEditedDocs 계산
+    const sinceIso = new Date(
+        Date.now() - LONG_RANGE_DAYS * 24 * 60 * 60 * 1000,
+    ).toISOString();
+
+// ① 최근 N일간의 updated 로그만 가져오기
+    const { data: longActivities, error: longActError } = await supabase
+        .from("document_activity")
+        .select("document_id, action, created_at")
+        .eq("user_id", userId)
+        .gte("created_at", sinceIso);
+
+    if (longActError) {
+      console.error("long range activity error", longActError);
+    }
+
+// ② 이 활동들로 세션 통계 만들기 (30분 기준)
+    const longRangeStats = buildUpdateSessionStats(longActivities);
+
+// ③ 이 문서들에 대한 기본 정보(DB에서 직접 조회)
+    let docInfoMap = new Map<number | string, DocLike>();
+
+    const longDocIds = Array.from(longRangeStats.keys());
+    if (longDocIds.length > 0) {
+      const { data: docRows, error: docErr } = await supabase
+          .from("documents")
+          .select(`
+      id,
+      title,
+      content_markdown,
+      category_id,
+      updated_at,
+      deleted_at,
+      category:category_id ( name )
+    `)
+          .in("id", longDocIds as any[])
+          .is("deleted_at", null);
+
+      if (docErr) {
+        console.error("topEditedDocs documents fetch error", docErr);
+      }
+
+      docInfoMap = new Map(
+          (docRows || []).map((row: any) => [
+            row.id,
+            {
+              id: row.id,
+              title: row.title,
+              categoryId: row.category_id ?? null,
+              categoryName: row.category?.name ?? null,
+              updatedAt: row.updated_at ?? null,
+              content: row.content_markdown ?? "",
+            } as DocLike,
+          ]),
+      );
+    }
+
+// ④ 최종 topEditedDocs 계산 (최근 N일 기준, 세션 수 내림차순 상위 5개)
     const computedTopEdited: DocLike[] = (() => {
-      if (updateSessionStats.size === 0) return [];
+      if (longRangeStats.size === 0) return [];
 
       const result: DocLike[] = [];
 
-      for (const [docId, stat] of updateSessionStats.entries()) {
-        // 우선 recentDocs 안에서 이 문서 정보 찾아보고
+      for (const [docId, stat] of longRangeStats.entries()) {
+        // base 정보 우선순위:
+        // 1) trimmedRecentDocs (프론트에서 넘어온 최신 수정 10개)
+        // 2) body.topEditedDocs (프론트에서 넘어온 값이 있으면)
+        // 3) DB에서 직접 조회한 docInfoMap
         const fromRecent =
-          trimmedRecentDocs.find((d) => d.id === docId) || null;
+            trimmedRecentDocs.find((d) => d.id === docId) || null;
 
-        // 혹시 body.topEditedDocs 에도 정보가 있으면 fallback 용으로 사용
         const fromBodyTop =
-          (Array.isArray(topEditedDocs)
-            ? topEditedDocs.find((d: any) => d.id === docId)
-            : null) || null;
+            (Array.isArray(topEditedDocs)
+                ? topEditedDocs.find((d: any) => d.id === docId)
+                : null) || null;
 
-        const base = fromRecent || fromBodyTop;
+        const fromDb = docInfoMap.get(docId) || null;
+
+        const base = fromRecent || fromBodyTop || fromDb;
+        if (!base) continue; // 문서가 이미 삭제되었거나 조회에 실패한 경우
 
         result.push({
           id: docId,
-          title: base?.title ?? null,
-          categoryId: base?.categoryId ?? null,
-          categoryName: base?.categoryName ?? null,
-          updatedAt: base?.updatedAt ?? null,
-          content: base?.content ?? null,
-          editCount: stat.sessions, // ✅ 세션 기준 수정 횟수
+          title: base.title ?? null,
+          categoryId: base.categoryId ?? null,
+          categoryName: base.categoryName ?? null,
+          updatedAt: base.updatedAt ?? null,
+          content: base.content ?? null,
+          editCount: stat.sessions, // 🔥 최근 N일 기준 세션 수
         });
       }
 
       return result
-        .sort(
-          (a, b) =>
-            (b.editCount ?? 0) - (a.editCount ?? 0),
-        )
-        .slice(0, 5);
+          .sort((a, b) => (b.editCount ?? 0) - (a.editCount ?? 0))
+          .slice(0, 5);
     })();
 
     // 🔹 recentDocs + (세션 기준) topEditedDocs 를 id 기준으로 머지 & 중복 제거
