@@ -43,20 +43,27 @@ export default function AppLayout({ children }) {
     const location = useLocation();
     const path = location.pathname;
 
-    // 🔹 문서 영역 여부 (탭 표시용)
-    const isDocs =
+    // 🔹 자료 분석 페이지 여부
+    const isMaterials = path.startsWith('/materials');
+
+    // 🔹 "문서 탭 계열" 레이아웃을 쓸지 여부
+    //    → 자료분석은 홈이랑 같은 브랜치로 보내려고 여기에서 뺌!
+    const isDocsLayout =
         path.startsWith('/wiki') ||
         path.startsWith('/category') ||
         path.startsWith('/docs') ||
         path.startsWith('/trash');
 
     // 🔹 실제 문서 상세 페이지(/wiki/:slug) 인지 여부
-    //   - /wiki/ 로 시작하는 모든 라우트를 문서 페이지로 취급
-    const isDocumentPage =
-        path.startsWith('/wiki/'); // 필요하면 예외 추가 가능
+    const isDocumentPage = path.startsWith('/wiki/');
 
     // 🔹 좌측 카테고리 사이드바를 보여줄지 여부
-    const showSidebarLayout = isDocs && !isDocumentPage;
+    const showSidebarLayout =
+        !isMaterials &&
+        !isDocumentPage &&
+        (path.startsWith('/category') ||
+            path.startsWith('/docs') ||
+            path.startsWith('/trash'));
 
     // 라우트 변경 시 오버레이/패널 닫기
     useEffect(() => {
@@ -70,6 +77,21 @@ export default function AppLayout({ children }) {
         return null;
     }, [activeSidePanel]);
 
+    // 🔹 홈(/) & 자료분석(/materials) 공용 내부 레이아웃 클래스
+    //    - 기본: 홈 레이아웃
+    //    - 자료분석: 폭 조금 더 넓게 + 좌우 여백 감소
+    const homeLikeInnerClass = isMaterials
+        ? `
+      relative mx-auto flex h-full min-h-0 w-full max-w-[100rem] flex-col
+      pl-2 pr-2 py-6
+      lg:pl-[80px] lg:pr-[80px]
+    `
+        : `
+      relative mx-auto flex h-full min-h-0 w-full max-w-[90rem] flex-col
+      pl-2 pr-2 py-6
+      lg:pl-[147px] lg:pr-[147px]
+    `;
+
     return (
         <div
             data-theme={theme}
@@ -80,7 +102,6 @@ export default function AppLayout({ children }) {
                 <Header
                     onToggleFriends={handleToggleFriends}
                     onToggleMyInfo={handleToggleMyInfo}
-                    // 🔹 DocumentPage에서는 카테고리 토글 버튼 자체를 비활성화
                     onToggleSidebar={showSidebarLayout ? handleToggleSidebar : undefined}
                     activeSidePanel={activeSidePanel}
                     isSidebarOpen={isSidebarOpen}
@@ -97,10 +118,10 @@ export default function AppLayout({ children }) {
                         {/* PC용 고정 사이드바 (lg 이상) */}
                         <aside
                             className="
-                                hidden basic:block
-                                w-[220px] shrink-0 border-r border-border-subtle
-                                bg-surface-elevated/80 backdrop-blur overflow-y-auto
-                            "
+                hidden basic:block
+                w-[220px] shrink-0 border-r border-border-subtle
+                bg-surface-elevated/80 backdrop-blur overflow-y-auto
+              "
                         >
                             <Sidebar />
                         </aside>
@@ -127,9 +148,9 @@ export default function AppLayout({ children }) {
                             >
                                 <div className="panel-surface flex h-full w-full flex-col rounded-r-2xl shadow-xl">
                                     <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle">
-                                        <span className="text-[11px] font-semibold">
-                                            카테고리
-                                        </span>
+                    <span className="text-[11px] font-semibold">
+                      카테고리
+                    </span>
                                         <button
                                             type="button"
                                             className="rounded-full px-2 py-1 text-[11px] text-slate-400 hover:bg-slate-100/60"
@@ -148,16 +169,16 @@ export default function AppLayout({ children }) {
                 )}
 
                 {/* 우측: 메인 + 오른쪽 패널 자리 */}
-                {isDocs ? (
+                {isDocsLayout ? (
                     <main className="relative flex-1 min-w-0 min-h-0">
                         {/* 중앙 컨텐츠 영역 (문서 레이아웃) */}
                         <div
                             className="
-                                relative mx-auto flex h-full min-h-0 w-full max-w-[100rem] flex-col
-                                pl-2 pr-2
-                                py-4 md:py-5 min-[1420px]:py-6
-                                min-[1420px]:pl-6 min-[1420px]:pr-[300px]
-                            "
+                relative mx-auto flex h-full min-h-0 w-full max-w-[100rem] flex-col
+                pl-2 pr-2
+                py-4 md:py-5 min-[1420px]:py-6
+                min-[1420px]:pl-6 min-[1420px]:pr-[300px]
+              "
                         >
                             {children}
                         </div>
@@ -176,9 +197,9 @@ export default function AppLayout({ children }) {
                                 <div className="fixed inset-0 z-40 flex items-end bg-black/30 min-[1420px]:hidden">
                                     <div className="panel-surface w-full max-h-[75%] rounded-t-2xl border border-border-subtle shadow-xl">
                                         <div className="flex items-center justify-between border-b border-border-subtle px-4 py-2">
-                                            <span className="text-xs font-semibold">
-                                                {activeSidePanel === 'friends' ? '친구' : '내 정보'}
-                                            </span>
+                      <span className="text-xs font-semibold">
+                        {activeSidePanel === 'friends' ? '친구' : '내 정보'}
+                      </span>
                                             <button
                                                 type="button"
                                                 className="rounded-full px-2 py-1 text-[11px] text-slate-400 hover:bg-slate-100/60"
@@ -197,11 +218,8 @@ export default function AppLayout({ children }) {
                     </main>
                 ) : (
                     <main className="relative flex-1 min-w-0 min-h-0">
-                        {/* 홈 레이아웃 */}
-                        <div
-                            className="relative mx-auto flex h-full min-h-0 w-full max-w-[90rem] flex-col
-                            pl-2 pr-2 py-6 lg:pl-[147px] lg:pr-[147px]"
-                        >
+                        {/* 홈 / 자료분석 레이아웃 (같은 계열, 폭만 다름) */}
+                        <div className={homeLikeInnerClass}>
                             {children}
                         </div>
 
@@ -217,9 +235,9 @@ export default function AppLayout({ children }) {
                                 <div className="fixed inset-0 z-40 flex items-end bg-black/30 lg:hidden">
                                     <div className="panel-surface w-full max-h-[75%] rounded-t-2xl border border-border-subtle shadow-xl">
                                         <div className="flex items-center justify-between border-b border-border-subtle px-4 py-2">
-                                            <span className="text-xs font-semibold">
-                                                {activeSidePanel === 'friends' ? '친구' : '내 정보'}
-                                            </span>
+                      <span className="text-xs font-semibold">
+                        {activeSidePanel === 'friends' ? '친구' : '내 정보'}
+                      </span>
                                             <button
                                                 type="button"
                                                 className="rounded-full px-2 py-1 text-[11px] text-slate-400 hover:bg-slate-100/60"

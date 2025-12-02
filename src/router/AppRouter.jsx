@@ -11,6 +11,7 @@ import WikiQuickSearch from "../features/wiki/WikiQuickSearch.jsx";
 import FriendsPage from "../features/friends/FriendsPage.jsx";
 import DocumentsPage from '../features/wiki/DocumentsPage.jsx';
 import TrashPage from '../features/wiki/TrashPage.jsx';
+import MaterialAnalysisPage from '../features/wiki/MaterialAnalysisPage.jsx';
 
 function ProtectedRoute({ children }) {
     const { user, loading } = useAuthStore();
@@ -105,6 +106,17 @@ export default function AppRouter() {
                         <ProtectedRoute>
                             <AppLayout>
                                 <CalendarPage />
+                            </AppLayout>
+                        </ProtectedRoute>
+                    }
+                />
+                {/* 🔹 자료 분석 탭 */}
+                <Route
+                    path="/materials"
+                    element={
+                        <ProtectedRoute>
+                            <AppLayout>
+                                <MaterialAnalysisPage />
                             </AppLayout>
                         </ProtectedRoute>
                     }

@@ -20,13 +20,19 @@ export default function Header({
     const navigate = useNavigate();
 
     const path = location.pathname;
-    const isDocs =
-        path.startsWith('/wiki') ||
-        path.startsWith('/category') ||
-        path.startsWith('/docs') ||
-        path.startsWith('/trash');
 
-    const activeTab = isDocs ? 'docs' : 'home';
+    const isMaterials = path.startsWith('/materials');
+
+    const isDocs =
+        !isMaterials &&
+        (path.startsWith('/wiki') ||
+            path.startsWith('/category') ||
+            path.startsWith('/docs') ||
+            path.startsWith('/trash'));
+
+    let activeTab = 'home';
+    if (isDocs) activeTab = 'docs';
+    if (isMaterials) activeTab = 'materials';
 
     const isFriendsOpen = activeSidePanel === 'friends';
     const isMyInfoOpen = activeSidePanel === 'me';
@@ -56,7 +62,7 @@ export default function Header({
                     </div>
                 </Link>
 
-                {/* 상단 탭 (홈 / 문서) – 모바일에서도 표시하되 최대한 작게 */}
+                {/* 상단 탭 (홈 / 문서 / 자료 분석) */}
                 <div className="inline-flex rounded-full bg-slate-100 px-1 py-[2px] text-[10px] sm:text-xs shrink-0">
                     <button
                         type="button"
@@ -81,6 +87,18 @@ export default function Header({
                         }
                     >
                         문서
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => navigate('/materials')}
+                        className={
+                            'rounded-full px-2 py-[1px] sm:px-3 sm:py-[3px] ' +
+                            (activeTab === 'materials'
+                                ? 'bg-white text-slate-900 shadow'
+                                : 'text-slate-500 hover:text-slate-700')
+                        }
+                    >
+                        자료 분석
                     </button>
                 </div>
 
