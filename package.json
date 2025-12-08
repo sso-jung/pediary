@@ -15,6 +15,7 @@
     "@toast-ui/editor": "^3.2.2",
     "@toast-ui/editor-plugin-color-syntax": "^3.1.0",
     "@toast-ui/react-editor": "^3.2.3",
+    "dompurify": "^3.3.0",
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
     "pdfjs-dist": "^5.4.449",

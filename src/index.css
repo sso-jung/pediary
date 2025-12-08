@@ -369,3 +369,43 @@ body {
     flex-wrap: wrap;
   }
 }
+
+/* 🔹 부분 폰트 크기 – 위치 상관없이 강제로 적용 */
+.wiki-font-sm {
+  font-size: 12px !important;
+}
+
+.wiki-font-md {
+  font-size: 14px !important; /* 기본값 정도 */
+}
+
+.wiki-font-lg {
+  font-size: 18px !important;
+}
+
+/* 위키 보기/편집 공통: 헤딩 간 여백 통일 */
+.toastui-editor-contents h1,
+.toastui-editor-contents h2,
+.toastui-editor-contents h3,
+.toastui-editor-contents h4,
+.toastui-editor-contents h5,
+.toastui-editor-contents h6,
+.tui-editor-contents h1,
+.tui-editor-contents h2,
+.tui-editor-contents h3,
+.tui-editor-contents h4,
+.tui-editor-contents h5,
+.tui-editor-contents h6 {
+  margin-top: 1.2em;
+  margin-bottom: 0.4em; /* 3일(수) 기준 느낌으로 통일 */
+}
+
+/* 혹시 위젯 때문에 헤딩 안에 p가 생겨도 간격이 또 벌어지지 않도록 */
+.toastui-editor-contents h1 p,
+.toastui-editor-contents h2 p,
+.toastui-editor-contents h3 p,
+.toastui-editor-contents h4 p,
+.toastui-editor-contents h5 p,
+.toastui-editor-contents h6 p {
+  margin: 0;
+}

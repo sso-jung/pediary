@@ -6,6 +6,7 @@ import 'tui-color-picker/dist/tui-color-picker.css';
 import '@toast-ui/editor-plugin-color-syntax/dist/toastui-editor-plugin-color-syntax.css';
 import colorSyntax from '@toast-ui/editor-plugin-color-syntax';
 import { buildInternalLink } from '../../lib/internalLinkFormat';
+import { fontWidgetRules } from './wikiFontWidgetRules';
 
 function stripHeadingText(rawText = '') {
     let s = rawText;
@@ -54,7 +55,7 @@ function extractSectionsFromMarkdown(markdown) {
 
         sections.push({
             level,
-            number,  // "1.1"
+            number, // "1.1"
             text: plainText, // "고기"
         });
     }
@@ -91,10 +92,10 @@ function findOpenInternalLink(markdown) {
 
     return {
         open: true,
-        index: idx,      // [[ 위치
-        query: segment,  // 검색어
+        index: idx, // [[ 위치
+        query: segment, // 검색어
         segmentLength: segment.length,
-        tail,            // 그 이후 나머지
+        tail, // 그 이후 나머지
     };
 }
 
@@ -102,8 +103,8 @@ export default function MarkdownEditor({
                                            value,
                                            onChange,
                                            allDocs = [],
-                                           fullHeight = false,   // 카드 전체 높이 쓸지 여부
-                                           onManualSave=() => {},
+                                           fullHeight = false, // 카드 전체 높이 쓸지 여부
+                                           onManualSave = () => {},
                                            activeHeading,
                                        }) {
     const editorRef = useRef(null);
@@ -123,6 +124,8 @@ export default function MarkdownEditor({
     }, [isLinkPaletteOpen]);
 
     const hasInitializedFromValueRef = useRef(false);
+    const hasUserEditedRef = useRef(false); // 🔹 사용자 수정 여부 (Ctrl+Z 첫 단계 방지용)
+    const initialMarkdownRef = useRef('');  // 🔹 최초 로딩된 마크다운 스냅샷
 
     useEffect(() => {
         const instance = editorRef.current?.getInstance?.();
@@ -131,8 +134,11 @@ export default function MarkdownEditor({
         // 이미 한 번 초기화했으면 더 이상 건드리지 않음
         if (hasInitializedFromValueRef.current) return;
 
-        instance.setMarkdown(value || '');
+        const initial = value || '';
+        instance.setMarkdown(initial);
         hasInitializedFromValueRef.current = true;
+        // 실제 에디터 내부 상태 기준으로 초기 마크다운 저장
+        initialMarkdownRef.current = instance.getMarkdown() || initial;
     }, [value]);
 
     // 🔹 에디터 명령 실행 헬퍼
@@ -153,9 +159,7 @@ export default function MarkdownEditor({
         if (tryExec(cmd)) return;
         // PascalCase 대소문자 차이 처리용
         const alt =
-            cmd && cmd.length > 0
-                ? cmd[0].toUpperCase() + cmd.slice(1)
-                : cmd;
+            cmd && cmd.length > 0 ? cmd[0].toUpperCase() + cmd.slice(1) : cmd;
         if (alt !== cmd) {
             tryExec(alt);
         }
@@ -165,6 +169,8 @@ export default function MarkdownEditor({
     const handleChange = () => {
         const instance = editorRef.current?.getInstance();
         if (!instance) return;
+
+        hasUserEditedRef.current = true; // 사용자 수정 발생
 
         const markdown = instance.getMarkdown() || '';
         onChange(markdown);
@@ -215,7 +221,7 @@ export default function MarkdownEditor({
                     docTitle: doc.title,
                     slug: doc.slug,
                     sectionNumber: s.number, // "1.1"
-                    headingText: s.text,     // "고기"
+                    headingText: s.text, // "고기"
                     level: s.level,
                 });
             }
@@ -438,13 +444,19 @@ export default function MarkdownEditor({
                 : e.ctrlKey && e.key === 's';
 
             if (isSaveKey) {
+                const instance = editorRef.current?.getInstance();
+                const root = editorRef.current?.getRootElement?.();
+                const active = document.activeElement;
+
+                if (!instance || !root || !active || !root.contains(active)) return;
+
                 e.preventDefault();
                 onManualSave?.(); // 👉 이게 수동 저장 버튼 역할
             }
         };
 
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
+        window.addEventListener('keydown', handleKeyDown, true);
+        return () => window.removeEventListener('keydown', handleKeyDown, true);
     }, [onManualSave]);
 
     // 🔹 DocumentPage에서 넘어온 activeHeading 기준으로 에디터 안 헤딩으로 스크롤
@@ -481,6 +493,274 @@ export default function MarkdownEditor({
         });
     }, [activeHeading]);
 
+    // =========================
+    // 폰트 사이즈 위젯 적용 로직
+    // =========================
+    const applyInlineFontSize = (sizePt) => {
+        const instance = editorRef.current?.getInstance();
+        if (!instance) return;
+
+        const markdown = instance.getMarkdown() || '';
+        const tokenReGlobal = /\{\{(?:fs:)?(sm|md|lg|\d+)\|([\s\S]+?)\}\}/g;
+
+        const cursor = instance.getCursor?.();
+        const lines = markdown.split('\n');
+
+        // 1) 커서가 기존 토큰 안에 있거나, 같은 라인에 토큰이 있는 경우 → 그 토큰만 크기 변경
+        if (cursor) {
+            let idx = 0;
+            for (let i = 0; i < cursor.line; i += 1) {
+                idx += lines[i].length + 1; // 개행 포함
+            }
+            idx += cursor.ch;
+
+            // 1-1) 커서 위치 기준으로 토큰 찾기
+            let m;
+            while ((m = tokenReGlobal.exec(markdown)) !== null) {
+                const start = m.index;
+                const end = start + m[0].length;
+                if (idx >= start && idx <= end) {
+                    const inner = m[2];
+                    const newToken = `{{fs:${sizePt}|${inner}}}`;
+                    const newMarkdown =
+                        markdown.slice(0, start) + newToken + markdown.slice(end);
+                    instance.setMarkdown(newMarkdown);
+                    onChange(newMarkdown);
+                    return;
+                }
+            }
+
+            // 1-2) 커서가 토큰 안은 아니더라도, 동일한 라인에 토큰이 있으면 그 토큰 변경
+            let lineStart = 0;
+            for (let i = 0; i < cursor.line; i += 1) {
+                lineStart += lines[i].length + 1;
+            }
+            const lineText = lines[cursor.line] ?? '';
+            const tokenReLine = /\{\{(?:fs:)?(sm|md|lg|\d+)\|([\s\S]+?)\}\}/;
+            const lm = tokenReLine.exec(lineText);
+            if (lm) {
+                const tokenStart = lineStart + lm.index;
+                const tokenEnd = tokenStart + lm[0].length;
+                const inner = lm[2];
+                const newToken = `{{fs:${sizePt}|${inner}}}`;
+                const newMarkdown =
+                    markdown.slice(0, tokenStart) + newToken + markdown.slice(tokenEnd);
+                instance.setMarkdown(newMarkdown);
+                onChange(newMarkdown);
+                return;
+            }
+        }
+
+        // 2) 선택된 텍스트가 있는 경우 → 그 텍스트를 토큰으로 감싸기
+        let selected = instance.getSelectedText?.() || '';
+        if (selected) {
+            // 기존 토큰 제거
+            selected = selected.replace(
+                /\{\{(?:fs:)?(sm|md|lg|\d+)\|([\s\S]+?)\}\}/g,
+                '$2'
+            );
+            // 줄바꿈은 공백으로
+            selected = selected.replace(/\s*\n+\s*/g, ' ').trim();
+            if (selected) {
+                const token = `{{fs:${sizePt}|${selected}}}`;
+                instance.replaceSelection(token);
+            }
+            return;
+        }
+
+        // 3) 선택이 없으면 → 커서 기준 “단어 전체”를 감싸기 (일반 텍스트용)
+        if (cursor) {
+            let idx = 0;
+            for (let i = 0; i < cursor.line; i += 1) {
+                idx += lines[i].length + 1;
+            }
+            idx += cursor.ch;
+
+            let start = idx;
+            let end = idx;
+
+            // 왼쪽으로 단어 경계 찾기 (공백/개행 전까지)
+            while (start > 0) {
+                const ch = markdown[start - 1];
+                if (/\s/.test(ch)) break;
+                start -= 1;
+            }
+            // 오른쪽으로 단어 경계 찾기
+            while (end < markdown.length) {
+                const ch = markdown[end];
+                if (/\s/.test(ch)) break;
+                end += 1;
+            }
+
+            if (end > start) {
+                const word = markdown.slice(start, end);
+                const token = `{{fs:${sizePt}|${word}}}`;
+                const newMarkdown =
+                    markdown.slice(0, start) + token + markdown.slice(end);
+                instance.setMarkdown(newMarkdown);
+                onChange(newMarkdown);
+                return;
+            }
+        }
+
+        // 4) 토큰도 없고, 선택된 텍스트도 없고, 단어도 못 찾은 경우 → 아무것도 하지 않음
+        // (예전처럼 {{fs:...|텍스트}} 같은 기본 삽입은 하지 않음)
+    };
+
+    // 🔹 부분 폰트 크기 변경 커맨드 등록
+    useEffect(() => {
+        const instance = editorRef.current?.getInstance();
+        if (!instance || !instance.addCommand) return;
+
+        // markdown / wysiwyg 둘 다에 커맨드 등록
+        instance.addCommand('markdown', 'setSmallFont', () =>
+            applyInlineFontSize('sm')
+        );
+        instance.addCommand('wysiwyg', 'setSmallFont', () =>
+            applyInlineFontSize('sm')
+        );
+
+        instance.addCommand('markdown', 'setMediumFont', () =>
+            applyInlineFontSize('md')
+        );
+        instance.addCommand('wysiwyg', 'setMediumFont', () =>
+            applyInlineFontSize('md')
+        );
+
+        instance.addCommand('markdown', 'setLargeFont', () =>
+            applyInlineFontSize('lg')
+        );
+        instance.addCommand('wysiwyg', 'setLargeFont', () =>
+            applyInlineFontSize('lg')
+        );
+    }, []);
+
+    // =========================
+    // 폰트 팝업 위치/열림 상태
+    // =========================
+    const [isFontPickerOpen, setIsFontPickerOpen] = useState(false);
+    const [fontPickerPos, setFontPickerPos] = useState({ top: 0, left: 0 });
+    const fontPickerRef = useRef(null);
+
+    const fontSizes = [11, 12, 13, 14, 15, 16, 17, 18, 20, 22, 24, 28];
+
+    // 🔹 Ctrl+Shift+F 또는 Ctrl+Numpad+ → 폰트 크기 선택 팝업 열기
+    useEffect(() => {
+        const handleFontShortcut = (e) => {
+            const isMac = navigator.platform.toUpperCase().includes('MAC');
+            const isCtrlOrMeta = isMac ? e.metaKey : e.ctrlKey;
+
+            const isFontKey =
+                (isCtrlOrMeta && e.shiftKey && (e.key === 'f' || e.key === 'F')) ||
+                (isCtrlOrMeta && e.code === 'NumpadAdd');
+
+            if (!isFontKey) return;
+
+            const instance = editorRef.current?.getInstance();
+            const root = editorRef.current?.getRootElement?.();
+            if (!instance || !root) return;
+
+            const active = document.activeElement;
+            if (!active || !root.contains(active)) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const pickerWidth = 220; // 대략
+            const pickerHeight = 200;
+            const margin = 8;
+
+            let top = window.innerHeight / 2;
+            let left = window.innerWidth / 2;
+
+            const sel = window.getSelection();
+            if (sel && sel.rangeCount > 0) {
+                const rect = sel.getRangeAt(0).getBoundingClientRect();
+                if (rect && rect.width !== 0 && rect.height !== 0) {
+                    top = rect.bottom + 6;
+                    left = rect.left;
+                }
+            }
+
+            // 화면 밖으로 나가지 않도록 클램프
+            top = Math.min(
+                Math.max(margin, top),
+                window.innerHeight - pickerHeight - margin
+            );
+            left = Math.min(
+                Math.max(margin, left),
+                window.innerWidth - pickerWidth - margin
+            );
+
+            setFontPickerPos({ top, left });
+            setIsFontPickerOpen(true);
+        };
+
+        window.addEventListener('keydown', handleFontShortcut, true);
+        return () => window.removeEventListener('keydown', handleFontShortcut, true);
+    }, []);
+
+    // 🔹 ESC 로 폰트 팝업 닫기
+    useEffect(() => {
+        const handleEsc = (e) => {
+            if (e.key === 'Escape' && isFontPickerOpen) {
+                setIsFontPickerOpen(false);
+            }
+        };
+        window.addEventListener('keydown', handleEsc, true);
+        return () => window.removeEventListener('keydown', handleEsc, true);
+    }, [isFontPickerOpen]);
+
+    // 🔹 폰트 팝업 바깥 클릭 시 닫기
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (!isFontPickerOpen) return;
+            const el = fontPickerRef.current;
+            if (!el) return;
+            if (!el.contains(e.target)) {
+                setIsFontPickerOpen(false);
+            }
+        };
+        window.addEventListener('mousedown', handleClickOutside, true);
+        return () => window.removeEventListener('mousedown', handleClickOutside, true);
+    }, [isFontPickerOpen]);
+
+    // 🔹 아무것도 수정 안 한 상태에서 Ctrl+Z 누르면 전체 삭제되는 것 + 초기 내용보다 더 뒤로 가는 것 방지
+    useEffect(() => {
+        const handleUndo = (e) => {
+            const isMac = navigator.platform.toUpperCase().includes('MAC');
+            const isUndo = isMac ? e.metaKey && e.key === 'z' : e.ctrlKey && e.key === 'z';
+            if (!isUndo) return;
+
+            const instance = editorRef.current?.getInstance();
+            const root = editorRef.current?.getRootElement?.();
+            const active = document.activeElement;
+
+            if (!instance || !root || !active || !root.contains(active)) return;
+
+            const currentMd = instance.getMarkdown() || '';
+
+            // 아직 사용자가 수정한 적이 없으면 undo 막기
+            if (!hasUserEditedRef.current) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+
+            // 이미 초기 내용 상태라면 더 이상 undo 안 되게 막기
+            if (
+                initialMarkdownRef.current &&
+                currentMd === initialMarkdownRef.current
+            ) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        };
+
+        window.addEventListener('keydown', handleUndo, true);
+        return () => window.removeEventListener('keydown', handleUndo, true);
+    }, []);
+
     return (
         <div className={fullHeight ? 'h-full' : ''}>
             <Editor
@@ -498,10 +778,22 @@ export default function MarkdownEditor({
                         colorSyntax,
                         {
                             preset: [
-                                '#333333', '#666666', '#FFFFFF',
-                                '#f33c3c', '#F97316', '#EAB308',
-                                '#22C55E', '#0EA5E9', '#6366F1', '#7e59de',
-                                '#89caff', '#dfc9ea', '#ffbfdd', '#e0e0e0', '#a5c7ae', '#ffd2bf',
+                                '#333333',
+                                '#666666',
+                                '#FFFFFF',
+                                '#f33c3c',
+                                '#F97316',
+                                '#EAB308',
+                                '#22C55E',
+                                '#0EA5E9',
+                                '#6366F1',
+                                '#7e59de',
+                                '#89caff',
+                                '#dfc9ea',
+                                '#ffbfdd',
+                                '#e0e0e0',
+                                '#a5c7ae',
+                                '#ffd2bf',
                             ],
                         },
                     ],
@@ -513,8 +805,50 @@ export default function MarkdownEditor({
                     ['link'],
                     ['hr', 'quote', 'code', 'codeblock'],
                 ]}
+                widgetRules={fontWidgetRules}
                 onChange={handleChange}
             />
+
+            {/* 🔹 폰트 크기 팝업 (선택 근처 + 화면 밖으로 안 나가게 / ESC·바깥 클릭으로 닫기) */}
+            {isFontPickerOpen && (
+                <div
+                    ref={fontPickerRef}
+                    className="fixed z-30 w-44 rounded-xl border border-slate-200 bg-white shadow-lg text-[11px]"
+                    style={{
+                        top: fontPickerPos.top,
+                        left: fontPickerPos.left,
+                    }}
+                >
+                    <div className="border-b border-slate-100 px-3 py-2 text-slate-600">
+                        <span className="font-semibold">글자 크기</span>
+                        <span className="ml-1 text-[10px] text-slate-400">
+              Ctrl+Shift+F 또는 키패드 +
+            </span>
+                    </div>
+                    <div className="px-2 py-2 flex flex-wrap gap-1">
+                        {fontSizes.map((size) => (
+                            <button
+                                key={size}
+                                type="button"
+                                className="flex-1 min-w-[40px] rounded-md border border-slate-200 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50"
+                                onClick={() => {
+                                    applyInlineFontSize(size);
+                                    setIsFontPickerOpen(false);
+                                }}
+                            >
+                                {size}pt
+                            </button>
+                        ))}
+                    </div>
+                    <button
+                        type="button"
+                        className="w-full border-t border-slate-100 px-3 py-1.5 text-[10px] text-slate-400 hover:bg-slate-50"
+                        onClick={() => setIsFontPickerOpen(false)}
+                    >
+                        닫기 (Esc)
+                    </button>
+                </div>
+            )}
 
             {/* 🔹 내부 링크 자동완성 팝업 */}
             {isLinkPaletteOpen && (
@@ -522,15 +856,15 @@ export default function MarkdownEditor({
                     <div className="border-b border-slate-100 px-3 py-2 text-[11px] text-slate-500">
                         <span className="font-semibold">내부 링크 추가</span>
                         <span className="ml-2 text-[10px] text-slate-400">
-                            제목이나 섹션을 타이핑해. ↑↓ / Enter / Esc
-                        </span>
+              제목이나 섹션을 타이핑해. ↑↓ / Enter / Esc
+            </span>
                     </div>
                     <div className="px-3 py-2">
                         <div className="mb-1 text-[10px] text-slate-400">
                             검색어:{' '}
                             <span className="font-mono">
-                                {linkQuery || ' '}
-                            </span>
+                {linkQuery || ' '}
+              </span>
                         </div>
                         {filteredCandidates.length === 0 ? (
                             <div className="rounded-lg bg-slate-50 px-2 py-2 text-[11px] text-slate-400">
