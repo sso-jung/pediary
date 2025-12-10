@@ -799,7 +799,7 @@ export default function MarkdownEditor({
                     ],
                 ]}
                 toolbarItems={[
-                    ['heading', 'bold', 'italic','underline', 'strike'],
+                    ['heading', 'bold', 'italic', 'strike'],
                     ['ul', 'ol', 'task'],
                     ['table'],
                     ['link'],
