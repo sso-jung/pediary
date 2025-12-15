@@ -103,7 +103,7 @@ export default function CategoryPage() {
     };
 
     return (
-        <div className="space-y-4">
+        <div className="flex h-full flex-col gap-4">
             {/* 헤더 */}
             <SectionHeader
                 title={currentCategory ? currentCategory.name : '카테고리'}
@@ -111,10 +111,10 @@ export default function CategoryPage() {
             />
 
             {/* 🔹 조회조건 컴포넌트 */}
-            <DocumentFilterBar value={query} onChange={setQuery} />
+            <DocumentFilterBar value={query} onChange={setQuery}/>
 
             {/* 문서 목록 + 상단 '문서 추가' 버튼 */}
-            <div className="rounded-2xl bg-white p-4 shadow-soft">
+            <div className="flex-1 overflow-y-auto rounded-2xl bg-white p-4 shadow-soft">
                 <div className="mb-3 flex items-center justify-between">
     <span className="text-[11px] text-slate-400">
       총 {sortedDocs ? sortedDocs.length : 0}개 문서
