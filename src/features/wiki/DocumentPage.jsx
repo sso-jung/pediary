@@ -22,6 +22,9 @@ import { downloadDocumentExcel } from '../../lib/exportMyDocumentsExcel';
 import { fontWidgetRules } from './wikiFontWidgetRules';
 import { renderFontWidgetsInMarkdown } from './wikiFontRender';
 
+import { useQuery } from '@tanstack/react-query';
+import { fetchMyProfile } from '../../lib/wikiApi';
+
 // =========================
 // 유틸 함수들
 // =========================
@@ -431,7 +434,7 @@ function DocumentHeader({
     );
 }
 
-function SectionSidebar({ headings, isEditing, onClickHeading }) {
+function SectionSidebar({ headings, isEditing, onClickHeading, numberColor }) {
     return (
         <aside
             className="hidden md:block h-full overflow-y-auto rounded-2xl bg-white
@@ -545,6 +548,16 @@ export default function DocumentPage() {
     const location = useLocation();
     const navigate = useNavigate();
     const user = useAuthStore((s) => s.user);
+
+    const userId = user?.id;
+
+    const { data: myProfile } = useQuery({
+        queryKey: ['myProfile', userId],
+        queryFn: () => fetchMyProfile(userId),
+        enabled: !!userId,
+    });
+
+    const sectionColor = myProfile?.section_number_color || '';
 
     const { data: doc, isLoading } = useDocument(slug);
     const { data: allDocs } = useAllDocuments();
@@ -921,6 +934,7 @@ export default function DocumentPage() {
                     headings={headings}
                     isEditing={isEditing}
                     onClickHeading={handleClickHeading}
+                    numberColor={sectionColor}
                 />
 
                 <div className="wiki-doc-main-card h-full rounded-2xl bg-white shadow-soft overflow-x-hidden">
@@ -940,11 +954,13 @@ export default function DocumentPage() {
                         <div
                             ref={viewerContainerRef}
                             className="tui-viewer-wrapper h-full overflow-y-auto p-3 lg:p-4"
+                            style={
+                                sectionColor
+                                    ? {['--wiki-heading-number-color']: sectionColor}
+                                    : undefined
+                            }
                         >
-                            <Viewer
-                                key={markdownWithAnchors}
-                                initialValue={markdownWithAnchors}
-                            />
+                            <Viewer key={markdownWithAnchors} initialValue={markdownWithAnchors}/>
                         </div>
                     )}
                 </div>

@@ -607,37 +607,55 @@ export async function fetchTodayActivity(userId) {
     return (data ?? []).filter((row) => !row.documents?.deleted_at);
 }
 
+export async function fetchMonthlyActiveDays(userId, year, month) {
+    if (!userId || !year || !month) return 0;
+
+    const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+    const startKstUtc = new Date(Date.UTC(year, month - 1, 1) - KST_OFFSET_MS);
+    const endKstUtc = new Date(Date.UTC(year, month, 1) - KST_OFFSET_MS);
+
+    const { data, error } = await supabase.rpc('get_monthly_active_days', {
+        p_user_id: userId,
+        p_start: startKstUtc.toISOString(),
+        p_end: endKstUtc.toISOString(),
+    });
+
+    if (error) throw error;
+
+    return data ?? 0; // data는 int
+}
+
 export async function fetchMonthlyActivity(userId, year, month) {
     if (!userId || !year || !month) return [];
 
-    // 🔹 로컬 기준 해당 월 1일 00:00 ~ 다음 달 1일 00:00
-    // month는 1~12로 들어온다고 가정
-    const start = new Date(year, month - 1, 1); // 해당 월의 1일 00:00 (로컬)
-    const end = new Date(year, month, 1);       // 다음 달 1일 00:00 (로컬)
+    const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+    const startKstUtc = new Date(Date.UTC(year, month - 1, 1) - KST_OFFSET_MS);
+    const endKstUtc = new Date(Date.UTC(year, month, 1) - KST_OFFSET_MS);
 
-    const { data, error } = await supabase
-        .from('document_activity')
-        .select(
-            `
-      id,
-      action,
-      created_at,
-      document_id,
-      documents:document_id (
-        id,
-        title,
-        slug,
-        deleted_at
-      )
-    `
-        )
-        .eq('user_id', userId)
-        .gte('created_at', start.toISOString()) // 월 시작(포함)
-        .lt('created_at', end.toISOString())    // 다음 달 시작(미만)
-        .order('created_at', { ascending: false });
+    const pageSize = 500;
+    let from = 0;
+    let all = [];
 
-    if (error) throw error;
-    return (data ?? []).filter((row) => !row.documents?.deleted_at);
+    while (true) {
+        const { data, error } = await supabase
+            .from('document_activity')
+            .select('id, action, created_at, document_id')
+            .eq('user_id', userId)
+            .gte('created_at', startKstUtc.toISOString())
+            .lt('created_at', endKstUtc.toISOString())
+            .order('created_at', { ascending: false })
+            .range(from, from + pageSize - 1);
+
+        if (error) throw error;
+
+        const chunk = data ?? [];
+        all = all.concat(chunk);
+
+        if (chunk.length < pageSize) break;
+        from += pageSize;
+    }
+
+    return all;
 }
 
 // ─────────────────────────────
@@ -876,7 +894,7 @@ export async function fetchMyProfile(userId) {
     return data;
 }
 
-export async function updateMyProfile(userId, { nickname, email }) {
+export async function updateMyProfile(userId, { nickname, email, sectionNumberColor  }) {
     const payload = {
         id: userId,
         nickname,
@@ -885,6 +903,10 @@ export async function updateMyProfile(userId, { nickname, email }) {
     // 새 row를 만들 때 NOT NULL 에 걸리지 않게 이메일도 넣어준다.
     if (email) {
         payload.email = email;
+    }
+
+    if (sectionNumberColor !== undefined) {
+        payload.section_number_color = sectionNumberColor;
     }
 
     const { data, error } = await supabase

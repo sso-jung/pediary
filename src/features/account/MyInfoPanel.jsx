@@ -6,7 +6,7 @@ import {
     fetchMyProfile,
     updateMyProfile,
     fetchMyDocuments,
-    fetchMonthlyActivity,
+    fetchMonthlyActiveDays,
 } from '../../lib/wikiApi';
 import { supabase } from '../../lib/supabaseClient';
 import Button from '../../components/ui/Button';
@@ -20,6 +20,7 @@ export default function MyInfoPanel() {
     const { showSnackbar } = useSnackbar();
 
     const [nicknameInput, setNicknameInput] = useState('');
+    const [sectionColor, setSectionColor] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
     const [pwLoading, setPwLoading] = useState(false);
@@ -41,33 +42,32 @@ export default function MyInfoPanel() {
         enabled: !!userId,
     });
 
-    const { data: monthlyActivity } = useQuery({
-        queryKey: ['monthlyActivity', userId, year, month],
-        queryFn: () => fetchMonthlyActivity(userId, year, month),
-        enabled: !!userId,
-    });
-
     // 닉네임 업데이트
     const updateNicknameMutation = useMutation({
-        mutationFn: (nickname) =>
+        mutationFn: ({ nickname, sectionNumberColor }) =>
             updateMyProfile(userId, {
                 nickname,
-                email: user?.email,   // ✅ 이메일 같이 전송
+                email: user?.email,
+                sectionNumberColor, // ✅ 추가
             }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['myProfile', userId] });
-            showSnackbar('닉네임을 수정했어.');
+            showSnackbar('저장했어.');
         },
         onError: (err) => {
             console.error('updateMyProfile error', err);
-            showSnackbar('닉네임 변경에 실패했어. 잠시 후 다시 시도해줘.');
+            showSnackbar('저장에 실패했어. 잠시 후 다시 시도해줘.');
         },
     });
 
     const handleSaveNickname = (e) => {
         e.preventDefault();
         const value = nicknameInput.trim();
-        updateNicknameMutation.mutate(value || null);
+
+        updateNicknameMutation.mutate({
+            nickname: value || null,
+            sectionNumberColor: sectionColor ? sectionColor : null, // ''이면 null로 저장(기본)
+        });
     };
 
     // 비밀번호 변경
@@ -103,18 +103,20 @@ export default function MyInfoPanel() {
     // 간단 통계
     const totalDocs = myDocs?.length ?? 0;
 
-    const activeDaysThisMonth = useMemo(() => {
-        if (!monthlyActivity || monthlyActivity.length === 0) return 0;
-        const set = new Set(
-            monthlyActivity.map((a) => a.created_at.slice(0, 10)),
-        );
-        return set.size;
-    }, [monthlyActivity]);
+    const { data: activeDaysThisMonth = 0 } = useQuery({
+        queryKey: ['monthlyActiveDays', userId, year, month],
+        queryFn: () => fetchMonthlyActiveDays(userId, year, month),
+        enabled: !!userId,
+    });
 
     useEffect(() => {
-        if (profile && profile.nickname != null) {
-            setNicknameInput(profile.nickname);
-        }
+        if (!profile) return;
+
+        // 닉네임 초기값
+        setNicknameInput(profile.nickname ?? '');
+
+        // 섹션 번호 색 초기값 (DB 컬럼: section_number_color)
+        setSectionColor(profile.section_number_color ?? '');
     }, [profile]);
 
     return (
@@ -159,6 +161,57 @@ export default function MyInfoPanel() {
                                 placeholder="표시할 닉네임"
                                 disabled={profileLoading || updateNicknameMutation.isLoading}
                             />
+                            <div className="mt-2">
+                                <label className="block text-[9pt] text-slate-400 mb-1">
+                                    섹션 번호 색상
+                                </label>
+
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="color"
+                                        value={sectionColor || '#94a3b8'}
+                                        onChange={(e) => setSectionColor(e.target.value)}
+                                        disabled={profileLoading || updateNicknameMutation.isLoading}
+                                        className="h-8 w-10 rounded border border-slate-200 bg-white"
+                                    />
+
+                                    <Input
+                                        type="text"
+                                        value={sectionColor}
+                                        onChange={(e) => setSectionColor(e.target.value)}
+                                        placeholder="#RRGGBB)"
+                                        disabled={profileLoading || updateNicknameMutation.isLoading}
+                                    />
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setSectionColor('')}
+                                        disabled={profileLoading || updateNicknameMutation.isLoading}
+                                        className="
+                                            inline-flex h-8 w-8 items-center justify-center
+                                            rounded-md border border-slate-200 bg-white
+                                            text-slate-500 shadow-sm
+                                            hover:bg-slate-50 hover:text-slate-700
+                                            disabled:opacity-60
+                                        "
+                                        aria-label="기본 색으로 재설정"
+                                        title="기본 색으로"
+                                    >
+                                        <svg
+                                            viewBox="0 0 24 24"
+                                            className="h-4 w-4"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="1.8"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                        >
+                                            <path d="M21 12a9 9 0 1 1-3-6.7"/>
+                                            <path d="M21 3v6h-6"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
                             <div className="flex justify-end">
                                 <Button
                                     type="submit"
@@ -166,7 +219,7 @@ export default function MyInfoPanel() {
                                     disabled={updateNicknameMutation.isLoading}
                                     className="mt-1 px-3 py-[4px] text-[9pt]"
                                 >
-                                    {updateNicknameMutation.isLoading ? '저장 중...' : '닉네임 저장'}
+                                    {updateNicknameMutation.isLoading ? '저장 중...' : '프로필 저장'}
                                 </Button>
                             </div>
                         </form>
