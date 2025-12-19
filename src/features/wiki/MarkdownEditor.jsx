@@ -106,6 +106,7 @@ export default function MarkdownEditor({
                                            fullHeight = false, // 카드 전체 높이 쓸지 여부
                                            onManualSave = () => {},
                                            activeHeading,
+                                           docKey,
                                        }) {
     const editorRef = useRef(null);
 
@@ -123,22 +124,48 @@ export default function MarkdownEditor({
         isLinkPaletteOpenRef.current = isLinkPaletteOpen;
     }, [isLinkPaletteOpen]);
 
-    const hasInitializedFromValueRef = useRef(false);
+    // const hasInitializedFromValueRef = useRef(false);
     const hasUserEditedRef = useRef(false); // 🔹 사용자 수정 여부 (Ctrl+Z 첫 단계 방지용)
     const initialMarkdownRef = useRef('');  // 🔹 최초 로딩된 마크다운 스냅샷
+    const lastAppliedValueRef = useRef(null);
 
+    // ✅ 문서가 바뀌면(=docKey 변경) 내부 상태를 리셋
+    useEffect(() => {
+          hasUserEditedRef.current = false;
+          initialMarkdownRef.current = '';
+          lastAppliedValueRef.current = null;
+    }, [docKey]);
+
+    // useEffect(() => {
+    //     const instance = editorRef.current?.getInstance?.();
+    //     if (!instance) return;
+    //
+    //     // 이미 한 번 초기화했으면 더 이상 건드리지 않음
+    //     if (hasInitializedFromValueRef.current) return;
+    //
+    //     const initial = value || '';
+    //     instance.setMarkdown(initial);
+    //     hasInitializedFromValueRef.current = true;
+    //     // 실제 에디터 내부 상태 기준으로 초기 마크다운 저장
+    //     initialMarkdownRef.current = instance.getMarkdown() || initial;
+    // }, [value]);
+
+    // ✅ value -> editor 동기화 (사용자 편집 전까지만)
     useEffect(() => {
         const instance = editorRef.current?.getInstance?.();
         if (!instance) return;
+        const next = value ?? '';
+        const current = instance.getMarkdown?.() ?? '';
+        // 사용자가 이미 타이핑 시작했으면 외부 value로 덮지 않음
+        if (hasUserEditedRef.current) return;
+        // 같은 값이면 스킵
+        if (current === next) return;
+        if (lastAppliedValueRef.current === next) return;
+        instance.setMarkdown(next);
+        lastAppliedValueRef.current = next;
 
-        // 이미 한 번 초기화했으면 더 이상 건드리지 않음
-        if (hasInitializedFromValueRef.current) return;
-
-        const initial = value || '';
-        instance.setMarkdown(initial);
-        hasInitializedFromValueRef.current = true;
-        // 실제 에디터 내부 상태 기준으로 초기 마크다운 저장
-        initialMarkdownRef.current = instance.getMarkdown() || initial;
+        // 초기 undo 기준도 여기서 설정
+        initialMarkdownRef.current = next;
     }, [value]);
 
     // 🔹 에디터 명령 실행 헬퍼

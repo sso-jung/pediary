@@ -118,12 +118,12 @@ export default function AppLayout({ children }) {
                         {/* PC용 고정 사이드바 (lg 이상) */}
                         <aside
                             className="
-                hidden basic:block
-                w-[220px] shrink-0 border-r border-border-subtle
-                bg-surface-elevated/80 backdrop-blur overflow-y-auto
-              "
+                                hidden basic:block
+                                w-[220px] shrink-0 border-r border-border-subtle
+                                bg-surface-elevated/80 backdrop-blur overflow-y-auto
+                              "
                         >
-                            <Sidebar />
+                            <Sidebar/>
                         </aside>
 
                         {/* 모바일/태블릿용 슬라이드 사이드바 (lg 미만) */}
@@ -147,7 +147,8 @@ export default function AppLayout({ children }) {
                                 }`}
                             >
                                 <div className="panel-surface flex h-full w-full flex-col rounded-r-2xl shadow-xl">
-                                    <div className="flex items-center justify-between px-3 py-2 border-b border-border-subtle">
+                                    <div
+                                        className="flex items-center justify-between px-3 py-2 border-b border-border-subtle">
                     <span className="text-[11px] font-semibold">
                       카테고리
                     </span>
@@ -160,7 +161,7 @@ export default function AppLayout({ children }) {
                                         </button>
                                     </div>
                                     <div className="flex-1 min-h-0 overflow-y-auto">
-                                        <Sidebar />
+                                        <Sidebar/>
                                     </div>
                                 </div>
                             </div>
@@ -187,7 +188,8 @@ export default function AppLayout({ children }) {
                         {activeSidePanel && sidePanelContent && (
                             <>
                                 {/* PC용 오른쪽 고정 패널 */}
-                                <div className="hidden min-[1420px]:block absolute right-[16px] top-6 bottom-6 w-[266px]">
+                                <div
+                                    className="hidden min-[1420px]:block absolute right-[16px] top-6 bottom-6 w-[266px]">
                                     <div className="panel-surface flex h-full flex-col rounded-2xl border shadow-soft">
                                         {sidePanelContent}
                                     </div>
@@ -195,8 +197,10 @@ export default function AppLayout({ children }) {
 
                                 {/* 모바일/태블릿용 bottom sheet */}
                                 <div className="fixed inset-0 z-40 flex items-end bg-black/30 min-[1420px]:hidden">
-                                    <div className="panel-surface w-full max-h-[75%] rounded-t-2xl border border-border-subtle shadow-xl">
-                                        <div className="flex items-center justify-between border-b border-border-subtle px-4 py-2">
+                                    <div
+                                        className="panel-surface w-full max-h-[75%] rounded-t-2xl border border-border-subtle shadow-xl">
+                                        <div
+                                            className="flex items-center justify-between border-b border-border-subtle px-4 py-2">
                       <span className="text-xs font-semibold">
                         {activeSidePanel === 'friends' ? '친구' : '내 정보'}
                       </span>
@@ -233,8 +237,10 @@ export default function AppLayout({ children }) {
                                 </div>
 
                                 <div className="fixed inset-0 z-40 flex items-end bg-black/30 lg:hidden">
-                                    <div className="panel-surface w-full max-h-[75%] rounded-t-2xl border border-border-subtle shadow-xl">
-                                        <div className="flex items-center justify-between border-b border-border-subtle px-4 py-2">
+                                    <div
+                                        className="panel-surface w-full max-h-[75%] rounded-t-2xl border border-border-subtle shadow-xl">
+                                        <div
+                                            className="flex items-center justify-between border-b border-border-subtle px-4 py-2">
                       <span className="text-xs font-semibold">
                         {activeSidePanel === 'friends' ? '친구' : '내 정보'}
                       </span>
@@ -256,6 +262,7 @@ export default function AppLayout({ children }) {
                     </main>
                 )}
             </div>
+            <div id="portal-root"/>
         </div>
     );
 }

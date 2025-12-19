@@ -1,8 +1,12 @@
-@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/pretendardvariable.css');
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/pretendardvariable.css");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ===========================
+   Base
+   =========================== */
 
 html {
   -webkit-font-smoothing: antialiased;
@@ -16,21 +20,25 @@ body,
   height: 100%;
 }
 
-/* 공통 바디 스타일 */
 body {
   margin: 0;
   overflow: hidden; /* ✅ 브라우저 전체 스크롤 막기 */
   @apply bg-softbg text-slate-900;
-  font-family: 'Pretendard Variable', system-ui, -apple-system,
-    BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-weight: 500; /* 너무 연하면 500으로 바꿔보기 */
+
+  font-family: "Pretendard Variable", system-ui, -apple-system, BlinkMacSystemFont,
+  "Segoe UI", sans-serif;
+  font-weight: 500;
 }
 
-/* Pediary 헤더 전용 폰트 */
+/* Pediary 헤더 전용 폰트 (필요 시만 사용) */
 .pediary-heading {
-  font-family: 'Pretendard Variable', system-ui, -apple-system,
-  BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: "Pretendard Variable", system-ui, -apple-system, BlinkMacSystemFont,
+  "Segoe UI", sans-serif;
 }
+
+/* ===========================
+   Animations
+   =========================== */
 
 @keyframes fade-in-down {
   from {
@@ -47,177 +55,374 @@ body {
   animation: fade-in-down 0.25s ease-out;
 }
 
-/* 정렬 유틸 */
-.wiki-align-left {
-  text-align: left;
-  white-space: pre-line;
-}
-.wiki-align-center {
-  text-align: center;
-  white-space: pre-line;
-}
-.wiki-align-right {
-  text-align: right;
-  white-space: pre-line;
-}
-.wiki-align-justify {
-  text-align: justify;
-  white-space: pre-line;
-}
-
-/* 위키 내부 링크 스타일 (Toast UI 보다 더 세게) */
-.toastui-editor-contents a {
-  color: #2563eb;
-  text-decoration: none !important;
-  font-weight: 600;
-}
-
-.toastui-editor-contents a:hover {
-  text-decoration: none;
-  color: #1d4ed8;
-}
-
 /* ===========================
-   Toast UI Editor 공통 레이아웃
+   Wiki Utilities
    =========================== */
 
-/* 루트 컨테이너: 폭 100%, 가로 스크롤 방지 */
-.tui-editor-defaultUI,
-.toastui-editor-defaultUI {
-  width: 100% !important;
-  min-width: 0 !important;
-  overflow-x: hidden !important;
+.wiki-align-left,
+.wiki-align-center,
+.wiki-align-right,
+.wiki-align-justify {
+  white-space: pre-line;
 }
+.wiki-align-left { text-align: left; }
+.wiki-align-center { text-align: center; }
+.wiki-align-right { text-align: right; }
+.wiki-align-justify { text-align: justify; }
 
-/* 에디터 내부 main 영역도 100% */
-.tui-editor-defaultUI .te-editor,
-.toastui-editor-defaultUI .toastui-editor-main {
-  width: 100% !important;
-  max-width: 100% !important;
-}
+/* 위키 부분 폰트 크기 – 위치 상관없이 강제로 적용 */
+.wiki-font-sm { font-size: 12px !important; }
+.wiki-font-md { font-size: 14px !important; }
+.wiki-font-lg { font-size: 18px !important; }
 
-/* WYSIWYG 컨테이너 */
-.tui-editor-defaultUI .te-ww-container,
-.toastui-editor-defaultUI .toastui-editor-ww-container {
-  width: 100% !important;
-  max-width: 100% !important;
-}
+/* ===========================
+   Theme Tokens
+   =========================== */
 
-/* 본문 컨텐츠도 카드 폭 안으로 */
-.tui-editor-contents,
-.toastui-editor-contents {
-  max-width: 100% !important;
-}
-
-/* 본문 헤더 번호 색 */
 :root {
   --wiki-heading-number-color: #536ea8;
-}
-.wiki-heading-number {
-  color: var(--wiki-heading-number-color);
-  font-weight: 600;
-}
+  --color-btn-ring: rgba(132, 152, 196, 0.45);
 
-/* 🔹 툴바 sticky + 그림자 */
-.toastui-editor-defaultUI-toolbar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background-color: #ffffff;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.9); /* slate-200 느낌 */
-  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.04);
-}
+  --color-btn-primary-bg: #8498c4;
+  --color-btn-primary-hover-bg: #687ba6;
+  --color-btn-primary-fg: #ffffff;
 
-/* 본문은 툴바보다 아래 레이어 */
-.toastui-editor-main {
-  position: relative;
-  z-index: 0;
-}
+  --color-btn-ghost-fg: rgba(229, 231, 235, 0.78);
+  --color-btn-ghost-hover-bg: rgba(229, 231, 235, 0.08);
+  --color-btn-ghost-active-bg: rgba(96, 165, 250, 0.16);
+  --color-btn-ghost-active-fg: rgba(229, 231, 235, 0.92);
 
-/* 루트가 sticky를 잘 동작하게 – 수직은 visible, 가로는 위에서 hidden 처리 */
-.toastui-editor-defaultUI {
-  overflow-y: visible !important;
+  --color-dot: rgba(15, 23, 42, 0.22);
+
+  --color-snackbar-bg: rgba(236, 246, 255, 0.94);
+  --color-snackbar-fg: rgba(15, 23, 42, 0.94);
+
+  --color-snackbar-border: rgba(148, 163, 184, 0.14);
+  --color-snackbar-ring: rgba(37, 99, 235, 0.28);     /* 링을 조금 더 강조 */
+  --color-snackbar-shadow:
+          0 20px 50px rgba(15, 23, 42, 0.14),
+          0 10px 22px rgba(37, 99, 235, 0.10);
 }
 
-/* Toast UI Editor / Viewer도 Pretendard 사용 */
-.toastui-editor-contents,
-.toastui-editor-ww-container,
-.toastui-editor-defaultUI,
-.tui-editor-contents {
-  font-family: 'Pretendard Variable', system-ui, -apple-system,
-    BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-}
+/* ---------- Light theme ---------- */
 
-/* ===========================
-   테마 토큰
-   =========================== */
-
-.app-shell[data-theme='light'] {
+.app-shell[data-theme="light"] {
+  /* Base */
   --color-bg-app: #f3f4f8;
   --color-bg-header: rgba(255, 255, 255, 0.9);
-
   --color-surface: #ffffff;
   --color-surface-elevated: #ffffff;
-
-  --color-border-subtle: rgba(148, 163, 184, 0.35);
+  --color-border-subtle: rgba(220, 225, 234, 0.35);
 
   --color-text-main: #0f172a;
-  --color-text-muted: #6b7280;          /* 🔹 서브 텍스트 */
+  --color-text-muted: #6b7280;
 
-  --color-badge-muted-bg: #e5e7eb;      /* 🔹 기본 배지 배경 */
-  --color-badge-muted-fg: #6b7280;      /* 🔹 기본 배지 텍스트 */
+  /* Accent */
+  --color-accent: #668de1;
+  --color-accent-contrast: #ffffff;
 
-  --wiki-heading-number-color: #536ea8; /* 🔹 문서 제목 번호 색 */
+  /* Controls */
+  --color-control-bg: rgba(255, 255, 255, 0.70);
+  --color-control-hover-bg: rgba(15, 23, 42, 0.06);
+  --color-control-fg: #475569;
+  --color-control-border: rgba(148, 163, 184, 0.35);
+
+  /* Ghost */
+  --color-ghost-fg: #475569;
+  --color-ghost-hover-bg: rgba(15, 23, 42, 0.06);
+  --color-ghost-active-bg: rgba(37, 99, 235, 0.10);
+  --color-ghost-active-fg: #1d4ed8;
+
+  /* Header tabs */
+  --color-header-pill-bg: rgba(15, 23, 42, 0.04);
+  --color-header-pill-border: rgba(148, 163, 184, 0.28);
+  --color-header-tab-fg: #6b7280;
+  --color-header-tab-hover-fg: #334155;
+  --color-header-tab-active-bg: rgba(255, 255, 255, 0.92);
+  --color-header-tab-active-fg: #0f172a;
+  --color-header-tab-active-shadow: 0 1px 2px rgba(15, 23, 42, 0.10);
+
+  --wiki-heading-number-color: #536ea8;
+
+  /* Buttons */
+  --color-btn-ring: rgba(132, 152, 196, 0.45);
+
+  --color-btn-primary-bg: #8498c4;
+  --color-btn-primary-hover-bg: #687ba6;
+  --color-btn-primary-fg: #ffffff;
+
+  --color-btn-ghost-fg: var(--color-ghost-fg);
+  --color-btn-ghost-hover-bg: var(--color-ghost-hover-bg);
+  --color-btn-ghost-active-bg: var(--color-ghost-active-bg);
+  --color-btn-ghost-active-fg: var(--color-ghost-active-fg);
+  --color-btn-ghost-border: rgba(148, 163, 184, 0.35);
+  --color-btn-ghost-hover-border: rgba(148, 163, 184, 0.50);
+
+  /* Page surfaces */
+  --color-page-surface: #ffffff;
+  --color-page-surface-2: rgba(15, 23, 42, 0.03);
+  --color-page-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+
+  /* Overlay */
+  --color-overlay-bg: rgba(255, 255, 255, 0.72);
+
+  /* Success */
+  --color-success-bg: rgba(16, 185, 129, 0.12);
+  --color-success-border: rgba(16, 185, 129, 0.30);
+  --color-success-fg: #047857;
+  --color-success-hover-bg: rgba(16, 185, 129, 0.18);
+
+  /* Panels */
+  --color-panel-bg: rgba(15, 23, 42, 0.015);
+  --color-panel-border: rgba(148, 163, 184, 0.20);
+
+  /* Calendar day cell */
+  --color-day-bg: #ffffff;
+  --color-day-hover-bg: rgba(15, 23, 42, 0.03);
+  --color-day-selected-ring: rgba(132, 152, 196, 0.55);
+
+  /* Modal */
+  --color-modal-backdrop: rgba(0, 0, 0, 0.30);
+  --color-modal-bg: #ffffff;
+
+  /* Badge OFF */
+  --color-badge-off-bg: rgba(207, 215, 227, 0.12);
+  --color-badge-off-border: rgba(148, 163, 184, 0.22);
+  --color-badge-off-fg: rgba(50, 69, 98, 0.7);
+
+  --color-success: #2F6F7A;
+
+  /* Calendar action badges */
+  --color-badge-viewed-bg: rgba(245, 158, 11, 0.14);
+  --color-badge-viewed-border: rgba(245, 158, 11, 0.28);
+  --color-badge-viewed-fg: rgba(180, 83, 9, 0.98);
+
+  --color-badge-updated-bg: rgba(14, 165, 233, 0.14);
+  --color-badge-updated-border: rgba(14, 165, 233, 0.28);
+  --color-badge-updated-fg: rgba(3, 105, 161, 0.98);
+
+  --color-badge-created-bg: rgba(168, 85, 247, 0.14);
+  --color-badge-created-border: rgba(168, 85, 247, 0.28);
+  --color-badge-created-fg: rgba(107, 33, 168, 0.98);
+
+  --color-dot: rgba(15, 23, 42, 0.22);
+
+  /* Segmented tabs */
+  --color-tabbar-bg: rgba(15, 23, 42, 0.06);
+  --color-tabbar-border: rgba(148, 163, 184, 0.20);
+
+  --color-tab-bg: transparent;
+  --color-tab-fg: rgba(107, 114, 128, 1);
+  --color-tab-hover-fg: rgba(51, 65, 85, 1);
+
+  --color-tab-active-bg: rgba(255, 255, 255, 0.92);
+  --color-tab-active-fg: rgba(15, 23, 42, 1);
+  --color-tab-active-shadow: 0 1px 2px rgba(15, 23, 42, 0.10);
+
+  --color-tree-line: rgba(148, 163, 184, 0.55);
+
+  --color-danger-bg: rgba(248, 113, 113, 0.10);
+  --color-danger-border: rgba(248, 113, 113, 0.30);
+  --color-danger-fg: rgba(185, 28, 28, 0.95);
+  --color-danger-hover-bg: rgba(248, 113, 113, 0.16);
+
+  --color-section-line: rgba(132, 152, 196, 0.55);
+
+  --color-empty-icon-bg: rgba(15, 23, 42, 0.03);
+  --color-empty-title-fg: rgba(15, 23, 42, 0.92);
+  --color-empty-desc-fg: rgba(100, 116, 139, 0.78);
+
+  /* Dialog */
+  --color-dialog-backdrop: rgba(0, 0, 0, 0.30);
+  --color-dialog-bg: var(--color-modal-bg);
+  --color-dialog-border: var(--color-border-subtle);
+  --color-dialog-title: rgba(15, 23, 42, 0.92);
+  --color-dialog-msg: rgba(71, 85, 105, 0.95);
+
+  --color-snackbar-bg: rgba(255, 255, 255, 0.96);
+  --color-snackbar-fg: rgba(15, 23, 42, 0.95);
+  --color-snackbar-border: rgba(148, 163, 184, 0.32);
+  --color-snackbar-ring: rgba(102, 141, 225, 0.25); /* accent 기반 */
+  --color-snackbar-shadow: 0 14px 34px rgba(15, 23, 42, 0.18);
 }
 
-.app-shell[data-theme='dark'] {
+/* ---------- Dark theme ---------- */
+
+.app-shell[data-theme="dark"] {
+  /* Base */
   --color-bg-app: #020617;
   --color-bg-header: rgba(15, 23, 42, 0.92);
-
-  --color-surface: #020617;
-  --color-surface-elevated: #020617;
-
-  --color-border-subtle: rgba(148, 163, 184, 0.45);
+  --color-surface: #0b1220;
+  --color-surface-elevated: #0b1220;
+  --color-border-subtle: rgba(219, 224, 231, 0.33);
+  --color-border-unified: rgba(220, 225, 234, 0.35);
 
   --color-text-main: #e5e7eb;
   --color-text-muted: #9ca3af;
 
-  --color-badge-muted-bg: #111827;
-  --color-badge-muted-fg: #e5e7eb;
+  /* Accent */
+  --color-accent: #93baea;
+  --color-accent-contrast: #0b1220;
+
+  /* Controls */
+  --color-control-bg: rgba(2, 6, 23, 0.25);
+  --color-control-hover-bg: rgba(229, 231, 235, 0.08);
+  --color-control-fg: rgba(229, 231, 235, 0.90);
+  --color-control-border: rgba(148, 163, 184, 0.22);
+
+  /* Ghost */
+  --color-ghost-fg: rgba(229, 231, 235, 0.78);
+  --color-ghost-hover-bg: rgba(229, 231, 235, 0.08);
+  --color-ghost-active-bg: rgba(96, 165, 250, 0.16);
+  --color-ghost-active-fg: rgba(229, 231, 235, 0.92);
+
+  /* Header tabs */
+  --color-header-pill-bg: rgba(148, 163, 184, 0.12);
+  --color-header-pill-border: rgba(148, 163, 184, 0.18);
+  --color-header-tab-fg: rgba(229, 231, 235, 0.72);
+  --color-header-tab-hover-fg: rgba(229, 231, 235, 0.92);
+  --color-header-tab-active-bg: rgba(229, 231, 235, 0.12);
+  --color-header-tab-active-fg: #e5e7eb;
+  --color-header-tab-active-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 
   --wiki-heading-number-color: #9ca3af;
+
+  /* Buttons */
+  --color-btn-ring: rgba(96, 165, 250, 0.30);
+
+  --color-btn-primary-bg: rgba(127, 152, 183, 0.22);
+  --color-btn-primary-hover-bg: rgba(96, 165, 250, 0.22);
+  --color-btn-primary-fg: rgba(229, 231, 235, 0.95);
+  --color-btn-primary-border: rgba(96, 165, 250, 0.22);
+
+  --color-btn-ghost-fg: var(--color-ghost-fg);
+  --color-btn-ghost-hover-bg: var(--color-ghost-hover-bg);
+  --color-btn-ghost-active-bg: rgba(96, 165, 250, 0.22);
+  --color-btn-ghost-active-fg: rgba(229, 231, 235, 0.95);
+  --color-btn-ghost-border: rgba(148, 163, 184, 0.28);
+  --color-btn-ghost-hover-border: rgba(148, 163, 184, 0.45);
+
+  /* Page surfaces */
+  --color-page-surface: #0b1220;
+  --color-page-surface-2: rgba(148, 163, 184, 0.06);
+  --color-page-shadow: 0 12px 34px rgba(0, 0, 0, 0.35);
+
+  /* Overlay */
+  --color-overlay-bg: rgba(2, 6, 23, 0.55);
+
+  /* Success */
+  --color-success-bg: rgba(16, 185, 129, 0.10);
+  --color-success-border: rgba(16, 185, 129, 0.22);
+  --color-success-fg: rgba(167, 243, 208, 0.95);
+  --color-success-hover-bg: rgba(16, 185, 129, 0.16);
+
+  /* Panels */
+  --color-panel-bg: rgba(148, 163, 184, 0.06);
+  --color-panel-border: rgba(226, 232, 240, 0.26);
+
+  /* Calendar day cell */
+  --color-day-bg: rgba(2, 6, 23, 0.35);
+  --color-day-hover-bg: rgba(229, 231, 235, 0.06);
+  --color-day-selected-ring: rgba(96, 165, 250, 0.45);
+
+  /* Modal */
+  --color-modal-backdrop: rgba(0, 0, 0, 0.45);
+  --color-modal-bg: #0b1220;
+
+  /* Badge OFF */
+  --color-badge-off-bg: rgba(148, 163, 184, 0.14);
+  --color-badge-off-border: rgba(148, 163, 184, 0.28);
+  --color-badge-off-fg: rgba(229, 231, 235, 0.72);
+
+  --color-success: #6ee7b7;
+
+  /* Calendar action badges */
+  --color-badge-viewed-bg: rgba(245, 158, 11, 0.16);
+  --color-badge-viewed-border: rgba(245, 158, 11, 0.26);
+  --color-badge-viewed-fg: rgba(253, 230, 138, 0.92);
+
+  --color-badge-updated-bg: rgba(14, 165, 233, 0.14);
+  --color-badge-updated-border: rgba(14, 165, 233, 0.24);
+  --color-badge-updated-fg: rgba(186, 230, 253, 0.90);
+
+  --color-badge-created-bg: rgba(168, 85, 247, 0.14);
+  --color-badge-created-border: rgba(168, 85, 247, 0.24);
+  --color-badge-created-fg: rgba(233, 213, 255, 0.90);
+
+  --color-dot: rgba(226, 232, 240, 0.38);
+
+  /* Segmented tabs */
+  --color-tabbar-bg: rgba(148, 163, 184, 0.10);
+  --color-tabbar-border: rgba(148, 163, 184, 0.24);
+
+  --color-tab-bg: transparent;
+  --color-tab-fg: rgba(229, 231, 235, 0.82);
+  --color-tab-hover-fg: rgba(229, 231, 235, 0.92);
+
+  --color-tab-active-bg: rgba(229, 231, 235, 0.16);
+  --color-tab-active-fg: rgba(229, 231, 235, 0.96);
+  --color-tab-active-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+
+  --color-tree-line: rgba(226, 232, 240, 0.34);
+
+  --color-danger-bg: rgba(248, 113, 113, 0.14);
+  --color-danger-border: rgba(248, 113, 113, 0.28);
+  --color-danger-fg: rgba(254, 202, 202, 0.95);
+  --color-danger-hover-bg: rgba(248, 113, 113, 0.22);
+
+  --color-section-line: rgba(96, 165, 250, 0.75);
+
+  --color-empty-icon-bg: rgba(148, 163, 184, 0.08);
+  --color-empty-title-fg: rgba(229, 231, 235, 0.94);
+  --color-empty-desc-fg: rgba(156, 163, 175, 0.90);
+
+  /* Dialog */
+  --color-dialog-bg: #0b1220;
+  --color-dialog-title: rgba(229, 231, 235, 0.96);
+  --color-dialog-backdrop: rgba(2, 6, 23, 0.12);
+  --color-dialog-border: rgba(148, 163, 184, 0.40);
+  --color-dialog-ring: rgba(96, 165, 250, 0.22);
+  --color-dialog-msg: rgba(203, 213, 225, 0.92);
+
+  --color-success-border: rgba(52, 211, 153, 0.55); /* ✅ 테두리 더 밝고 초록 */
+  --color-success-bg: rgba(16, 185, 129, 0.12);
+
+  --color-snackbar-bg: rgba(15, 23, 42, 0.88);      /* slate-900 계열 */
+  --color-snackbar-fg: rgba(241, 245, 249, 0.96);   /* slate-100 계열 */
+  --color-snackbar-border: rgba(148, 163, 184, 0.22);
+  --color-snackbar-ring: rgba(147, 197, 253, 0.18);
+  --color-snackbar-shadow: 0 22px 60px rgba(0, 0, 0, 0.55);
 }
 
-/* app 루트 */
+/* ===========================
+   App Shell / Surfaces
+   =========================== */
+
 .app-shell {
   background-color: var(--color-bg-app);
   color: var(--color-text-main);
 }
 
-/* 헤더 공통 스타일 */
 .app-header {
   background-color: var(--color-bg-header);
   border-bottom: 1px solid var(--color-border-subtle);
   backdrop-filter: blur(12px);
 }
 
-/* 패널/카드 공통 */
 .panel-surface {
   background-color: var(--color-surface-elevated);
   border-color: var(--color-border-subtle);
 }
 
-/* 사이드바 고정 영역 배경 */
 .bg-surface-elevated\/80 {
   background-color: color-mix(in srgb, var(--color-surface-elevated) 80%, transparent);
 }
 
 /* ===========================
-   페이지/카드 공통 유틸리티
+   Components (App) - @layer
    =========================== */
 
 @layer components {
-  /* 메인 카드 (전체 문서, 휴지통 같은 큰 카드) */
   .page-card {
     @apply rounded-2xl shadow-soft border;
     background-color: var(--color-surface-elevated);
@@ -225,38 +430,512 @@ body {
     color: var(--color-text-main);
   }
 
-  .page-card-body {
-    @apply p-3 sm:p-4;
-  }
+  .page-card-body { @apply p-3 sm:p-4; }
 
-  .page-text-main {
-    color: var(--color-text-main);
-  }
+  .page-text-main { color: var(--color-text-main); }
+  .page-text-muted { color: var(--color-text-muted); }
 
-  .page-text-muted {
-    color: var(--color-text-muted);
-  }
-
-  /* 리스트 행 공통 스타일 */
   .page-list-item {
     @apply rounded-xl border px-3 py-2;
     border-color: var(--color-border-subtle);
     background-color: transparent;
   }
+  .page-list-item-hover { @apply hover:bg-primary-50; }
 
-  .page-list-item-hover {
-    @apply hover:bg-primary-50;
+  /* Header tabs */
+  .header-pill {
+    @apply inline-flex rounded-full px-1 py-[2px] text-[10px] sm:text-xs shrink-0 border;
+    background-color: var(--color-header-pill-bg);
+    border-color: var(--color-header-pill-border);
+  }
+  .header-tab {
+    @apply rounded-full px-2 py-[1px] sm:px-3 sm:py-[3px] transition;
+    color: var(--color-header-tab-fg);
+  }
+  .header-tab:hover { color: var(--color-header-tab-hover-fg); }
+  .header-tab[data-active="true"] {
+    background-color: var(--color-header-tab-active-bg);
+    color: var(--color-header-tab-active-fg);
+    box-shadow: var(--color-header-tab-active-shadow);
   }
 
-  /* 기본 회색 배지 (친구 공개 말고 나머지) */
-  .badge-muted {
-    @apply inline-flex items-center rounded-full px-2 py-[2px] text-[10px];
-    background-color: var(--color-badge-muted-bg);
-    color: var(--color-badge-muted-fg);
+  /* Controls */
+  .ui-control {
+    @apply inline-flex items-center justify-center rounded-full border shadow-sm transition shrink-0;
+    background-color: var(--color-control-bg);
+    border-color: var(--color-control-border);
+    color: var(--color-control-fg);
   }
+  .ui-control:hover { background-color: var(--color-control-hover-bg); }
+
+  /* Ghost */
+  .ui-ghost {
+    @apply inline-flex items-center justify-center rounded-full transition shrink-0;
+    background-color: transparent;
+    color: var(--color-ghost-fg);
+  }
+  .ui-ghost:hover { background-color: var(--color-ghost-hover-bg); }
+  .ui-ghost[data-active="true"] {
+    background-color: var(--color-ghost-active-bg);
+    color: var(--color-ghost-active-fg);
+  }
+
+  /* Button.jsx ghost */
+  .btn-ghost {
+    color: var(--color-btn-ghost-fg);
+    background-color: transparent;
+    border-color: var(--color-btn-ghost-border);
+  }
+  .btn-ghost:hover {
+    background-color: var(--color-btn-ghost-hover-bg);
+    border-color: var(--color-btn-ghost-hover-border);
+  }
+  .btn-ghost[data-active="true"] {
+    background-color: var(--color-btn-ghost-active-bg);
+    color: var(--color-btn-ghost-active-fg);
+    border-color: var(--color-btn-ghost-hover-border);
+  }
+
+  /* Surface */
+  .ui-surface {
+    background-color: var(--color-page-surface);
+    box-shadow: var(--color-page-shadow);
+    color: var(--color-text-main);
+  }
+  .ui-surface-2 { background-color: var(--color-page-surface-2); }
+
+  .app-shell[data-theme="dark"] .ui-surface {
+    border: 1px solid var(--color-border-subtle);
+  }
+
+  .ui-overlay { background-color: var(--color-overlay-bg); }
+
+  /* Success button */
+  .ui-btn-success {
+    background-color: var(--color-success-bg);
+    border-color: var(--color-success-border);
+    color: var(--color-success-fg);
+  }
+  .ui-btn-success:hover { background-color: var(--color-success-hover-bg); }
+
+  .ui-btn-primary {
+    background-color: var(--color-btn-primary-bg);
+    color: var(--color-btn-primary-fg);
+    border: 1px solid color-mix(in srgb, var(--color-btn-primary-bg) 45%, transparent);
+  }
+  .ui-btn-primary:hover { background-color: var(--color-btn-primary-hover-bg); }
+
+  /* Panels */
+  .ui-panel {
+    background-color: var(--color-panel-bg);
+    border: 1px solid var(--color-panel-border);
+  }
+
+  /* Calendar day */
+  .ui-day {
+    background-color: var(--color-day-bg);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-panel-border) 60%, transparent);
+  }
+  .ui-day:hover { background-color: var(--color-day-hover-bg); }
+  .ui-day[data-selected="true"] { outline: 1px solid var(--color-day-selected-ring); }
+
+  /* Modal */
+  .ui-modal-backdrop { background-color: var(--color-modal-backdrop); }
+  .ui-modal {
+    background-color: var(--color-modal-bg);
+    border: 1px solid var(--color-border-subtle);
+    color: var(--color-text-main);
+  }
+
+  /* Badge OFF */
+  .ui-badge-off {
+    background-color: var(--color-badge-off-bg);
+    border: 1px solid var(--color-badge-off-border);
+    color: var(--color-badge-off-fg);
+  }
+
+  /* Calendar action badges */
+  .ui-badge { @apply inline-flex items-center rounded-full border; }
+  .ui-badge-viewed {
+    background-color: var(--color-badge-viewed-bg);
+    border-color: var(--color-badge-viewed-border);
+    color: var(--color-badge-viewed-fg);
+  }
+  .ui-badge-updated {
+    background-color: var(--color-badge-updated-bg);
+    border-color: var(--color-badge-updated-border);
+    color: var(--color-badge-updated-fg);
+  }
+  .ui-badge-created {
+    background-color: var(--color-badge-created-bg);
+    border-color: var(--color-badge-created-border);
+    color: var(--color-badge-created-fg);
+  }
+  .ui-badge-fixed {
+    @apply inline-flex items-center rounded-full border;
+    background-color: color-mix(in srgb, var(--color-accent) 14%, transparent);
+    border-color: color-mix(in srgb, var(--color-accent) 26%, transparent);
+    color: var(--color-text-main);
+  }
+
+  /* Segmented tab bar */
+  .ui-tabbar {
+    @apply inline-flex rounded-full p-0 border whitespace-pre-line;
+    background-color: var(--color-tabbar-bg);
+    border-color: var(--color-tabbar-border);
+  }
+  .ui-tab {
+    @apply rounded-full px-3 py-1 transition;
+    background-color: var(--color-tab-bg);
+    color: var(--color-tab-fg);
+  }
+  .ui-tab:hover { color: var(--color-tab-hover-fg); }
+  .ui-tab[data-active="true"] {
+    background-color: var(--color-tab-active-bg);
+    color: var(--color-tab-active-fg);
+    box-shadow: var(--color-tab-active-shadow);
+  }
+
+  .ui-list-item {
+    @apply flex items-center justify-between rounded-lg px-2 py-1.5;
+    background-color: var(--color-page-surface-2);
+    border: 1px solid var(--color-border-subtle);
+  }
+
+  .ui-input {
+    @apply rounded-xl border px-[12px] py-[6px] text-[9.5pt] shadow-sm outline-none w-full;
+    background-color: var(--color-page-surface);
+    border-color: var(--color-border-subtle);
+    color: var(--color-text-main);
+  }
+  .ui-input:focus {
+    border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-border-subtle));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent);
+  }
+  .ui-input::placeholder {
+    color: var(--color-text-muted);
+    opacity: 0.75;
+  }
+
+  /* Sidebar */
+  .ui-side-item,
+  .ui-side-subitem {
+    @apply flex cursor-pointer items-center rounded-lg px-1.5 py-1 transition gap-2;
+    justify-content: flex-start;
+  }
+  .ui-side-item { color: var(--color-text-main); }
+  .ui-side-subitem { color: var(--color-text-muted); }
+  .ui-side-item:hover,
+  .ui-side-subitem:hover { background-color: var(--color-panel-bg); }
+
+  .ui-side-item-active {
+    background-color: color-mix(in srgb, var(--color-accent) 10%, transparent);
+    color: var(--color-text-main);
+    font-weight: 600;
+  }
+  .ui-side-drop {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 35%, transparent);
+  }
+
+  .ui-side-icon { color: var(--color-text-muted); }
+  .ui-side-icon-active {
+    color: color-mix(in srgb, var(--color-accent) 85%, var(--color-text-main));
+  }
+
+  /* Tree lines */
+  .ui-tree-line { border-color: var(--color-tree-line); }
+  .ui-tree-branch {
+    @apply pointer-events-none absolute top-1/2 -translate-y-1/2;
+    height: 1px;
+    background-image: repeating-linear-gradient(
+            to right,
+            var(--color-tree-line) 0 3px,
+            transparent 3px 6px
+    );
+  }
+
+  /* Danger */
+  .ui-danger-text { color: rgba(248, 113, 113, 0.85); }
+  .ui-danger-text:hover { color: rgba(248, 113, 113, 1); }
+
+  .ui-trash {
+    background-color: var(--color-page-surface);
+    border-color: var(--color-border-subtle);
+    color: var(--color-text-muted);
+  }
+  .ui-trash:hover {
+    background-color: color-mix(in srgb, rgba(248, 113, 113, 0.10) 100%, transparent);
+    border-color: color-mix(in srgb, rgba(248, 113, 113, 0.28) 100%, transparent);
+    color: color-mix(in srgb, rgba(248, 113, 113, 0.95) 100%, var(--color-text-main));
+  }
+  .ui-trash-active {
+    background-color: color-mix(in srgb, rgba(248, 113, 113, 0.12) 100%, transparent);
+    border-color: color-mix(in srgb, rgba(248, 113, 113, 0.28) 100%, transparent);
+    color: rgba(248, 113, 113, 0.95);
+  }
+
+  .ui-btn-danger {
+    @apply inline-flex items-center justify-center rounded-lg px-2 py-1 border transition font-medium;
+    background-color: var(--color-danger-bg);
+    border-color: var(--color-danger-border);
+    color: var(--color-danger-fg);
+  }
+  .ui-btn-danger:hover { background-color: var(--color-danger-hover-bg); }
+  .ui-btn-danger:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-danger-border) 65%, transparent);
+  }
+
+  .ui-btn-danger-outline {
+    @apply inline-flex items-center justify-center rounded-lg px-2 py-1 border transition font-medium;
+    background-color: transparent;
+    border-color: var(--color-danger-border);
+    color: var(--color-danger-fg);
+  }
+  .ui-btn-danger-outline:hover { background-color: var(--color-danger-bg); }
+
+  /* Empty state */
+  .ui-empty-icon {
+    @apply mb-3 flex h-16 w-16 items-center justify-center rounded-2xl;
+    background-color: var(--color-empty-icon-bg);
+    border: 1px solid var(--color-border-subtle);
+  }
+  .ui-empty-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-empty-title-fg);
+  }
+  .ui-empty-desc {
+    margin-top: 4px;
+    max-width: 20rem;
+    font-size: 11px;
+    line-height: 1.55;
+    white-space: pre-line;
+    color: var(--color-empty-desc-fg);
+  }
+
+  /* ConfirmDialog */
+  .ui-dialog-backdrop {
+    background-color: var(--color-dialog-backdrop);
+    backdrop-filter: blur(1px);
+  }
+  .ui-dialog {
+    background-color: var(--color-dialog-bg);
+    border: 1px solid var(--color-dialog-border);
+    color: var(--color-text-main);
+    box-shadow:
+            0 22px 60px rgba(0, 0, 0, 0.45),
+            0 0 0 1px color-mix(in srgb, var(--color-dialog-ring) 60%, transparent);
+    background-image: linear-gradient(
+            to bottom,
+            color-mix(in srgb, var(--color-dialog-ring) 12%, transparent),
+            transparent 45%
+    );
+  }
+  .ui-dialog-title { color: var(--color-dialog-title); }
+  .ui-dialog-message { color: var(--color-dialog-msg); }
+
+  .ui-btn-cancel {
+    @apply rounded-lg border px-3 py-1.5 text-xs transition;
+    background-color: transparent;
+    border-color: var(--color-btn-ghost-border);
+    color: var(--color-btn-ghost-fg);
+  }
+  .ui-btn-cancel:hover {
+    background-color: var(--color-btn-ghost-hover-bg);
+    border-color: var(--color-btn-ghost-hover-border);
+  }
+
+  /* Doc items */
+  .ui-doc-item {
+    background-color: var(--color-panel-bg);
+    border: 1px solid var(--color-panel-border);
+    transition: background-color 120ms ease, border-color 120ms ease;
+  }
+  .app-shell[data-theme="light"] .ui-doc-item:hover {
+    background-color: color-mix(in srgb, var(--color-accent) 3%, var(--color-panel-bg));
+    border-color: color-mix(in srgb, var(--color-accent) 10%, var(--color-panel-border));
+  }
+  .app-shell[data-theme="dark"] .ui-doc-item:hover {
+    background-color: color-mix(in srgb, var(--color-accent) 6%, var(--color-panel-bg));
+    border-color: color-mix(in srgb, var(--color-accent) 18%, var(--color-panel-border));
+  }
+
+  .ui-doc-title {
+    color: var(--color-text-main);
+    transition: color 120ms ease;
+  }
+  .ui-doc-title:hover {
+    color: color-mix(in srgb, var(--color-accent) 85%, var(--color-text-main));
+  }
+  .ui-doc-meta { color: var(--color-text-muted); }
+
+  .ui-doc-action {
+    color: var(--color-text-muted);
+    transition: color 120ms ease, background-color 120ms ease;
+    border-radius: 10px;
+    padding: 2px 6px;
+  }
+  .ui-doc-action:hover {
+    color: var(--color-text-main);
+    background-color: color-mix(in srgb, var(--color-border-subtle) 45%, transparent);
+  }
+  .app-shell[data-theme="light"] .ui-doc-action {
+    color: rgba(81, 97, 122, 0.62);
+  }
+  .app-shell[data-theme="light"] .ui-doc-action:hover {
+    color: rgba(51, 65, 85, 0.92);
+  }
+  .app-shell[data-theme="light"] .ui-doc-action-danger { color: #de5e5e; }
+  .app-shell[data-theme="light"] .ui-doc-action-danger:hover {
+    background-color: rgba(239, 68, 68, 0.10);
+    color: #dc2626;
+  }
+
+  /* Favorite */
+  .ui-fav { transition: color 120ms ease; }
+  .ui-fav-on { color: color-mix(in srgb, #f59e0b 85%, var(--color-text-main)); }
+  .app-shell[data-theme="light"] .ui-fav-on {
+    color: #fbbf24;
+    text-shadow: 0 0 0.5px rgba(245, 158, 11, 0.45);
+  }
+  .app-shell[data-theme="light"] .ui-fav-off { color: rgba(131, 140, 157, 0.55); }
+
+  .ui-fav-off { color: color-mix(in srgb, var(--color-text-muted) 70%, transparent); }
+  .ui-fav-off:hover { color: var(--color-text-muted); }
+
+  /* Visibility badges */
+  .ui-badge-private {
+    background-color: color-mix(in srgb, var(--color-border-subtle) 40%, transparent);
+    color: var(--color-text-muted);
+    border: 1px solid color-mix(in srgb, var(--color-border-subtle) 70%, transparent);
+  }
+  .ui-badge-friends {
+    background-color: color-mix(in srgb, #a855f7 14%, transparent);
+    border: 1px solid color-mix(in srgb, #a855f7 26%, transparent);
+    color: color-mix(in srgb, #a855f7 75%, var(--color-text-main));
+  }
+
+  .ui-snackbar {
+    background-color: var(--color-snackbar-bg);
+    color: var(--color-snackbar-fg);
+    border: 1px solid var(--color-snackbar-border);
+
+    box-shadow:
+            var(--color-snackbar-shadow),
+            0 0 0 3px color-mix(in srgb, var(--color-snackbar-ring) 100%, transparent);
+
+    backdrop-filter: blur(10px);
+
+    /* 텍스트 대비를 아주 살짝 더 또렷하게 */
+    text-shadow: 0 1px 0 rgba(0,0,0,0.10);
+  }
+
 }
 
-/* Toast UI Editor / Viewer - 표 스타일 (모든 해상도 공통, 강제 풀폭) */
+/* ===========================
+   Wiki / Toast UI (Link)
+   =========================== */
+
+/* ✅ (요청대로 그대로 유지) */
+.toastui-editor-contents a {
+  color: #2563eb;
+  text-decoration: none !important;
+  font-weight: 600;
+}
+.toastui-editor-contents a:hover {
+  text-decoration: none;
+  color: #1d4ed8;
+}
+
+/* ✅ (요청대로 그대로 유지) */
+.wiki-heading-number {
+  color: var(--wiki-heading-number-color);
+  font-weight: 600;
+}
+
+/* ===========================
+   Toast UI Layout (공통)
+   =========================== */
+
+.tui-editor-defaultUI,
+.toastui-editor-defaultUI {
+  width: 100% !important;
+  min-width: 0 !important;
+  overflow-x: hidden !important;
+  background-color: var(--color-page-surface);
+  color: var(--color-text-main);
+}
+
+.tui-editor-defaultUI .te-editor,
+.toastui-editor-defaultUI .toastui-editor-main {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+.tui-editor-defaultUI .te-ww-container,
+.toastui-editor-defaultUI .toastui-editor-ww-container {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+.tui-editor-contents,
+.toastui-editor-contents {
+  max-width: 100% !important;
+}
+
+/* sticky toolbar */
+.toastui-editor-defaultUI-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.toastui-editor-main {
+  position: relative;
+  z-index: 0;
+}
+
+.toastui-editor-defaultUI {
+  overflow-y: visible !important;
+}
+
+/* editor fonts */
+.toastui-editor-contents,
+.toastui-editor-ww-container,
+.toastui-editor-defaultUI,
+.tui-editor-contents {
+  font-family: "Pretendard Variable", system-ui, -apple-system, BlinkMacSystemFont,
+  "Segoe UI", sans-serif !important;
+}
+
+/* headings spacing */
+.toastui-editor-contents h1,
+.toastui-editor-contents h2,
+.toastui-editor-contents h3,
+.toastui-editor-contents h4,
+.toastui-editor-contents h5,
+.toastui-editor-contents h6,
+.tui-editor-contents h1,
+.tui-editor-contents h2,
+.tui-editor-contents h3,
+.tui-editor-contents h4,
+.tui-editor-contents h5,
+.tui-editor-contents h6 {
+  margin-top: 1.2em;
+  margin-bottom: 0.4em;
+}
+
+.toastui-editor-contents h1 p,
+.toastui-editor-contents h2 p,
+.toastui-editor-contents h3 p,
+.toastui-editor-contents h4 p,
+.toastui-editor-contents h5 p,
+.toastui-editor-contents h6 p {
+  margin: 0;
+}
+
+/* tables */
 .toastui-editor-contents table,
 .tui-editor-contents table,
 .toastui-editor-ww-container table,
@@ -273,62 +952,54 @@ body {
 .tui-editor-contents th,
 .tui-editor-contents td {
   min-width: 80px;
-  padding: 4px 6px;
-}
-
-/* Toast UI 표 셀 높이 재정의 */
-.toastui-editor-contents table th,
-.toastui-editor-contents table td,
-.tui-editor-contents table th,
-.tui-editor-contents table td {
   height: auto !important;
   padding: 3px 8px !important;
   line-height: 1.2;
 }
 
-/* 헤더 배경/글자색 */
+/* ===========================
+   Toast UI Theme Overrides (공통, 필수)
+   =========================== */
+
+/* Toolbar */
+.toastui-editor-defaultUI-toolbar {
+  background-color: var(--color-page-surface);
+  border-bottom: 1px solid var(--color-border-subtle);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+/* Content text */
+.toastui-editor-contents,
+.tui-editor-contents,
+.toastui-editor-ww-container {
+  color: var(--color-text-main);
+}
+
+/* links (토큰 기반, 라이트/다크 자연스럽게) */
+.toastui-editor-contents a,
+.tui-editor-contents a {
+  color: color-mix(in srgb, var(--color-accent) 85%, var(--color-text-main));
+  text-decoration: none !important;
+  font-weight: 600;
+}
+.toastui-editor-contents a:hover,
+.tui-editor-contents a:hover {
+  color: color-mix(in srgb, var(--color-accent) 92%, var(--color-text-main));
+}
+
+/* table header: 토큰 기반 */
 .toastui-editor-contents th,
 .tui-editor-contents th {
-  background-color: #e5e7eb; /* tailwind slate-200 정도 */
-  color: #111827;            /* slate-900 */
+  background-color: color-mix(in srgb, var(--color-border-subtle) 55%, transparent);
+  color: var(--color-text-main);
   font-weight: 600;
 }
 
 /* ===========================
-   카테고리 트리 라인
-   =========================== */
-
-.tree-line {
-  position: absolute;
-  left: 0.4rem;
-  top: 0;
-  bottom: 0;
-  border-left: 1px dashed #e2e8f0;
-}
-
-.tree-line-last {
-  position: absolute;
-  left: 0.4rem;
-  top: 0;
-  bottom: 50%;
-  border-left: 1px dashed #e2e8f0;
-}
-
-.tree-branch {
-  position: absolute;
-  left: 0.4rem;
-  top: 50%;
-  width: 0.8rem;
-  border-top: 1px dashed #e2e8f0;
-  transform: translateY(-0.5px);
-}
-
-/* ===========================
-   모바일용 레이아웃 보정
+   Mobile tweaks
    =========================== */
 
 @media (max-width: 640px) {
-  /* 문서 메인 카드 */
   .wiki-doc-main-card {
     width: 100% !important;
     max-width: 100% !important;
@@ -340,7 +1011,6 @@ body {
     box-sizing: border-box;
   }
 
-  /* Toast UI Editor 가로 잘림 방지 */
   .toastui-editor-defaultUI {
     width: 100% !important;
     max-width: 100% !important;
@@ -357,7 +1027,6 @@ body {
     box-sizing: border-box;
   }
 
-  /* 툴바 버튼이 너무 길어질 때 줄바꿈 허용 */
   .toastui-editor-defaultUI-toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -370,42 +1039,365 @@ body {
   }
 }
 
-/* 🔹 부분 폰트 크기 – 위치 상관없이 강제로 적용 */
-.wiki-font-sm {
-  font-size: 12px !important;
+/* ===========================
+   Dark: Viewer(보기모드) 가독성
+   =========================== */
+
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .toastui-editor-contents,
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .tui-editor-contents {
+  color: var(--color-text-main) !important;
 }
 
-.wiki-font-md {
-  font-size: 14px !important; /* 기본값 정도 */
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .toastui-editor-contents h1,
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .toastui-editor-contents h2,
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .toastui-editor-contents h3,
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .toastui-editor-contents h4,
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .toastui-editor-contents h5,
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .toastui-editor-contents h6,
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .tui-editor-contents h1,
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .tui-editor-contents h2,
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .tui-editor-contents h3,
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .tui-editor-contents h4,
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .tui-editor-contents h5,
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .tui-editor-contents h6,
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .toastui-editor-contents strong,
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .toastui-editor-contents b,
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .tui-editor-contents strong,
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .tui-editor-contents b {
+  color: var(--color-text-main) !important;
 }
 
-.wiki-font-lg {
-  font-size: 18px !important;
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .toastui-editor-contents hr,
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .tui-editor-contents hr {
+  border-color: var(--color-border-subtle) !important;
 }
 
-/* 위키 보기/편집 공통: 헤딩 간 여백 통일 */
-.toastui-editor-contents h1,
-.toastui-editor-contents h2,
-.toastui-editor-contents h3,
-.toastui-editor-contents h4,
-.toastui-editor-contents h5,
-.toastui-editor-contents h6,
-.tui-editor-contents h1,
-.tui-editor-contents h2,
-.tui-editor-contents h3,
-.tui-editor-contents h4,
-.tui-editor-contents h5,
-.tui-editor-contents h6 {
-  margin-top: 1.2em;
-  margin-bottom: 0.4em; /* 3일(수) 기준 느낌으로 통일 */
+.app-shell[data-theme="dark"] .tui-viewer-wrapper pre,
+.app-shell[data-theme="dark"] .tui-viewer-wrapper code {
+  background-color: color-mix(in srgb, var(--color-border-subtle) 22%, transparent) !important;
+  color: var(--color-text-main) !important;
 }
 
-/* 혹시 위젯 때문에 헤딩 안에 p가 생겨도 간격이 또 벌어지지 않도록 */
-.toastui-editor-contents h1 p,
-.toastui-editor-contents h2 p,
-.toastui-editor-contents h3 p,
-.toastui-editor-contents h4 p,
-.toastui-editor-contents h5 p,
-.toastui-editor-contents h6 p {
-  margin: 0;
+/* ===========================
+   Dark: Toast UI Editor fix (EDIT MODE)
+   - 가능하면 파일 맨 아래 유지
+   =========================== */
+
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI,
+.app-shell[data-theme="dark"] .tui-editor-defaultUI {
+  background-color: var(--color-page-surface) !important;
+  color: var(--color-text-main) !important;
+  border: 1px solid var(--color-border-subtle) !important;
+}
+
+/* Toolbar */
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .toastui-editor-toolbar,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI-toolbar {
+  background-color: var(--color-page-surface) !important;
+  border-bottom: 1px solid var(--color-border-subtle) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.28) !important;
+}
+
+/* Toolbar 그룹/구분선 */
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .toastui-editor-toolbar-group {
+  border-color: var(--color-border-subtle) !important;
+}
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .toastui-editor-toolbar-divider {
+  background-color: var(--color-border-subtle) !important;
+}
+
+/* Toolbar 버튼 hover/active */
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .toastui-editor-toolbar button,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .toastui-editor-toolbar .toastui-editor-toolbar-item {
+  border-radius: 10px !important;
+}
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .toastui-editor-toolbar button:hover,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .toastui-editor-toolbar .toastui-editor-toolbar-item:hover {
+  background-color: rgba(229,231,235,0.08) !important;
+}
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .toastui-editor-toolbar button.toastui-editor-active,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .toastui-editor-toolbar .toastui-editor-toolbar-item.toastui-editor-active {
+  background-color: rgba(96,165,250,0.18) !important;
+}
+
+/* 아이콘이 검정으로 남는 경우 */
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .toastui-editor-toolbar-icons {
+  filter: invert(1) grayscale(1) brightness(1.15) !important;
+  opacity: 0.88 !important;
+}
+
+/* Editor main containers */
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .toastui-editor-main,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .toastui-editor-ww-container,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .toastui-editor-md-container,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .toastui-editor-md-preview,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .toastui-editor-md-tab-container {
+  background-color: var(--color-page-surface) !important;
+  color: var(--color-text-main) !important;
+}
+
+/* WYSIWYG */
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .ProseMirror {
+  background-color: transparent !important;
+  color: var(--color-text-main) !important;
+}
+
+/* Markdown tabs */
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .toastui-editor-md-tab {
+  background-color: transparent !important;
+  color: rgba(229,231,235,0.78) !important;
+  border-color: var(--color-border-subtle) !important;
+}
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .toastui-editor-md-tab.active {
+  background-color: rgba(229,231,235,0.12) !important;
+  color: rgba(229,231,235,0.95) !important;
+}
+
+/* Resizer */
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .toastui-editor-resizer {
+  background-color: rgba(148,163,184,0.10) !important;
+  border-top: 1px solid var(--color-border-subtle) !important;
+}
+
+/* inputs */
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI textarea,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI input {
+  background-color: transparent !important;
+  color: var(--color-text-main) !important;
+}
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI textarea::placeholder,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI input::placeholder {
+  color: var(--color-text-muted) !important;
+  opacity: 0.8 !important;
+}
+
+/* Popup / Dropdown */
+.app-shell[data-theme="dark"] .toastui-editor-popup,
+.app-shell[data-theme="dark"] .toastui-editor-dropdown-toolbar,
+.app-shell[data-theme="dark"] .tui-colorpicker-container,
+.app-shell[data-theme="dark"] .tui-popup-wrapper {
+  background-color: var(--color-page-surface) !important;
+  color: var(--color-text-main) !important;
+  border: 1px solid var(--color-border-subtle) !important;
+  box-shadow: 0 18px 40px rgba(0,0,0,0.45) !important;
+}
+
+/* Popup 내부 텍스트 */
+.app-shell[data-theme="dark"] .toastui-editor-popup * {
+  color: var(--color-text-main) !important;
+}
+
+/* 편집 모드 code */
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI pre,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI code {
+  background-color: color-mix(in srgb, var(--color-border-subtle) 22%, transparent) !important;
+  color: var(--color-text-main) !important;
+}
+
+/* ===========================
+   Dark: scrollbar (editor + viewer)
+   =========================== */
+
+/* Firefox */
+.app-shell[data-theme="dark"] {
+  scrollbar-color: rgba(148,163,184,0.55) rgba(2,6,23,0.20);
+  scrollbar-width: thin;
+}
+
+/* Chrome / Edge / Safari (전역 적용) */
+.app-shell[data-theme="dark"] *::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.app-shell[data-theme="dark"] *::-webkit-scrollbar-track {
+  background: rgba(2,6,23,0.20);
+}
+
+.app-shell[data-theme="dark"] *::-webkit-scrollbar-thumb {
+  background: rgba(148,163,184,0.55);
+  border-radius: 999px;
+  border: 2px solid rgba(2,6,23,0.20);
+}
+
+.app-shell[data-theme="dark"] *::-webkit-scrollbar-thumb:hover {
+  background: rgba(148,163,184,0.70);
+}
+
+/* =========================================================
+   Dark: Toast UI task checkbox = KEEP SHAPE, SWAP SVG COLORS
+   ========================================================= */
+
+/* 1) 미체크: 회색 박스 SVG로 교체 */
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .toastui-editor-contents li.task-list-item:not(.checked)::before,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .ProseMirror li.task-list-item:not(.checked)::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'%3E%3Crect x='.5' y='.5' width='17' height='17' rx='2' fill='rgba(148,163,184,0.14)' stroke='rgba(148,163,184,0.68)'/%3E%3C/svg%3E") !important;
+}
+
+/* 체크됨: 채도/존재감 살짝 업 (네온 무드 유지) */
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .toastui-editor-contents li.task-list-item.checked::before,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .ProseMirror li.task-list-item.checked::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'%3E%3Crect x='.5' y='.5' width='17' height='17' rx='2' fill='rgba(96,165,250,0.52)' stroke='rgba(147,197,253,0.62)'/%3E%3Cpath d='M5.2 9.2 7.8 11.8 13 6.6' fill='none' stroke='rgba(255,255,255,0.95)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+}
+
+/* (선택) hover 시 테두리만 조금 더 또렷하게 */
+.app-shell[data-theme="dark"] .tui-viewer-wrapper .toastui-editor-contents li.task-list-item:not(.checked):hover::before,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .ProseMirror li.task-list-item:not(.checked):hover::before {
+  filter: brightness(1.08) !important;
+}
+/* ===========================
+   Toast UI: 본문 텍스트만 가독성 보정
+   (heading 제외)
+   =========================== */
+
+/* EDIT MODE (ProseMirror) */
+.toastui-editor-defaultUI .ProseMirror p,
+.toastui-editor-defaultUI .ProseMirror li,
+.toastui-editor-defaultUI .ProseMirror blockquote,
+.toastui-editor-defaultUI .ProseMirror td,
+.toastui-editor-defaultUI .ProseMirror th {
+  color: var(--color-text-main) !important;
+}
+
+/* VIEW MODE */
+.tui-viewer-wrapper .toastui-editor-contents p,
+.tui-viewer-wrapper .toastui-editor-contents li,
+.tui-viewer-wrapper .toastui-editor-contents blockquote,
+.tui-viewer-wrapper .toastui-editor-contents td,
+.tui-viewer-wrapper .toastui-editor-contents th {
+  color: var(--color-text-main) !important;
+}
+
+/* ===========================
+   Dark: EDIT MODE heading/strong 가독성 복구 (필수)
+   =========================== */
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .ProseMirror h1,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .ProseMirror h2,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .ProseMirror h3,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .ProseMirror h4,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .ProseMirror h5,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .ProseMirror h6 {
+  color: var(--color-text-main) !important;
+}
+
+/* heading 안에 span/strong 등 섞여도 같이 따라오게 */
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .ProseMirror h1 *,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .ProseMirror h2 *,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .ProseMirror h3 *,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .ProseMirror h4 *,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .ProseMirror h5 *,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .ProseMirror h6 * {
+  color: inherit !important;
+}
+
+/* (선택) 굵게도 검정으로 떨어지는 케이스 방어 */
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .ProseMirror strong,
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI .ProseMirror b {
+  color: var(--color-text-main) !important;
+}
+
+/* ===========================
+   Dark: border 통일 (문서 화면 중심)
+   =========================== */
+
+/* 섹션트리(aside) + 본문 카드 + 역링크 패널 */
+.app-shell[data-theme="dark"] .ui-surface,
+.app-shell[data-theme="dark"] .wiki-doc-main-card,
+.app-shell[data-theme="dark"] .tui-viewer-wrapper {
+  border: 1px solid var(--color-border-unified) !important;
+}
+
+/* 토글/탭(나만보기/친구보기, 보기/편집) 컨테이너 */
+.app-shell[data-theme="dark"] .ui-tabbar {
+  border-color: var(--color-border-unified) !important;
+}
+
+/* 토글/탭 버튼 자체도 경계가 보이게(필요 시) */
+.app-shell[data-theme="dark"] .ui-tab {
+  box-shadow: inset 0 0 0 1px transparent; /* 기본은 영향 없음 */
+}
+
+/* 목록 버튼, 저장 버튼, 각종 ui-control 류 */
+.app-shell[data-theme="dark"] .ui-control,
+.app-shell[data-theme="dark"] .ui-btn-primary,
+.app-shell[data-theme="dark"] .btn-ghost,
+.app-shell[data-theme="dark"] .ui-input {
+  border-color: var(--color-border-unified) !important;
+}
+
+/* Toast UI 에디터 자체 보더도 통일 */
+.app-shell[data-theme="dark"] .toastui-editor-defaultUI,
+.app-shell[data-theme="dark"] .tui-editor-defaultUI {
+  border-color: var(--color-border-unified) !important;
+}
+
+/* ===========================
+   DocumentFilterBar theme
+   =========================== */
+
+/* 공통(라이트/다크 공용) */
+.doc-filterbar {
+  background-color: var(--color-page-surface);
+  color: var(--color-text-main);
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--color-page-shadow);
+}
+
+/* "정렬" 텍스트 같은 muted */
+.doc-filterbar .df-muted {
+  color: var(--color-text-muted);
+}
+
+/* input/select/label 공통 톤 */
+.doc-filterbar input[type="text"],
+.doc-filterbar select {
+  background-color: color-mix(in srgb, var(--color-page-surface) 70%, transparent);
+  color: var(--color-text-main);
+  border: 1px solid var(--color-border-subtle);
+}
+
+/* focus 링: 네온 무드 유지 */
+.doc-filterbar input[type="text"]:focus,
+.doc-filterbar select:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--color-accent) 60%, var(--color-border-subtle));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent);
+  background-color: var(--color-page-surface);
+}
+
+/* 즐겨찾기 필터 pill(label) */
+.doc-filterbar .df-pill {
+  background-color: var(--color-page-surface-2);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-muted);
+}
+
+/* 체크박스(기본 OS 모양 유지 + accent-color만 테마별) */
+.doc-filterbar input[type="checkbox"] {
+  accent-color: rgba(255, 255, 255, 0.95); /* 네온 톤 유지 */
+}
+
+.app-shell[data-theme="light"] .doc-filterbar {
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06) !important; /* 기존보다 y/blur 줄임 */
+}
+
+/* ===== Dark에서만 추가로 네온/대비 보정 ===== */
+.app-shell[data-theme="dark"] .doc-filterbar {
+  background-color: color-mix(in srgb, var(--color-page-surface) 92%, transparent);
+  border-color: var(--color-border-unified);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.35);
+}
+
+.app-shell[data-theme="dark"] .doc-filterbar .df-pill {
+  background-color: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  border-color: color-mix(in srgb, var(--color-accent) 22%, var(--color-border-subtle));
+  color: rgba(229, 231, 235, 0.80);
+}
+
+.app-shell[data-theme="dark"] .doc-filterbar input[type="checkbox"] {
+  accent-color: rgba(147, 197, 253, 0.95); /* 네온 블루 계열 */
+}
+
+.app-shell[data-theme="dark"] aside.border-r {
+  border-right-color: var(--color-border-subtle) !important;
 }

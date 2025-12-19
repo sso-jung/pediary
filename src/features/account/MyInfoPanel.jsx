@@ -122,13 +122,11 @@ export default function MyInfoPanel() {
     return (
         <div className="flex h-full flex-col text-xs">
             {/* 상단 헤더 */}
-            <div className="border-b border-slate-100 px-3 pt-3 pb-2">
+            <div className="border-b px-3 pt-3 pb-2" style={{borderColor: "var(--color-border-subtle)"}}>
                 <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-slate-800">
-                        내 정보
-                    </span>
+                    <span className="text-sm font-semibold ui-page-title">내 정보</span>
                 </div>
-                <p className="mt-1 text-[11px] text-slate-400">
+                <p className="mt-1 text-[11px]" style={{color: "var(--color-text-muted)"}}>
                     닉네임과 비밀번호를 관리하고, 나의 기록 통계를 확인해 보자.
                 </p>
             </div>
@@ -137,21 +135,17 @@ export default function MyInfoPanel() {
             <div className="flex-1 overflow-y-auto px-3 pb-3 pt-2 space-y-4">
                 {/* 프로필 섹션 */}
                 <section>
-                    <h2 className="mb-1 text-[11px] font-semibold text-slate-500">
+                    <h2 className="mb-1 text-[11px] font-semibold" style={{color: "var(--color-text-muted)"}}>
                         프로필
                     </h2>
-                    <div className="space-y-2 rounded-xl bg-slate-50 px-3 py-2">
+                    <div className="ui-panel rounded-xl px-3 py-2 space-y-2">
                         <div>
-                            <div className="text-[10px] text-slate-400">
-                                이메일
-                            </div>
-                            <div className="text-[11px] text-slate-700">
-                                {user?.email}
-                            </div>
+                            <div className="text-[10px]" style={{color: "var(--color-text-muted)"}}>이메일</div>
+                            <div className="text-[11px]" style={{color: "var(--color-text-main)"}}>{user?.email}</div>
                         </div>
 
                         <form onSubmit={handleSaveNickname} className="space-y-1">
-                            <label className="block text-[9pt] text-slate-400">
+                            <label className="block text-[9pt]" style={{color: "var(--color-text-muted)"}}>
                                 닉네임
                             </label>
                             <Input
@@ -162,7 +156,7 @@ export default function MyInfoPanel() {
                                 disabled={profileLoading || updateNicknameMutation.isLoading}
                             />
                             <div className="mt-2">
-                                <label className="block text-[9pt] text-slate-400 mb-1">
+                                <label className="block text-[9pt] mb-1" style={{ color: "var(--color-text-muted)" }}>
                                     섹션 번호 색상
                                 </label>
 
@@ -172,7 +166,11 @@ export default function MyInfoPanel() {
                                         value={sectionColor || '#94a3b8'}
                                         onChange={(e) => setSectionColor(e.target.value)}
                                         disabled={profileLoading || updateNicknameMutation.isLoading}
-                                        className="h-8 w-10 rounded border border-slate-200 bg-white"
+                                        className="h-8 w-10 rounded border"
+                                        style={{
+                                            borderColor: "var(--color-control-border)",
+                                            backgroundColor: "var(--color-control-bg)",
+                                        }}
                                     />
 
                                     <Input
@@ -187,13 +185,7 @@ export default function MyInfoPanel() {
                                         type="button"
                                         onClick={() => setSectionColor('')}
                                         disabled={profileLoading || updateNicknameMutation.isLoading}
-                                        className="
-                                            inline-flex h-8 w-8 items-center justify-center
-                                            rounded-md border border-slate-200 bg-white
-                                            text-slate-500 shadow-sm
-                                            hover:bg-slate-50 hover:text-slate-700
-                                            disabled:opacity-60
-                                        "
+                                        className="ui-control h-8 w-8 rounded-md disabled:opacity-60"
                                         aria-label="기본 색으로 재설정"
                                         title="기본 색으로"
                                     >
@@ -228,15 +220,15 @@ export default function MyInfoPanel() {
 
                 {/* 비밀번호 변경 섹션 */}
                 <section>
-                    <h2 className="mb-1 text-[9pt] font-semibold text-slate-500">
+                    <h2 className="mb-1 text-[9pt] font-semibold" style={{ color: "var(--color-text-muted)" }}>
                         비밀번호 변경
                     </h2>
                     <form
                         onSubmit={handleChangePassword}
-                        className="space-y-2 rounded-xl bg-slate-50 px-3 py-2"
+                        className="ui-panel rounded-xl px-3 py-2 space-y-2"
                     >
                         <div>
-                            <label className="block text-[9pt] text-slate-400 mb-1">
+                            <label className="block text-[9pt] mb-1" style={{ color: "var(--color-text-muted)" }}>
                                 새 비밀번호
                             </label>
                             <Input
@@ -247,7 +239,7 @@ export default function MyInfoPanel() {
                             />
                         </div>
                         <div>
-                            <label className="block text-[9pt] text-slate-400 mb-1">
+                            <label className="block text-[9pt] mb-1" style={{ color: "var(--color-text-muted)" }}>
                                 새 비밀번호 확인
                             </label>
                             <Input
@@ -267,7 +259,7 @@ export default function MyInfoPanel() {
                                 {pwLoading ? '변경 중...' : '비밀번호 변경'}
                             </Button>
                         </div>
-                        <p className="text-[10px] text-slate-400">
+                        <p className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
                             로그인된 상태에서 바로 비밀번호를 바꿀 수 있어.
                         </p>
                     </form>
@@ -275,31 +267,43 @@ export default function MyInfoPanel() {
 
                 {/* 나의 통계 섹션 */}
                 <section>
-                    <h2 className="mb-1 text-[11px] font-semibold text-slate-500">
+                    <h2 className="mb-1 text-[11px] font-semibold" style={{ color: "var(--color-text-muted)" }}>
                         나의 통계
                     </h2>
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
-                        <div className="rounded-xl bg-white px-3 py-2 shadow-sm border border-slate-100">
-                            <div className="text-[10px] text-slate-400">
+                        <div className="rounded-xl px-3 py-2 border"
+                             style={{
+                                 backgroundColor: "var(--color-page-surface)",
+                                 borderColor: "var(--color-border-subtle)",
+                                 boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                             }}>
+                            <div className="text-[10px]" style={{color: "var(--color-text-muted)"}}>
                                 작성한 문서 수
                             </div>
-                            <div className="mt-1 text-base font-semibold text-slate-800">
+                            <div className="mt-1 text-base font-semibold" style={{color: "var(--color-text-main)"}}>
                                 {totalDocs}
                             </div>
                         </div>
-                        <div className="rounded-xl bg-white px-3 py-2 shadow-sm border border-slate-100">
-                            <div className="text-[10px] text-slate-400">
+                        <div
+                            className="rounded-xl px-3 py-2 border"
+                            style={{
+                                backgroundColor: "var(--color-page-surface)",
+                                borderColor: "var(--color-border-subtle)",
+                                boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+                            }}
+                        >
+                            <div className="text-[10px]" style={{color: "var(--color-text-muted)"}}>
                                 이번 달 활동일수
                             </div>
-                            <div className="mt-1 text-base font-semibold text-slate-800">
+                            <div className="mt-1 text-base font-semibold" style={{color: "var(--color-text-main)"}}>
                                 {activeDaysThisMonth}
-                                <span className="ml-1 text-[10px] text-slate-400">
-                                    일
+                                <span className="ml-1 text-[10px]" style={{color: "var(--color-text-muted)"}}>
+                                  일
                                 </span>
                             </div>
                         </div>
                     </div>
-                    <p className="mt-1 text-[10px] text-slate-400">
+                    <p className="mt-1 text-[10px]" style={{color: "var(--color-text-muted)"}}>
                         활동일수는 이번 달에 문서를 작성하거나 수정, 조회한 날의 수야.
                     </p>
                 </section>

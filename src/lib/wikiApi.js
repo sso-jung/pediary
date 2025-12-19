@@ -630,7 +630,7 @@ export async function fetchMonthlyActivity(userId, year, month) {
 
     const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
     const startKstUtc = new Date(Date.UTC(year, month - 1, 1) - KST_OFFSET_MS);
-    const endKstUtc = new Date(Date.UTC(year, month, 1) - KST_OFFSET_MS);
+    const endKstUtc   = new Date(Date.UTC(year, month, 1) - KST_OFFSET_MS);
 
     const pageSize = 500;
     let from = 0;
@@ -639,7 +639,17 @@ export async function fetchMonthlyActivity(userId, year, month) {
     while (true) {
         const { data, error } = await supabase
             .from('document_activity')
-            .select('id, action, created_at, document_id')
+            .select(`
+        id,
+        action,
+        created_at,
+        document_id,
+        documents:document_id (
+          id,
+          title,
+          slug
+        )
+      `)
             .eq('user_id', userId)
             .gte('created_at', startKstUtc.toISOString())
             .lt('created_at', endKstUtc.toISOString())

@@ -1,19 +1,17 @@
 // src/features/wiki/ActivityCalendar.jsx
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useLayoutEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useMonthlyActivity } from './hooks/useMonthlyActivity';
 import { getLocalDateKey } from '../../lib/dateUtils';
 
 // 색상: 열람=노랑, 수정=파랑, 작성=보라
 const ACTION_STYLES = {
-    viewed: 'bg-amber-100 text-amber-700 border border-amber-200', // 열람
-    updated: 'bg-sky-100 text-sky-700 border border-sky-200', // 수정
-    created: 'bg-purple-100 text-purple-700 border border-purple-200', // 작성
+    viewed:  'ui-badge ui-badge-viewed',
+    updated: 'ui-badge ui-badge-updated',
+    created: 'ui-badge ui-badge-created',
 };
 
-// OFF(숨김) 상태일 때 공통 회색 스타일
-const ACTION_STYLE_OFF =
-    'bg-slate-100 text-slate-400 border border-slate-200';
+const ACTION_STYLE_OFF = 'ui-badge-off';
 
 const ACTION_LABEL = {
     created: '작성',
@@ -27,6 +25,109 @@ const ACTION_PRIORITY = {
     updated: 2,
     created: 3,
 };
+
+function BadgeSummary({ items, maxLines = 2 }) {
+    const wrapRef = useRef(null);
+    const [visibleCount, setVisibleCount] = useState(null); // null = 아직 측정 전
+
+    const measure = () => {
+        const el = wrapRef.current;
+        if (!el) return;
+
+        const badges = Array.from(el.querySelectorAll("[data-badge='1']"));
+        if (badges.length === 0) {
+            setVisibleCount(0);
+            return;
+        }
+
+        // maxLines까지 허용되는 마지막 줄 top 계산
+        const tops = [];
+        for (const b of badges) {
+            const t = b.offsetTop;
+            if (!tops.includes(t)) tops.push(t);
+        }
+        tops.sort((a, b) => a - b);
+        const allowedTops = tops.slice(0, maxLines);
+
+        const countInLines = badges.filter((b) => allowedTops.includes(b.offsetTop)).length;
+
+        setVisibleCount((prev) => (prev === countInLines ? prev : countInLines));
+    };
+
+    useLayoutEffect(() => {
+        // items 내용(제목 길이)까지 바뀌어도 측정되도록
+        measure();
+        const el = wrapRef.current;
+        if (!el) return;
+
+        const ro = new ResizeObserver(() => measure());
+        ro.observe(el);
+        return () => ro.disconnect();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [items, maxLines]);
+
+    // 1) 측정 전에는 "측정용"으로 전체 렌더링 (하지만 +N은 렌더링하지 않음)
+    if (visibleCount === null) {
+        return (
+            <div ref={wrapRef} className="flex flex-wrap gap-0.5">
+                {items.map((item) => {
+                    const action = item.action;
+                    const style = ACTION_STYLES[action] || ACTION_STYLES.viewed;
+                    const title = item.documents?.title ?? "(삭제됨)";
+
+                    return (
+                        <span
+                            key={item.id}
+                            data-badge="1"
+                            className={
+                                "inline-flex items-center rounded-full px-1.5 py-[2px] text-[10px] max-w-full min-w-0 " +
+                                style
+                            }
+                        >
+              <span className="max-w-[80px] truncate">{title}</span>
+            </span>
+                    );
+                })}
+            </div>
+        );
+    }
+
+    // 2) 측정 후에는 "표시용" 렌더링 (visibleCount만큼 + 필요하면 +N 하나)
+    const safeVisible = Math.min(visibleCount, items.length);
+    const shown = items.slice(0, safeVisible);
+    const hidden = items.length - safeVisible;
+
+    return (
+        <div ref={wrapRef} className="flex flex-wrap gap-0.5">
+            {shown.map((item) => {
+                const action = item.action;
+                const style = ACTION_STYLES[action] || ACTION_STYLES.viewed;
+                const title = item.documents?.title ?? "(삭제됨)";
+
+                return (
+                    <span
+                        key={item.id}
+                        data-badge="1"
+                        className={
+                            "inline-flex items-center rounded-full px-1.5 py-[2px] text-[10px] max-w-full min-w-0 " +
+                            style
+                        }
+                    >
+            <span className="max-w-[80px] truncate">{title}</span>
+          </span>
+                );
+            })}
+
+            {hidden > 0 && (
+                <span
+                    className="ui-badge-off inline-flex items-center rounded-full px-1.5 py-[2px] text-[10px]"
+                >
+          +{hidden}
+        </span>
+            )}
+        </div>
+    );
+}
 
 export default function ActivityCalendar() {
     const today = new Date();
@@ -150,7 +251,7 @@ export default function ActivityCalendar() {
             <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                     <select
-                        className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
+                        className="ui-control rounded-lg px-2 py-1 text-xs"
                         value={year}
                         onChange={(e) => setYear(Number(e.target.value))}
                     >
@@ -161,7 +262,7 @@ export default function ActivityCalendar() {
                         ))}
                     </select>
                     <select
-                        className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs"
+                        className="ui-control rounded-lg px-2 py-1 text-xs"
                         value={month}
                         onChange={(e) => setMonth(Number(e.target.value))}
                     >
@@ -177,14 +278,14 @@ export default function ActivityCalendar() {
                     <button
                         type="button"
                         onClick={handlePrevMonth}
-                        className="rounded-full border border-slate-200 bg-white px-2 py-1 hover:bg-slate-50"
+                        className="ui-control rounded-full px-2 py-1"
                     >
                         ◀
                     </button>
                     <button
                         type="button"
                         onClick={handleNextMonth}
-                        className="rounded-full border border-slate-200 bg-white px-2 py-1 hover:bg-slate-50"
+                        className="ui-control rounded-full px-2 py-1"
                     >
                         ▶
                     </button>
@@ -226,9 +327,9 @@ export default function ActivityCalendar() {
                     활동 기록을 불러오는 중...
                 </p>
             ) : (
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                <div className="ui-panel rounded-2xl p-3">
                     {/* 요일 헤더 */}
-                    <div className="mb-1 grid grid-cols-7 gap-1 text-[11px] font-semibold text-slate-400">
+                    <div className="mb-1 grid grid-cols-7 gap-1 text-[11px] font-semibold ui-page-subtitle">
                         {['일', '월', '화', '수', '목', '금', '토'].map((d) => (
                             <div key={d} className="text-center">
                                 {d}
@@ -244,7 +345,7 @@ export default function ActivityCalendar() {
                                     return (
                                         <div
                                             key={`${wi}-${di}`}
-                                            className="h-20 rounded-xl bg-transparent"
+                                            className="h-24 rounded-xl bg-transparent"
                                         />
                                     );
                                 }
@@ -261,15 +362,12 @@ export default function ActivityCalendar() {
                                         type="button"
                                         key={`${wi}-${di}`}
                                         onClick={() => handleSelectDate(key)}
-                                        className={
-                                            'flex h-20 flex-col rounded-xl bg-white p-1.5 text-left shadow-[0_0_0_1px_rgba(148,163,184,0.08)] ' +
-                                            (selectedDateKey === key
-                                                ? 'ring-1 ring-primary-300'
-                                                : 'hover:bg-slate-50')
-                                        }
+                                        className={'ui-day flex h-24 flex-col rounded-xl p-1.5 text-left overflow-hidden' }
+                                        data-selected={selectedDateKey === key}
                                     >
                                         <div className="mb-1 flex items-center justify-between">
-                                            <span className="text-[11px] font-medium text-slate-700">
+                                            <span className="text-[11px] font-medium"
+                                                  style={{color: "var(--color-text-main)"}}>
                                                 {d}
                                             </span>
                                             {items.length > 0 && (
@@ -280,37 +378,7 @@ export default function ActivityCalendar() {
                                         </div>
 
                                         {/* 문서 뱃지들 – 최대 3개만 표시 */}
-                                        <div className="flex flex-wrap gap-0.5">
-                                            {summaryItems.map((item) => {
-                                                const action = item.action;
-                                                const style =
-                                                    ACTION_STYLES[action] ||
-                                                    ACTION_STYLES.viewed;
-                                                const doc = item.documents;
-                                                const title =
-                                                    doc?.title ?? '(삭제됨)';
-
-                                                return (
-                                                    <span
-                                                        key={item.id}
-                                                        className={
-                                                            'inline-flex items-center rounded-full px-1.5 py-[2px] text-[10px] ' +
-                                                            style
-                                                        }
-                                                    >
-                                                        <span className="max-w-[80px] truncate">
-                                                            {title}
-                                                        </span>
-                                                    </span>
-                                                );
-                                            })}
-
-                                            {items.length > 3 && (
-                                                <span className="inline-flex items-center rounded-full bg-slate-100 px-1.5 py-[2px] text-[10px] text-slate-500">
-                                                    +{items.length - 3}
-                                                </span>
-                                            )}
-                                        </div>
+                                        <BadgeSummary items={items} maxLines={2} />
                                     </button>
                                 );
                             }),
@@ -322,11 +390,11 @@ export default function ActivityCalendar() {
             {/* 선택한 날짜 상세 – 화면 중앙 모달 */}
             {selectedDateKey && (
                 <div
-                    className="fixed inset-0 z-30 flex items-center justify-center bg-black/30"
+                    className="ui-modal-backdrop fixed inset-0 z-30 flex items-center justify-center"
                     onClick={() => setSelectedDateKey(null)} // 바깥 아무 곳 클릭 시 닫기
                 >
                     <div
-                        className="w-full max-w-md rounded-2xl bg-white p-4 shadow-xl text-xs"
+                        className="ui-modal w-full max-w-md rounded-2xl p-4 shadow-xl text-xs"
                         onClick={(e) => e.stopPropagation()} // 모달 안쪽 클릭은 전파 막기
                     >
                         {(() => {
@@ -350,7 +418,8 @@ export default function ActivityCalendar() {
                                             onClick={() =>
                                                 setSelectedDateKey(null)
                                             }
-                                            className="text-[11px] text-slate-400 hover:text-slate-600"
+                                            className="text-[11px]"
+                                            style={{ color: "var(--color-text-muted)" }}
                                         >
                                             닫기 ✕
                                         </button>
@@ -377,7 +446,7 @@ export default function ActivityCalendar() {
                                                 return (
                                                     <li
                                                         key={item.id}
-                                                        className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1"
+                                                        className="flex items-center justify-between rounded-lg ui-surface-2 px-2 py-1"
                                                     >
                                                         <span className="inline-flex items-center gap-2">
                                                             <span
@@ -393,17 +462,19 @@ export default function ActivityCalendar() {
                                                             {href ? (
                                                                 <Link
                                                                     to={href}
-                                                                    className="text-[11px] text-slate-800 underline-offset-2 hover:underline"
+                                                                    className="text-[11px] underline-offset-2 hover:underline"
+                                                                    style={{ color: "var(--color-text-main)" }}
                                                                 >
                                                                     {title}
                                                                 </Link>
                                                             ) : (
-                                                                <span className="text-[11px] text-slate-800">
+                                                                <span className="text-[11px] underline-offset-2" style={{ color: "var(--color-text-main)" }}>
                                                                     {title}
                                                                 </span>
                                                             )}
                                                         </span>
-                                                        <span className="text-[10px] text-slate-400">
+                                                        <span className="text-[10px]"
+                                                              style={{color: "var(--color-text-muted)"}}>
                                                             {new Date(
                                                                 item.created_at,
                                                             ).toLocaleTimeString(

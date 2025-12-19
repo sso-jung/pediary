@@ -226,9 +226,9 @@ function DocumentHeader({
                 {/* 편집 모드에서 보이는 카테고리 말머리 */}
                 {isOwner && isEditing && (
                     <div className="mb flex flex-wrap items-center gap-2 text-[10pt] pl-[10px]">
-                        <span className="text-slate-400">카테고리</span>
+                        <span className="page-text-muted">카테고리</span>
                         <select
-                            className="rounded-full border border-slate-200 bg-white px-2 py-[3px] text-[10pt] outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-100"
+                            className="ui-input !w-auto !rounded-full !px-2 !py-[3px] !text-[10pt]"
                             value={categoryId ?? ''}
                             onChange={handleChangeCategory}
                             disabled={updateLoading}
@@ -248,18 +248,14 @@ function DocumentHeader({
                 {/* 보기 모드: 제목 + 공개범위 뱃지 */}
                 {!isEditing && (
                     <div className="flex flex-wrap items-baseline gap-2">
-                        <h1 className="text-xl lg:text-[20px] xl:text-2xl font-semibold tracking-tight text-slate-900">
+                        <h1 className="text-xl lg:text-[20px] xl:text-2xl font-semibold tracking-tight page-text-main">
                             {doc.title}
                         </h1>
 
                         {isOwner && (
                             <span
-                                className={
-                                    'inline-flex items-center rounded-full px-2 py-[2px] text-[11px] ' +
-                                    (visibility === 'friends'
-                                        ? 'bg-fuchsia-50 text-fuchsia-700'
-                                        : 'bg-slate-100 text-slate-500')
-                                }
+                                className={'inline-flex items-center rounded-full px-1 py-[1px] text-[11px] ' +
+                                (visibility === 'friends' ? 'ui-badge-friends' : 'ui-badge-private')}
                             >
                                 {visibility === 'friends' ? '친구 공개' : '나만 보기'}
                             </span>
@@ -279,7 +275,7 @@ function DocumentHeader({
                             onClickExportExcel?.();
                         }}
                         disabled={exporting}
-                        className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 shadow-sm hover:bg-emerald-100 disabled:opacity-60"
+                        className="ui-btn-success inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium shadow-sm disabled:opacity-60"
                     >
                         <svg
                             className="h-4 w-4"
@@ -307,14 +303,7 @@ function DocumentHeader({
                             e.stopPropagation();
                             onClickGoList?.();
                         }}
-                        className="
-                          md:hidden
-                          inline-flex items-center
-                          rounded-md border border-slate-200
-                          bg-white px-2.5 py-1
-                          text-[10px] md:text-[11px] text-slate-600
-                          shadow-sm hover:bg-slate-50
-                        "
+                        className="md:hidden ui-control !rounded-md px-2.5 py-1 text-[10px] md:text-[11px]"
                     >
                         목록
                     </button>
@@ -322,8 +311,9 @@ function DocumentHeader({
 
                 {/* 편집 중일 때만 공개 범위 토글 */}
                 {canEdit && isEditing && (
-                    <div className="inline-flex items-center rounded-full bg-slate-100 p-1 text-[10px] lg:text-[11px]">
-                        <span className="ml-2 mr-1 hidden text-slate-500 sm:inline">
+                    <div
+                        className="ui-tabbar inline-flex items-center px-1 py-[1px] text-[10px] lg:text-[11px] whitespace-nowrap">
+                        <span className="ml-2 mr-1 hidden page-text-muted sm:inline">
                             공개 범위
                         </span>
                         <button
@@ -332,12 +322,8 @@ function DocumentHeader({
                                 e.stopPropagation();
                                 setVisibility('private');
                             }}
-                            className={
-                                'rounded-full px-2.5 lg:px-3 py-1 ' +
-                                (visibility === 'private'
-                                    ? 'bg-white text-slate-900 shadow'
-                                    : 'text-slate-500 hover:text-slate-700')
-                            }
+                            className="ui-tab"
+                            data-active={visibility === 'private'}
                         >
                             나만 보기
                         </button>
@@ -347,12 +333,8 @@ function DocumentHeader({
                                 e.stopPropagation();
                                 setVisibility('friends');
                             }}
-                            className={
-                                'rounded-full px-2.5 lg:px-3 py-1 ' +
-                                (visibility === 'friends'
-                                    ? 'bg-white text-slate-900 shadow'
-                                    : 'text-slate-500 hover:text-slate-700')
-                            }
+                            className="ui-tab"
+                            data-active={visibility === 'friends'}
                         >
                             친구 공개
                         </button>
@@ -361,7 +343,7 @@ function DocumentHeader({
 
                 {/* 보기 / 편집 탭 */}
                 {isOwner && (
-                    <div className="inline-flex items-center rounded-full bg-slate-100 p-1 text-[10px] lg:text-[11px] whitespace-nowrap">
+                    <div className="ui-tabbar inline-flex items-center px-1 py-[1px] text-[10px] lg:text-[11px] whitespace-nowrap">
                         <button
                             type="button"
                             onClick={(e) => {
@@ -370,12 +352,8 @@ function DocumentHeader({
                                 // 여기서는 form submit 아님
                                 onClickView?.();
                             }}
-                            className={
-                                'rounded-full px-2.5 lg:px-3 py-1 transition ' +
-                                (!isEditing
-                                    ? 'bg-white text-slate-900 shadow'
-                                    : 'text-slate-500 hover:text-slate-700')
-                            }
+                            className="ui-tab"
+                            data-active={!isEditing}
                         >
                             보기
                         </button>
@@ -388,12 +366,8 @@ function DocumentHeader({
                                     // 여기서 직접 set은 안 함
                                     onClickEdit?.();
                                 }}
-                                className={
-                                    'rounded-full px-2.5 lg:px-3 py-1 transition ' +
-                                    (isEditing
-                                        ? 'bg-white text-slate-900 shadow'
-                                        : 'text-slate-500 hover:text-slate-700')
-                                }
+                                className="ui-tab"
+                                data-active={isEditing}
                             >
                                 편집
                             </button>
@@ -404,7 +378,7 @@ function DocumentHeader({
                 {/* 자동저장 상태 + 저장 버튼 */}
                 {canEdit && isEditing && (
                     <>
-                        <span className="text-[10px] text-slate-400 mr-2">
+                        <span className="text-[10px] page-text-muted mr-2">
                             {autosaveStatus === 'dirty' && '작성 중…'}
                             {autosaveStatus === 'saving' && '자동 저장 중…'}
                             {autosaveStatus === 'saved' && '저장됨'}
@@ -414,7 +388,7 @@ function DocumentHeader({
                             <span
                                 className="
                                   ml-1 inline-block h-[10px] w-[10px]
-                                  rounded-full border border-slate-300 border-t-transparent
+                                  rounded-full border page-text-main border-t-transparent
                                   animate-spin
                                 "
                             />
@@ -422,7 +396,7 @@ function DocumentHeader({
 
                         <button
                             type="submit"
-                            className="text-[11px] w-12 px-2.5 lg:px-3 !py-1 bg-[#8498c4] rounded-xl text-white hover:bg-[#687ba6]"
+                            className="ui-btn-primary text-[11px] w-12 px-2.5 lg:px-3 !py-1 rounded-xl"
                             disabled={updateLoading}
                         >
                             {updateLoading ? '저장 중...' : '저장'}
@@ -437,16 +411,15 @@ function DocumentHeader({
 function SectionSidebar({ headings, isEditing, onClickHeading, numberColor }) {
     return (
         <aside
-            className="hidden md:block h-full overflow-y-auto rounded-2xl bg-white
-             p-2 text-[10px] shadow-soft
+            className="hidden md:block h-full overflow-y-auto rounded-2xl p-2 text-[10px] shadow-soft ui-surface
              basic:p-2.5 xl:p-3"
         >
-            <h2 className="mb-2 text-[10px] font-semibold text-slate-500">
+            <h2 className="mb-2 text-[10px] font-semibold page-text-muted">
                 섹션
             </h2>
 
             {headings.length === 0 ? (
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] page-text-main">
                     에디터에서 제목(Heading)을 추가하면
                     <br />
                     여기에서 섹션 트리를 볼 수 있어.
@@ -459,10 +432,10 @@ function SectionSidebar({ headings, isEditing, onClickHeading, numberColor }) {
                                 type="button"
                                 // 👉 편집/보기 상관없이 항상 콜백 호출, 대신 heading 객체 전체를 넘김
                                 onClick={() => onClickHeading?.(h)}
-                                className="w-full text-left text-[12px] text-slate-700 hover:text-primary-600"
+                                className="w-full text-left text-[12px] page-text-main hover:underline"
                                 style={{ paddingLeft: (h.level - 1) * 12 }}
                             >
-                                <span className="mr-1 text-[11px] text-slate-400">
+                                <span className="mr-1 text-[11px] page-text-muted">
                                     {h.number}.
                                 </span>
                                 {h.text}
@@ -483,29 +456,30 @@ function BacklinksPanel({
                             setShowBacklinks,
                         }) {
     return (
-        <div className="rounded-2xl bg-white p-2.5 lg:p-3 shadow-soft text-xs">
+        <div className="rounded-2xl p-2.5 lg:p-3 shadow-soft text-xs ui-surface">
             <button
                 type="button"
                 onClick={() => setShowBacklinks((v) => !v)}
                 className="flex w-full items-center justify-between text-left"
             >
-                <span className="text-[11px] font-semibold text-slate-500">
+                <span className="text-[11px] font-semibold page-text-muted">
                     이 문서를 참조하는 문서
                     {totalBacklinkCount > 0 && (
-                        <span className="ml-2 inline-flex items-center rounded-full bg-slate-100 px-2 py-[1px] text-[10px] text-slate-500">
+                        <span
+                            className="ml-2 inline-flex items-center rounded-full ui-badge-off px-2 py-[1px] text-[10px]">
                             {totalBacklinkCount}개
                         </span>
                     )}
                 </span>
-                <span className="text-[10px] text-slate-400">
+                <span className="text-[10px] page-text-muted">
                     {showBacklinks ? '숨기기 ▲' : '보기 ▼'}
                 </span>
             </button>
 
             {showBacklinks && (
-                <div className="mt-2 border-t border-slate-100 pt-2">
+                <div className="mt-2 border-t pt-2" style={{borderColor: 'var(--color-border-subtle)'}}>
                     {backlinks.length === 0 ? (
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-[11px] page-text-muted">
                             아직 이 문서를{' '}
                             <span className="font-mono">[[{docTitle}]]</span> 형식으로
                             참조하는 다른 문서가 없어.
@@ -514,7 +488,7 @@ function BacklinksPanel({
                         <ul className="space-y-2">
                             {backlinks.map((b) => (
                                 <li key={b.docId}>
-                                    <div className="text-[12px] font-semibold text-slate-800">
+                                    <div className="text-[12px] font-semibold page-text-main">
                                         {b.docTitle}
                                     </div>
                                     <div className="mt-1 flex flex-wrap gap-1">
@@ -522,7 +496,7 @@ function BacklinksPanel({
                                             <Link
                                                 key={idx}
                                                 to={l.href}
-                                                className="rounded-full bg-slate-100 px-2 py-[2px] text-[11px] text-slate-700 hover:bg-slate-200"
+                                                className="rounded-full ui-badge-off px-2 py-[2px] text-[11px] hover:opacity-100"
                                             >
                                                 {l.label}
                                             </Link>
@@ -872,7 +846,7 @@ export default function DocumentPage() {
 
     if (isLoading || !doc) {
         return (
-            <div className="text-sm text-slate-500">
+            <div className="text-sm page-text-muted">
                 {isLoading ? '문서를 불러오는 중...' : '문서를 찾을 수 없습니다.'}
             </div>
         );
@@ -888,11 +862,7 @@ export default function DocumentPage() {
                     <button
                         type="button"
                         onClick={handleGoList}
-                        className="inline-flex items-center text-center
-                                   rounded-md border border-slate-200
-                                   bg-white px-2 py-[5px]
-                                   text-[11px] text-slate-600
-                                   shadow-sm hover:bg-slate-50"
+                        className="ui-control !rounded-md px-2 py-[5px] text-[11px]"
                     >
                         <ListIcon />
                     </button>
@@ -937,11 +907,12 @@ export default function DocumentPage() {
                     numberColor={sectionColor}
                 />
 
-                <div className="wiki-doc-main-card h-full rounded-2xl bg-white shadow-soft overflow-x-hidden">
+                <div className="wiki-doc-main-card h-full rounded-2xl shadow-soft overflow-x-hidden ui-surface">
                     {isEditing ? (
                         <div className="h-full w-full p-3 lg:p-4 box-border">
                             <div className="h-full">
                                 <MarkdownEditor
+                                    docKey={doc.id}
                                     value={content}
                                     onChange={setContent}
                                     allDocs={allDocs || []}

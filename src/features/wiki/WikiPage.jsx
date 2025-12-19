@@ -6,9 +6,6 @@ import { useAuthStore } from '../../store/authStore';
 import { useSnackbar } from '../../components/ui/SnackbarContext';
 import { downloadMyDocumentsExcel } from '../../lib/exportMyDocumentsExcel';
 
-// ❌ 더 이상 안 씀
-// import { useTodayActivity } from './hooks/useTodayActivity';
-
 import PediaryInsightPanel from './PediaryInsightPanel';
 import { usePediaryAiSummary } from './hooks/usePediaryAiSummary';
 import { useAiRecentActivity } from './hooks/useAiRecentActivity';
@@ -92,11 +89,11 @@ export default function WikiPage() {
         <section className="shrink-0">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h1 className="pediary-heading flex items-center gap-[7px] text-2xl font-semibold text-slate-800">
+              <h1 className="pediary-heading ui-page-title flex items-center gap-[7px] text-2xl font-semibold">
                 <span>환영해, Pediary</span>
-                <SparkleIcon className="h-6 w-6" />
+                <SparkleIcon className="h-6 w-6"/>
               </h1>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="ui-page-subtitle mt-1 text-sm">
                 오늘 내가 어떤 문서를 작성·수정·조회했는지 한눈에 볼 수 있어.
               </p>
             </div>
@@ -107,7 +104,7 @@ export default function WikiPage() {
                   type="button"
                   onClick={handleExportExcel}
                   disabled={exporting}
-                  className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 shadow-sm hover:bg-emerald-100 disabled:opacity-60"
+                  className="ui-btn-success inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium shadow-sm disabled:opacity-60"
               >
                 <svg
                     className="h-4 w-4"
@@ -133,7 +130,7 @@ export default function WikiPage() {
                   onClick={() =>
                       setViewMode((m) => (m === 'today' ? 'diary' : 'today'))
                   }
-                  className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm hover:bg-slate-50"
+                  className="ui-control inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium"
               >
                 <svg
                     className="h-4 w-4"
@@ -156,18 +153,20 @@ export default function WikiPage() {
         </section>
 
         {/* 메인 영역 */}
-        <section className="mt-3 flex-1 min-h-0 rounded-2xl bg-white px-4 py-1 shadow-soft overflow-y-auto">
+        <section className="ui-surface mt-3 flex-1 min-h-0 rounded-2xl px-4 py-1 overflow-y-auto">
           {viewMode === 'diary' ? (
-              <ActivityCalendar />
+              <ActivityCalendar/>
           ) : (
               <div className="mt-3 relative min-h-[180px]">
                 {(aiLoading || activityLoading) && (
-                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-[1px]">
+                    <div
+                        className="ui-overlay absolute inset-0 z-10 flex items-center justify-center backdrop-blur-[1px]">
                       <div className="flex flex-col items-center gap-2">
-                        <div className="h-8 w-8 animate-spin rounded-full border border-slate-300 border-t-slate-600" />
-                        <p className="text-xs text-slate-500">
-                          오늘 활동을 분석하는 중이야...
-                        </p>
+                        <div
+                            className="h-8 w-8 animate-spin rounded-full border border-border-subtle border-t-[var(--color-text-main)]"/>
+                        <p className="ui-page-subtitle text-xs">
+                        오늘 활동을 분석하는 중이야...
+                      </p>
                       </div>
                     </div>
                 )}

@@ -32,7 +32,8 @@ export default function FriendsPage() {
 
     if (!userId) {
         return (
-            <div className="flex h-full items-center justify-center text-[11px] text-slate-400">
+            <div className="flex h-full items-center justify-center text-[11px]"
+                 style={{color: "var(--color-text-muted)"}}>
                 로그인 후 이용해 주세요.
             </div>
         );
@@ -41,63 +42,26 @@ export default function FriendsPage() {
     return (
         <div className="flex h-full flex-col text-xs">
             {/* 상단 바 */}
-            <div className="border-b border-slate-100 px-3 pt-3 pb-1">
+            <div className="border-b px-3 pt-3 pb-1" style={{borderColor: "var(--color-border-subtle)"}}>
                 <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-slate-800">
-                        친구
-                    </span>
+                    <span className="text-sm font-semibold ui-page-title">친구</span>
                 </div>
 
-                {/* 상단 탭 (친구 목록 / 받은 요청 / 친구 찾기) */}
-                <div className="mt-2 inline-flex rounded-full bg-slate-100 p-1 text-[11px]">
-                    <button
-                        type="button"
-                        onClick={() => setTab('friends')}
-                        className={
-                            'rounded-full px-3 py-1 ' +
-                            (tab === 'friends'
-                                ? 'bg-white text-slate-900 shadow-sm'
-                                : 'text-slate-500 hover:text-slate-700')
-                        }
-                    >
-                        친구 목록
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setTab('requests')}
-                        className={
-                            'rounded-full px-3 py-1 ' +
-                            (tab === 'requests'
-                                ? 'bg-white text-slate-900 shadow-sm'
-                                : 'text-slate-500 hover:text-slate-700')
-                        }
-                    >
-                        받은 요청
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setTab('sent')}
-                        className={
-                            'rounded-full px-3 py-1 ' +
-                            (tab === 'sent'
-                                ? 'bg-white text-slate-900 shadow-sm'
-                                : 'text-slate-500 hover:text-slate-700')
-                        }
-                    >
-                        보낸 요청
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => setTab('search')}
-                        className={
-                            'rounded-full px-3 py-1 ' +
-                            (tab === 'search'
-                                ? 'bg-white text-slate-900 shadow-sm'
-                                : 'text-slate-500 hover:text-slate-700')
-                        }
-                    >
-                        친구 찾기
-                    </button>
+                <div className="mt-2 ui-tabbar text-[11px] w-full">
+                    {['friends', 'requests', 'sent', 'search'].map((k) => (
+                        <button
+                            key={k}
+                            type="button"
+                            onClick={() => setTab(k)}
+                            className="ui-tab w-[25%]"
+                            data-active={tab === k}
+                        >
+                            {k === 'friends' && '친구\n목록'}
+                            {k === 'requests' && '받은\n요청'}
+                            {k === 'sent' && '보낸\n요청'}
+                            {k === 'search' && '친구\n찾기'}
+                        </button>
+                    ))}
                 </div>
             </div>
 
@@ -133,7 +97,7 @@ export default function FriendsPage() {
                         userId={userId}
                         friends={friends}                // ✅ 추가
                         onSendRequest={(friendId) =>
-                            sendReq.mutate({ friendId })
+                            sendReq.mutate({friendId})
                         }
                     />
                 )}
@@ -146,7 +110,7 @@ export default function FriendsPage() {
 // 하위 컴포넌트들
 // ─────────────────────────────
 
-function FriendsList({ friends = [], onDelete }) {
+function FriendsList({friends = [], onDelete}) {
     if (!friends.length) {
         return (
             <EmptyState
@@ -167,27 +131,21 @@ function FriendsList({ friends = [], onDelete }) {
                     profile?.nickname || profile?.email || f.friend_id;
 
                 return (
-                    <li
-                        key={f.id}
-                        className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1.5"
-                    >
+                    <li key={f.id} className="ui-list-item">
                         <div className="flex flex-col">
-                            {/* ✅ 닉네임 > 이메일 > id 순으로 표시 */}
-                            <span className="text-[11px] font-medium text-slate-800">
-                                {displayName}
+                            <span className="text-[11px] font-medium" style={{color: "var(--color-text-main)"}}>
+                              {displayName}
                             </span>
                             {profile?.nickname && (
-                                <span className="text-[10px] text-slate-400">
-                                    {profile.email}
+                                <span className="text-[10px]" style={{color: "var(--color-text-muted)"}}>
+                                  {profile.email}
                                 </span>
                             )}
-                            <span className="text-[10px] text-slate-400">
-                                {new Date(f.created_at).toLocaleDateString(
-                                    'ko-KR',
-                                )}{' '}
-                                친구가 되었어요.
+                            <span className="text-[10px]" style={{color: "var(--color-text-muted)"}}>
+                              {new Date(f.created_at).toLocaleDateString('ko-KR')} 친구가 되었어요.
                             </span>
                         </div>
+
                         <Button
                             type="button"
                             size="xs"
@@ -204,7 +162,7 @@ function FriendsList({ friends = [], onDelete }) {
     );
 }
 
-function SentRequests({ outgoing = [], onCancel }) {
+function SentRequests({outgoing = [], onCancel}) {
     if (!outgoing.length) {
         return (
             <p className="text-[11px] text-slate-400">
@@ -322,12 +280,17 @@ function FriendSearch({
         <div className="space-y-2">
             <div className="space-y-1">
                 <input
-                    className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-[11px] outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-100"
+                    className="w-full rounded-lg border px-2 py-1.5 text-[11px] outline-none"
+                    style={{
+                        backgroundColor: "var(--color-control-bg)",
+                        borderColor: "var(--color-control-border)",
+                        color: "var(--color-text-main)",
+                    }}
                     placeholder="이메일(아이디)로 검색..."
                     value={keyword}
                     onChange={(e) => setKeyword(e.target.value)}
                 />
-                <p className="text-[10px] text-slate-400">
+                <p className="text-[10px]" style={{color: "var(--color-text-muted)"}}>
                     친구의 로그인 이메일을 입력해 검색할 수 있어요.
                 </p>
             </div>
@@ -352,27 +315,33 @@ function FriendSearch({
                         return (
                             <li
                                 key={p.id}
-                                className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1.5"
+                                className="ui-list-item"
                             >
                                 <div className="flex flex-col">
-                                    <span className="text-[11px] font-medium text-slate-800">
-                                        {displayName}
-                                    </span>
+      <span
+          className="text-[11px] font-medium"
+          style={{ color: "var(--color-text-main)" }}
+      >
+        {displayName}
+      </span>
+
                                     {p.nickname && (
-                                        <span className="text-[10px] text-slate-400">
-                                            {p.email}
-                                        </span>
+                                        <span
+                                            className="text-[10px]"
+                                            style={{ color: "var(--color-text-muted)" }}
+                                        >
+          {p.email}
+        </span>
                                     )}
                                 </div>
 
                                 {/* 🔹 버튼 영역 */}
                                 {isSelf ? (
-                                    // 자기 자신일 때
                                     <Button
                                         type="button"
                                         size="xs"
                                         disabled
-                                        className="px-[7px] py-[2pt] text-[8.5pt] cursor-not-allowed"
+                                        className="ui-badge-fixed px-[7pt] py-[1pt] text-[9px] cursor-default disabled:opacity-100 shadow-none"
                                     >
                                         내 계정
                                     </Button>
@@ -382,28 +351,15 @@ function FriendSearch({
                                         size="xs"
                                         variant="ghost"
                                         disabled
-                                        className="
-                                            px-[7pt] py-[2pt] text-[8.5pt]
-                                            cursor-default
-                                            rounded-full
-                                            border border-fuchsia-200/90
-                                            bg-fuchsia-100/90
-                                            text-fuchsia-700
-                                            disabled:opacity-100
-                                            shadow-none
-                                            hover:bg-fuchsia-100/90 hover:text-fuchsia-700
-                                            active:bg-fuchsia-100/90 active:text-fuchsia-700
-                                            focus:ring-0
-                                        "
+                                        className="ui-badge-fixed px-[7pt] py-[1pt] text-[9px] cursor-default disabled:opacity-100 shadow-none"
                                     >
                                         친구
                                     </Button>
                                 ) : (
-                                    // 아직 친구가 아닐 때 → 기존 "친구 요청" 버튼
                                     <Button
                                         type="button"
                                         size="xs"
-                                        className="px-[7pt] py-[2pt] text-[8.5pt]"
+                                        className="ui-badge-fixed px-[7pt] py-[1pt] text-[9px]"
                                         onClick={() => onSendRequest(p.id)}
                                     >
                                         친구 요청

@@ -40,34 +40,26 @@ export default function TrashPage() {
         restoreMutation.mutate(
             { documentId: doc.id },
             {
-                onSuccess: () => {
-                    showSnackbar('문서를 복구했어.');
-                },
-                onError: () => {
-                    showSnackbar('복구에 실패했어. 잠시 후 다시 시도해줘.');
-                },
+                onSuccess: () => showSnackbar('문서를 복구했어.'),
+                onError: () => showSnackbar('복구에 실패했어. 잠시 후 다시 시도해줘.'),
             },
         );
     };
 
     return (
-        <div className="h-full overflow-y-auto rounded-2xl bg-white p-4 shadow-soft">
+        <div className="ui-surface h-full overflow-y-auto rounded-2xl p-4 shadow-soft">
             <SectionHeader
                 title="휴지통"
                 subtitle="삭제한 문서가 여기에 모여 있어. 복구하거나 완전히 삭제할 수 있어."
             />
 
             {isLoading ? (
-                <p className="mt-6 text-sm text-slate-500">
-                    삭제된 문서를 불러오는 중...
-                </p>
+                <p className="mt-6 text-sm ui-page-subtitle">삭제된 문서를 불러오는 중...</p>
             ) : !deletedDocs || deletedDocs.length === 0 ? (
                 <EmptyState
                     icon="trash"
                     title="휴지통이 비어 있어."
-                    description={
-                        '삭제한 문서는 여기에 모여.\n아직 버린 문서가 하나도 없네.'
-                    }
+                    description={'삭제한 문서는 여기에 모여.\n아직 버린 문서가 하나도 없네.'}
                 />
             ) : (
                 <ul className="space-y-2 text-sm">
@@ -75,54 +67,52 @@ export default function TrashPage() {
                         const deletedAtStr = doc.deleted_at
                             ? new Date(doc.deleted_at).toLocaleString()
                             : '';
-                        const categoryName =
-                        doc.category?.name || '미분류';
+                        const categoryName = doc.category?.name || '미분류';
+
+                        const isFriends = doc.visibility === 'friends';
 
                         return (
-                            <li
-                                key={doc.id}
-                                className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2"
-                            >
-                                <div className="flex flex-col flex-1">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[11px] text-slate-400">
-                                            {categoryName} |
-                                        </span>
-                                        <span className="font-medium text-slate-800">
-                                            {doc.title}
-                                        </span>
-                                        <span
-                                            className={
-                                                'inline-flex items-center rounded-full px-2 py-[2px] text-[10px] ' +
-                                                (doc.visibility === 'friends'
-                                                    ? 'bg-fuchsia-50 text-fuchsia-700'
-                                                    : 'bg-slate-100 text-slate-500')
-                                            }
-                                        >
-                                            {doc.visibility === 'friends'
-                                                ? '친구 공개'
-                                                : '나만 보기'}
-                                        </span>
+                            <li key={doc.id} className="ui-list-item">
+                                <div className="flex min-w-0 flex-1 flex-col">
+                                    <div className="flex min-w-0 items-center gap-2">
+                    <span className="text-[11px] ui-page-subtitle whitespace-nowrap">
+                      {categoryName} |
+                    </span>
+
+                                        <span className="min-w-0 truncate font-medium">
+                      {doc.title}
+                    </span>
+
+                                        {isFriends ? (
+                                            <span className="ui-badge-fixed px-2 text-[10px] rounded-full whitespace-nowrap">
+                        친구 공개
+                      </span>
+                                        ) : (
+                                            <span className="ui-badge-off px-2 text-[10px] rounded-full whitespace-nowrap">
+                        나만 보기
+                      </span>
+                                        )}
                                     </div>
 
-                                    <span className="mt-0.5 text-[11px] text-slate-400">
-                                        삭제: {deletedAtStr}
-                                    </span>
+                                    <span className="mt-0.5 text-[11px] ui-page-subtitle">
+                    삭제: {deletedAtStr}
+                  </span>
                                 </div>
 
-                                <div className="ml-3 flex items-center gap-2 text-xs">
+                                <div className="ml-3 flex flex-none items-center gap-2 text-xs">
                                     <button
                                         type="button"
                                         onClick={() => handleRestore(doc)}
-                                        className="text-primary-500 hover:text-primary-700"
                                         disabled={restoreMutation.isLoading}
+                                        className="btn-ghost rounded-lg px-2 py-1 border"
                                     >
                                         복구
                                     </button>
+
                                     <button
                                         type="button"
                                         onClick={() => setDocToHardDelete(doc)}
-                                        className="text-rose-500 hover:text-rose-700"
+                                        className="ui-btn-danger"
                                     >
                                         완전 삭제
                                     </button>
@@ -141,9 +131,7 @@ export default function TrashPage() {
                         ? `"${docToHardDelete.title}" 문서를 정말 완전 삭제할까?\n이 작업은 되돌릴 수 없어.`
                         : ''
                 }
-                confirmText={
-                    hardDeleteMutation.isLoading ? '삭제 중...' : '완전 삭제'
-                }
+                confirmText={hardDeleteMutation.isLoading ? '삭제 중...' : '완전 삭제'}
                 cancelText="취소"
                 onCancel={() => {
                     if (hardDeleteMutation.isLoading) return;

@@ -7,24 +7,35 @@ export default function Button({
     ...props
 }) {
     const base =
-        'inline-flex items-center justify-center rounded-2xl px-[10px] py-[4px] text-sm font-medium shadow-soft transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-offset-2';
+        [
+            "inline-flex items-center justify-center",
+            "rounded-2xl px-[10px] py-[4px] text-[11pt] font-medium",
+            "transition",
+            "focus:outline-none focus:ring-2",          // 링은 유지
+            "focus:ring-[var(--color-btn-ring)]",       // ✅ 토큰
+            "focus:ring-offset-0",                      // ✅ 다크에서 하얀 오프셋 방지
+            "active:translate-y-[1px]",
+        ].join(" ");
 
     const variants = {
         primary: [
-            // ✅ 기본색: 기존 hover 색을 기본으로
-            'bg-[#8498c4]',          // 라벤더 파스텔
-            // ✅ hover 시: 한 톤 더 진하게
-            'hover:bg-[#687ba6]',
-            // 텍스트: 흰색
-            'text-white',
-            // 포커스 링
-            'focus:ring-[#A8B7D6]/70',
-            // 푸딩처럼 살짝 눌리는 느낌
-            'active:translate-y-[1px] active:shadow-sm',
-        ].join(' '),
+            "bg-[var(--color-btn-primary-bg)]",
+            "hover:bg-[var(--color-btn-primary-hover-bg)]",
+            "text-[var(--color-btn-primary-fg)]",
+            "border border-[var(--color-btn-primary-border)]",
+            "shadow-sm hover:shadow",                   // ✅ 과한 shadow-soft 제거
+        ].join(" "),
 
-        ghost:
-            'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 focus:ring-primary-200',
+        ghost: [
+            "btn-ghost",
+            "bg-transparent",
+            "text-[var(--color-btn-ghost-fg)]",
+            "hover:bg-[var(--color-btn-ghost-hover-bg)]",
+            "data-[active=true]:bg-[var(--color-btn-ghost-active-bg)]",
+            "data-[active=true]:text-[var(--color-btn-ghost-active-fg)]",
+            "shadow-none hover:shadow-none",            // ✅ ghost는 그림자 제거
+            "border",
+        ].join(" "),
     };
 
     const variantClass = variants[variant] || variants.primary;

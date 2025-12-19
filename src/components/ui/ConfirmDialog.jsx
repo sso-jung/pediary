@@ -1,58 +1,47 @@
 // src/components/ui/ConfirmDialog.jsx
 import React from 'react';
 import { createPortal } from 'react-dom';
-import Button from './Button';
 
 export default function ConfirmDialog({
-    open,
-    title = '확인',
-    message,
-    confirmText = '확인',
-    cancelText = '취소',
-    onConfirm,
-    onCancel,
-}) {
+                                          open,
+                                          title = '확인',
+                                          message,
+                                          confirmText = '확인',
+                                          cancelText = '취소',
+                                          onConfirm,
+                                          onCancel,
+                                      }) {
     if (!open) return null;
 
     const dialog = (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/20">
-            <div className="w-full max-w-sm rounded-2xl bg-white p-4 shadow-xl">
-                {title && (
-                    <h2 className="text-sm font-semibold text-slate-800">
-                        {title}
-                    </h2>
-                )}
-
+        <div className="fixed inset-0 z-40 flex items-center justify-center ui-dialog-backdrop">
+            <div className="w-full max-w-sm rounded-2xl p-4 ui-dialog">
+                {title && <h2 className="text-sm font-semibold ui-dialog-title">{title}</h2>}
                 {message && (
-                    <p className="mt-2 text-xs leading-relaxed text-slate-600 whitespace-pre-line">
+                    <p className="mt-2 text-xs leading-relaxed whitespace-pre-line ui-dialog-message">
                         {message}
                     </p>
                 )}
 
                 <div className="mt-4 flex justify-end gap-2 text-xs">
-                    <button
-                        type="button"
-                        onClick={onCancel}
-                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-slate-600 hover:bg-slate-50"
-                    >
+                    <button type="button" onClick={onCancel} className="ui-btn-cancel">
                         {cancelText}
                     </button>
-                    <Button
+                    <button
                         type="button"
                         onClick={onConfirm}
-                        className="bg-rose-500 hover:bg-rose-600 px-3 py-1.5 text-xs"
+                        className="ui-btn-danger px-3 py-1.5 text-xs"
                     >
                         {confirmText}
-                    </Button>
+                    </button>
                 </div>
             </div>
         </div>
     );
 
-    // 🔹 Portal로 body에 렌더링 → 어디서 쓰든 전체 화면 중앙에 뜸
-    if (typeof document === 'undefined') {
-        // SSR 방어용
-        return dialog;
-    }
-    return createPortal(dialog, document.body);
+    if (typeof document === 'undefined') return dialog;
+
+    // ✅ app-shell 내부의 portal-root로 렌더
+    const portalRoot = document.getElementById('portal-root');
+    return createPortal(dialog, portalRoot ?? document.body);
 }

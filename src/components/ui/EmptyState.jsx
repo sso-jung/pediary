@@ -285,14 +285,14 @@ export default function EmptyState({
 
     return (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-50">
+            <div className="ui-empty-icon">
                 {renderIcon()}
             </div>
-            <div className="text-[13px] font-medium text-slate-800">{title}</div>
+
+            <div className="ui-empty-title">{title}</div>
+
             {description && (
-                <p className="mt-1 max-w-xs text-[11px] leading-relaxed text-slate-400 whitespace-pre-line">
-                    {description}
-                </p>
+                <p className="ui-empty-desc">{description}</p>
             )}
         </div>
     );

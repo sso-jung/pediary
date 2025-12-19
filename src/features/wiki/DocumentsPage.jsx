@@ -51,26 +51,23 @@ export default function DocumentsPage() {
     };
 
     return (
-        <div className="h-full overflow-y-auto rounded-2xl bg-white p-3 sm:p-4 shadow-soft">
+        <div className="h-full overflow-y-auto rounded-2xl p-3 sm:p-4 shadow-soft ui-surface border border-border-subtle">
             <SectionHeader
                 title="전체 문서"
                 subtitle="카테고리와 상관없이, 내가 볼 수 있는 문서를 모두 모아 볼 수 있어."
             />
 
-            {/* 🔹 조회조건 바 */}
             <div className="mt-3 mb-3 sm:mt-4 sm:mb-4">
-                <DocumentFilterBar value={query} onChange={setQuery}/>
+                <DocumentFilterBar value={query} onChange={setQuery} />
             </div>
 
             {isLoading ? (
-                <p className="mt-6 text-sm text-slate-500">문서를 불러오는 중...</p>
+                <p className="mt-6 text-sm page-text-muted">문서를 불러오는 중...</p>
             ) : !sortedDocs || sortedDocs.length === 0 ? (
                 <EmptyState
                     icon="docs"
                     title="아직 볼 수 있는 문서가 없어."
-                    description={
-                        '왼쪽 사이드바에서 카테고리를 만들고\n그 안에 첫 문서를 추가해 볼까?'
-                    }
+                    description={'왼쪽 사이드바에서 카테고리를 만들고\n그 안에 첫 문서를 추가해 볼까?'}
                 />
             ) : (
                 <ul className="space-y-2">
@@ -82,26 +79,40 @@ export default function DocumentsPage() {
                         return (
                             <li
                                 key={doc.id}
-                                className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between
-             rounded-xl border border-slate-100 px-3 py-2
-             text-xs sm:text-sm hover:bg-primary-50"
+                                className="
+                                    ui-doc-item
+                                    flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between
+                                    rounded-xl px-3 py-2 text-xs sm:text-sm
+                                  "
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => {
+                                    // 액션 영역에서 클릭하면 이동 금지
+                                    if (e.defaultPrevented) return;
+                                    if (e.target.closest('a, button')) return;
+                                    if (e.target.closest('[data-stop-nav="true"]')) return;
+
+                                    navigate(`/wiki/${doc.slug}`);
+                                }}
+                                onKeyDown={(e) => {
+                                    if (e.target.closest('[data-stop-nav="true"]')) return;
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        navigate(`/wiki/${doc.slug}`);
+                                    }
+                                }}
                             >
                                 <div className="flex flex-1 items-start gap-2">
-                                    {/* 🔹 즐겨찾기 버튼 */}
+                                    {/* 즐겨찾기 */}
                                     <button
+                                        data-stop-nav="true"
                                         type="button"
-                                        onClick={() =>
-                                            toggleFavoriteMutation.mutate({
-                                                documentId: doc.id,
-                                                isFavorite,
-                                            })
-                                        }
-                                        className={
-                                            'mt-[1px] text-lg leading-none ' +
-                                            (isFavorite
-                                                ? 'text-amber-400'
-                                                : 'text-slate-300 hover:text-slate-500')
-                                        }
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            toggleFavoriteMutation.mutate({documentId: doc.id, isFavorite})
+                                        }}
+                                        className={'mt-[1px] text-lg leading-none ui-fav ' + (isFavorite ? 'ui-fav-on' : 'ui-fav-off')}
                                         aria-label={isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
                                     >
                                         {isFavorite ? '★' : '☆'}
@@ -109,53 +120,56 @@ export default function DocumentsPage() {
 
                                     <div className="flex flex-col flex-1">
                                         <div className="flex flex-wrap items-center gap-1 sm:gap-2">
-                                            {/* 카테고리 | 제목 */}
-                                            <span className="text-[11px] sm:text-[12px] text-slate-400">
-          {categoryName} |
-        </span>
-                                            <Link
-                                                to={`/wiki/${doc.slug}`}
-                                                className="font-medium text-slate-800 hover:text-primary-600"
-                                            >
+                      <span className="text-[11px] sm:text-[12px] ui-doc-meta">
+                        {categoryName} |
+                      </span>
+
+                                            <Link to={`/wiki/${doc.slug}`} className="font-medium ui-doc-title">
                                                 {doc.title}
                                             </Link>
 
                                             {/* 공개 범위 뱃지 */}
                                             <span
                                                 className={
-                                                    'inline-flex items-center rounded-full px-1.5 py-[1px] text-[9px] ' +
-                                                    'sm:px-2 sm:py-[2px] sm:text-[10px] ' +
-                                                    (doc.visibility === 'friends'
-                                                        ? 'bg-purple-100 text-purple-700'
-                                                        : 'bg-slate-100 text-slate-500')
+                                                    'inline-flex items-center rounded-full px-[4px] text-[9px] sm:px-[4px] sm:text-[9px] ' +
+                                                    (doc.visibility === 'friends' ? 'ui-badge-friends' : 'ui-badge-private')
                                                 }
                                             >
-          {doc.visibility === 'friends' ? '친구 공개' : '나만 보기'}
-        </span>
+                        {doc.visibility === 'friends' ? '친구 공개' : '나만 보기'}
+                      </span>
                                         </div>
 
-                                        <span className="mt-0.5 text-[10px] sm:text-[11px] text-slate-400">
-        작성: {new Date(doc.created_at).toLocaleString()} · 수정:{' '}
-                                            {new Date(doc.updated_at).toLocaleString()}
-      </span>
+                                        <span className="mt-0.5 text-[10px] sm:text-[11px] ui-doc-meta">
+                      작성: {new Date(doc.created_at).toLocaleString()} · 수정: {new Date(doc.updated_at).toLocaleString()}
+                    </span>
                                     </div>
                                 </div>
 
-                                {/* 오른쪽 액션 버튼 – 모바일에서는 아래줄, 오른쪽 정렬 느낌 */}
                                 <div
                                     className="mt-1 flex items-center justify-end gap-2 text-[11px] sm:mt-0 sm:ml-3 sm:text-xs">
                                     <button
+                                        data-stop-nav="true"
                                         type="button"
-                                        onClick={() => navigate(`/wiki/${doc.slug}?mode=edit`)}
-                                        className="text-slate-400 hover:text-slate-700"
+                                        onClick={(e) => {
+                                               e.preventDefault();
+                                               e.stopPropagation();
+                                               navigate(`/wiki/${doc.slug}?mode=edit`);
+                                        }}
+                                        className="ui-doc-action"
                                     >
                                         편집
                                     </button>
+
                                     {isOwner && (
                                         <button
+                                            data-stop-nav="true"
                                             type="button"
-                                            onClick={() => setDocToDelete(doc)}
-                                            className="text-rose-400 hover:text-rose-700"
+                                            onClick={(e) =>{
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                setDocToDelete(doc)
+                                            }}
+                                            className="ui-doc-action ui-doc-action-danger"
                                         >
                                             삭제
                                         </button>
@@ -167,6 +181,7 @@ export default function DocumentsPage() {
                 </ul>
             )}
 
+            {/* ConfirmDialog 그대로 */}
             <ConfirmDialog
                 open={!!docToDelete}
                 title="문서를 삭제할까?"
@@ -175,9 +190,7 @@ export default function DocumentsPage() {
                         ? `"${docToDelete.title}" 문서를 삭제할까?\n삭제한 문서는 휴지통으로 들어가.`
                         : ''
                 }
-                confirmText={
-                    deleteDocumentMutation.isLoading ? '삭제 중...' : '삭제할래'
-                }
+                confirmText={deleteDocumentMutation.isLoading ? '삭제 중...' : '삭제할래'}
                 cancelText="취소"
                 onCancel={() => {
                     if (deleteDocumentMutation.isLoading) return;
@@ -186,7 +199,7 @@ export default function DocumentsPage() {
                 onConfirm={() => {
                     if (!docToDelete) return;
                     deleteDocumentMutation.mutate(
-                        {documentId: docToDelete.id},
+                        { documentId: docToDelete.id },
                         {
                             onSuccess: () => {
                                 setDocToDelete(null);
@@ -194,9 +207,7 @@ export default function DocumentsPage() {
                             },
                             onError: () => {
                                 setDocToDelete(null);
-                                showSnackbar(
-                                    '삭제에 실패했어. 잠시 후 다시 시도해줘.',
-                                );
+                                showSnackbar('삭제에 실패했어. 잠시 후 다시 시도해줘.');
                             },
                         },
                     );
