@@ -85,14 +85,14 @@ export default function Header({
                     >
                         문서
                     </button>
-                    <button
-                        type="button"
-                        onClick={() => navigate('/materials')}
-                        className="header-tab"
-                        data-active={activeTab === 'materials'}
-                    >
-                        자료 분석
-                    </button>
+                    {/*<button*/}
+                    {/*    type="button"*/}
+                    {/*    onClick={() => navigate('/materials')}*/}
+                    {/*    className="header-tab"*/}
+                    {/*    data-active={activeTab === 'materials'}*/}
+                    {/*>*/}
+                    {/*    자료 분석*/}
+                    {/*</button>*/}
                 </div>
 
                 {/* 모바일/태블릿용 카테고리 토글 버튼 (문서 화면에서만) */}
