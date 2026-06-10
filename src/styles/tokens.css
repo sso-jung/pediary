@@ -1,0 +1,29 @@
+/* C) src/styles/tokens.css */
+/* ===========================
+   Theme Tokens (Base defaults)
+   =========================== */
+
+:root {
+    --wiki-heading-number-color: #536ea8;
+    --color-btn-ring: rgba(132, 152, 196, 0.45);
+
+    --color-btn-primary-bg: #8498c4;
+    --color-btn-primary-hover-bg: #687ba6;
+    --color-btn-primary-fg: #ffffff;
+
+    --color-btn-ghost-fg: rgba(229, 231, 235, 0.78);
+    --color-btn-ghost-hover-bg: rgba(229, 231, 235, 0.08);
+    --color-btn-ghost-active-bg: rgba(96, 165, 250, 0.16);
+    --color-btn-ghost-active-fg: rgba(229, 231, 235, 0.92);
+
+    --color-dot: rgba(15, 23, 42, 0.22);
+
+    --color-snackbar-bg: rgba(236, 246, 255, 0.94);
+    --color-snackbar-fg: rgba(15, 23, 42, 0.94);
+
+    --color-snackbar-border: rgba(148, 163, 184, 0.14);
+    --color-snackbar-ring: rgba(37, 99, 235, 0.28); /* 링을 조금 더 강조 */
+    --color-snackbar-shadow:
+            0 20px 50px rgba(15, 23, 42, 0.14),
+            0 10px 22px rgba(37, 99, 235, 0.10);
+}

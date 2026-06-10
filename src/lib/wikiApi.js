@@ -1198,11 +1198,6 @@ export async function updateSectionLinksForDocument({
         return; // 번호 변화 없음
     }
 
-    // oldNumber -> newNumber 맵
-    const numberMap = new Map(
-        mappings.map((m) => [m.oldNumber, m.newNumber]),
-    );
-
     // 2) 이 문서를 참조하는 문서들 조회
     //    ([[doc:7#...]] / [[doc:7...]] 둘 다 있을 수 있으니,
     //    공통으로 들어가는 "doc:7" 만 LIKE 로 찾으면 충분

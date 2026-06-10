@@ -1,0 +1,235 @@
+/* I) src/styles/toastui.midnight.css */
+/* ===========================
+   midnight: Viewer(보기모드) 가독성
+   =========================== */
+
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .toastui-editor-contents,
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .tui-editor-contents {
+    color: var(--color-text-main) !important;
+}
+
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .toastui-editor-contents h1,
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .toastui-editor-contents h2,
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .toastui-editor-contents h3,
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .toastui-editor-contents h4,
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .toastui-editor-contents h5,
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .toastui-editor-contents h6,
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .tui-editor-contents h1,
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .tui-editor-contents h2,
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .tui-editor-contents h3,
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .tui-editor-contents h4,
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .tui-editor-contents h5,
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .tui-editor-contents h6,
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .toastui-editor-contents strong,
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .toastui-editor-contents b,
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .tui-editor-contents strong,
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .tui-editor-contents b {
+    color: var(--color-text-main) !important;
+}
+
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .toastui-editor-contents hr,
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .tui-editor-contents hr {
+    border-color: var(--color-border-subtle) !important;
+}
+
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper pre,
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper code {
+    background-color: color-mix(in srgb, var(--color-border-subtle) 22%, transparent) !important;
+    color: var(--color-text-main) !important;
+}
+
+/* ===========================
+   midnight: Toast UI Editor fix (EDIT MODE)
+   =========================== */
+
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI,
+.app-shell[data-theme="midnight"] .tui-editor-defaultUI {
+    background-color: var(--color-page-surface) !important;
+    color: var(--color-text-main) !important;
+    border: 1px solid var(--color-border-subtle) !important;
+}
+
+/* Toolbar */
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .toastui-editor-toolbar,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI-toolbar {
+    background-color: var(--color-page-surface) !important;
+    border-bottom: 1px solid var(--color-border-subtle) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.28) !important;
+}
+
+/* Toolbar 그룹/구분선 */
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .toastui-editor-toolbar-group {
+    border-color: var(--color-border-subtle) !important;
+}
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .toastui-editor-toolbar-divider {
+    background-color: var(--color-border-subtle) !important;
+}
+
+/* Toolbar 버튼 hover/active */
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .toastui-editor-toolbar button,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .toastui-editor-toolbar .toastui-editor-toolbar-item {
+    border-radius: 10px !important;
+}
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .toastui-editor-toolbar button:hover,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .toastui-editor-toolbar .toastui-editor-toolbar-item:hover {
+    background-color: rgba(229,231,235,0.08) !important;
+}
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .toastui-editor-toolbar button.toastui-editor-active,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .toastui-editor-toolbar .toastui-editor-toolbar-item.toastui-editor-active {
+    background-color: rgba(96,165,250,0.18) !important;
+}
+
+/* 아이콘이 검정으로 남는 경우 */
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .toastui-editor-toolbar-icons {
+    filter: invert(1) grayscale(1) brightness(1.15) !important;
+    opacity: 0.88 !important;
+}
+
+/* Editor main containers */
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .toastui-editor-main,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .toastui-editor-ww-container,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .toastui-editor-md-container,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .toastui-editor-md-preview,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .toastui-editor-md-tab-container {
+    background-color: var(--color-page-surface) !important;
+    color: var(--color-text-main) !important;
+}
+
+/* WYSIWYG */
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .ProseMirror {
+    background-color: transparent !important;
+    color: var(--color-text-main) !important;
+}
+
+/* Markdown tabs */
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .toastui-editor-md-tab {
+    background-color: transparent !important;
+    color: rgba(229,231,235,0.78) !important;
+    border-color: var(--color-border-subtle) !important;
+}
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .toastui-editor-md-tab.active {
+    background-color: rgba(229,231,235,0.12) !important;
+    color: rgba(229,231,235,0.95) !important;
+}
+
+/* Resizer */
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .toastui-editor-resizer {
+    background-color: rgba(148,163,184,0.10) !important;
+    border-top: 1px solid var(--color-border-subtle) !important;
+}
+
+/* inputs */
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI textarea,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI input {
+    background-color: transparent !important;
+    color: var(--color-text-main) !important;
+}
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI textarea::placeholder,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI input::placeholder {
+    color: var(--color-text-muted) !important;
+    opacity: 0.8 !important;
+}
+
+/* Popup / Dropdown */
+.app-shell[data-theme="midnight"] .toastui-editor-popup,
+.app-shell[data-theme="midnight"] .toastui-editor-dropdown-toolbar,
+.app-shell[data-theme="midnight"] .tui-colorpicker-container,
+.app-shell[data-theme="midnight"] .tui-popup-wrapper {
+    background-color: var(--color-page-surface) !important;
+    color: var(--color-text-main) !important;
+    border: 1px solid var(--color-border-subtle) !important;
+    box-shadow: 0 18px 40px rgba(0,0,0,0.45) !important;
+}
+
+/* Popup 내부 텍스트 */
+.app-shell[data-theme="midnight"] .toastui-editor-popup * {
+    color: var(--color-text-main) !important;
+}
+
+/* 편집 모드 code */
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI pre,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI code {
+    background-color: color-mix(in srgb, var(--color-border-subtle) 22%, transparent) !important;
+    color: var(--color-text-main) !important;
+}
+
+/* ===========================
+   midnight: scrollbar (editor + viewer)
+   =========================== */
+
+/* Firefox */
+.app-shell[data-theme="midnight"] {
+    scrollbar-color: rgba(148,163,184,0.55) rgba(2,6,23,0.20);
+    scrollbar-width: thin;
+}
+
+/* Chrome / Edge / Safari (전역 적용) */
+.app-shell[data-theme="midnight"] *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+.app-shell[data-theme="midnight"] *::-webkit-scrollbar-track {
+    background: rgba(2,6,23,0.20);
+}
+
+.app-shell[data-theme="midnight"] *::-webkit-scrollbar-thumb {
+    background: rgba(148,163,184,0.55);
+    border-radius: 999px;
+    border: 2px solid rgba(2,6,23,0.20);
+}
+
+.app-shell[data-theme="midnight"] *::-webkit-scrollbar-thumb:hover {
+    background: rgba(148,163,184,0.70);
+}
+
+/* =========================================================
+   midnight: Toast UI task checkbox = KEEP SHAPE, SWAP SVG COLORS
+   ========================================================= */
+
+/* 1) 미체크: 회색 박스 SVG로 교체 */
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .toastui-editor-contents li.task-list-item:not(.checked)::before,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .ProseMirror li.task-list-item:not(.checked)::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'%3E%3Crect x='.5' y='.5' width='17' height='17' rx='2' fill='rgba(148,163,184,0.14)' stroke='rgba(148,163,184,0.68)'/%3E%3C/svg%3E") !important;
+}
+
+/* 체크됨: 채도/존재감 살짝 업 (네온 무드 유지) */
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .toastui-editor-contents li.task-list-item.checked::before,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .ProseMirror li.task-list-item.checked::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'%3E%3Crect x='.5' y='.5' width='17' height='17' rx='2' fill='rgba(96,165,250,0.52)' stroke='rgba(147,197,253,0.62)'/%3E%3Cpath d='M5.2 9.2 7.8 11.8 13 6.6' fill='none' stroke='rgba(255,255,255,0.95)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+}
+
+/* (선택) hover 시 테두리만 조금 더 또렷하게 */
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper .toastui-editor-contents li.task-list-item:not(.checked):hover::before,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .ProseMirror li.task-list-item:not(.checked):hover::before {
+    filter: brightness(1.08) !important;
+}
+
+/* ===========================
+   midnight: EDIT MODE heading/strong 가독성 복구 (필수)
+   =========================== */
+
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .ProseMirror h1,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .ProseMirror h2,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .ProseMirror h3,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .ProseMirror h4,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .ProseMirror h5,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .ProseMirror h6 {
+    color: var(--color-text-main) !important;
+}
+
+/* heading 안에 span/strong 등 섞여도 같이 따라오게 */
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .ProseMirror h1 *,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .ProseMirror h2 *,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .ProseMirror h3 *,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .ProseMirror h4 *,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .ProseMirror h5 *,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .ProseMirror h6 * {
+    color: inherit !important;
+}
+
+/* (선택) 굵게도 검정으로 떨어지는 케이스 방어 */
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .ProseMirror strong,
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI .ProseMirror b {
+    color: var(--color-text-main) !important;
+}

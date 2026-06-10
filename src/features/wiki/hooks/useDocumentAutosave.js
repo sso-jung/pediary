@@ -37,6 +37,7 @@ export function useDocumentAutosave({
             return;
         }
 
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setStatus('dirty');
 
         if (timerRef.current) {

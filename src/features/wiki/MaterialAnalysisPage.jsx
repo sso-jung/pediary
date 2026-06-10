@@ -21,7 +21,7 @@ export default function MaterialAnalysisPage() {
     const user = useAuthStore((s) => s.user);
 
     // ✅ DB에서 읽어오는 훅 (refetch 포함)
-    const { data: gridData, loading: gridLoading, refetch } = useMaterialGrid();
+    const { data: gridData, refetch } = useMaterialGrid();
 
     const fileInputRef = useRef(null);
 
@@ -59,7 +59,7 @@ export default function MaterialAnalysisPage() {
             const existingColumns = gridData?.columns ?? [];
 
             // 1) AI 분석 + DB insert (parse-material-sheet)
-            const parsed = await extractMaterialFromPdfWithAi(file, user, existingColumns);
+            await extractMaterialFromPdfWithAi(file, user, existingColumns);
 
             const originalFileName = file.name;
 

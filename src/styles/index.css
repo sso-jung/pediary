@@ -1,0 +1,24 @@
+/* src/styles/index.css */
+
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/pretendardvariable.css");
+
+/* ✅ @import는 무조건 위쪽에 몰아넣기 */
+@import "./base.css";
+@import "./tokens.css";
+
+@import "./themes/noon.css";
+@import "./themes/midnight.css";
+@import "./themes/twilight.css";
+@import "./themes/dusk.css";
+
+@import "./surfaces.css";
+@import "./components.css";
+@import "./toastui.css";
+@import "./toastui.midnight.css";
+@import "./docfilterbar.css";
+@import "./overrides.midnight.css";
+
+/* ✅ tailwind는 맨 아래에 */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

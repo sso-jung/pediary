@@ -1,5 +1,5 @@
 // src/features/wiki/MarkdownEditor.jsx
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { Editor } from '@toast-ui/react-editor';
 import '@toast-ui/editor/dist/toastui-editor.css';
 import 'tui-color-picker/dist/tui-color-picker.css';
@@ -277,7 +277,7 @@ export default function MarkdownEditor({
     }, [linkCandidates, linkQuery]);
 
     // 🔹 [[ + 검색어 → [[제목]] / [[제목#1.1|고기]] 으로 치환
-    const applyInternalLink = (item) => {
+    const applyInternalLink = useCallback((item) => {
         if (!item) return;
 
         const instance = editorRef.current?.getInstance();
@@ -339,10 +339,10 @@ export default function MarkdownEditor({
                 instance.focus();
             }
         }
-    };
+    }, [onChange]);
 
     // 🔹 Esc: [[ + 검색어 조각 삭제
-    const cancelInternalLink = () => {
+    const cancelInternalLink = useCallback(() => {
         const instance = editorRef.current?.getInstance();
         if (!instance) return;
 
@@ -367,7 +367,7 @@ export default function MarkdownEditor({
         setIsLinkPaletteOpen(false);
         setLinkQuery('');
         setHighlightIndex(0);
-    };
+    }, [onChange]);
 
     // 🔹 keydown: 팝업 열려 있는 동안 ↑↓ / Enter / Esc 처리
     useEffect(() => {
@@ -417,7 +417,7 @@ export default function MarkdownEditor({
 
         window.addEventListener('keydown', handleKey, true);
         return () => window.removeEventListener('keydown', handleKey, true);
-    }, [filteredCandidates, highlightIndex]);
+    }, [filteredCandidates, highlightIndex, applyInternalLink, cancelInternalLink]);
 
     // 🔹 헤딩 단축키 (Alt+1~6 → H1~H6)
     useEffect(() => {
@@ -523,7 +523,7 @@ export default function MarkdownEditor({
     // =========================
     // 폰트 사이즈 위젯 적용 로직
     // =========================
-    const applyInlineFontSize = (sizePt) => {
+    const applyInlineFontSize = useCallback((sizePt) => {
         const instance = editorRef.current?.getInstance();
         if (!instance) return;
 
@@ -632,7 +632,7 @@ export default function MarkdownEditor({
 
         // 4) 토큰도 없고, 선택된 텍스트도 없고, 단어도 못 찾은 경우 → 아무것도 하지 않음
         // (예전처럼 {{fs:...|텍스트}} 같은 기본 삽입은 하지 않음)
-    };
+    }, [onChange]);
 
     // 🔹 부분 폰트 크기 변경 커맨드 등록
     useEffect(() => {
@@ -660,7 +660,7 @@ export default function MarkdownEditor({
         instance.addCommand('wysiwyg', 'setLargeFont', () =>
             applyInlineFontSize('lg')
         );
-    }, []);
+    }, [applyInlineFontSize]);
 
     // =========================
     // 폰트 팝업 위치/열림 상태

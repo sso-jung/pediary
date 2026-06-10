@@ -1,0 +1,35 @@
+/* J) src/styles/overrides.midnight.css */
+/* ===========================
+   midnight: border 통일 (문서 화면 중심)
+   =========================== */
+
+/* 섹션트리(aside) + 본문 카드 + 역링크 패널 */
+.app-shell[data-theme="midnight"] .ui-surface,
+.app-shell[data-theme="midnight"] .wiki-doc-main-card,
+.app-shell[data-theme="midnight"] .tui-viewer-wrapper {
+    border: 1px solid var(--color-border-unified) !important;
+}
+
+/* 토글/탭(나만보기/친구보기, 보기/편집) 컨테이너 */
+.app-shell[data-theme="midnight"] .ui-tabbar {
+    border-color: var(--color-border-unified) !important;
+}
+
+/* 토글/탭 버튼 자체도 경계가 보이게(필요 시) */
+.app-shell[data-theme="midnight"] .ui-tab {
+    box-shadow: inset 0 0 0 1px transparent; /* 기본은 영향 없음 */
+}
+
+/* 목록 버튼, 저장 버튼, 각종 ui-control 류 */
+.app-shell[data-theme="midnight"] .ui-control,
+.app-shell[data-theme="midnight"] .ui-btn-primary,
+.app-shell[data-theme="midnight"] .btn-ghost,
+.app-shell[data-theme="midnight"] .ui-input {
+    border-color: var(--color-border-unified) !important;
+}
+
+/* Toast UI 에디터 자체 보더도 통일 */
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI,
+.app-shell[data-theme="midnight"] .tui-editor-defaultUI {
+    border-color: var(--color-border-unified) !important;
+}

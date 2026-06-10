@@ -2,35 +2,35 @@
 import SpeechBubbleIcon from '../../components/icons/SpeechBubbleIcon';
 import Button from '../../components/ui/Button';
 
+function SectionDot() {
+  return (
+      <span className = "inline-block h-[6px] w-[6px] rounded-full flex-none"
+        style = {{ backgroundColor: "var(--color-dot)" }}/>
+  );
+}
+
+function CheckIcon({ className = '' }) {
+  return (
+    <svg
+      viewBox="0 0 15 15"
+      className={`h-3 w-3 ${className}`}
+      aria-hidden="true"
+    >
+      {/* 체크 표시 */}
+      <path
+        d="M6 10.2 8.7 13 14 7.5"
+        fill="none"
+        stroke="var(--color-success)"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export default function PediaryInsightPanel({ ai }) {
-  const { result, loading, error, analyze } = ai;
-
-    function SectionDot() {
-      return (
-          <span className = "inline-block h-[6px] w-[6px] rounded-full flex-none"
-            style = {{ backgroundColor: "var(--color-dot)" }}/>
-      );
-    }
-
-    function CheckIcon({ className = '' }) {
-      return (
-        <svg
-          viewBox="0 0 15 15"
-          className={`h-3 w-3 ${className}`}
-          aria-hidden="true"
-        >
-          {/* 체크 표시 */}
-          <path
-            d="M6 10.2 8.7 13 14 7.5"
-            fill="none"
-            stroke="var(--color-success)"
-            strokeWidth="1.7"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      );
-    }
+  const { result, loading, error } = ai;
 
   return (
       <div className="ui-panel rounded-2xl p-3 lg:p-4 flex flex-col gap-3">

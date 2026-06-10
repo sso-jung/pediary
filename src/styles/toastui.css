@@ -1,0 +1,229 @@
+/* H) src/styles/toastui.css */
+/* ===========================
+   Wiki / Toast UI (Link)
+   =========================== */
+
+/* ✅ (요청대로 그대로 유지) */
+.toastui-editor-contents a {
+    color: #2563eb;
+    text-decoration: none !important;
+    font-weight: 600;
+}
+.toastui-editor-contents a:hover {
+    text-decoration: none;
+    color: #1d4ed8;
+}
+
+/* ✅ (요청대로 그대로 유지) */
+.wiki-heading-number {
+    color: var(--wiki-heading-number-color);
+    font-weight: 600;
+}
+
+/* ===========================
+   Toast UI Layout (공통)
+   =========================== */
+
+.tui-editor-defaultUI,
+.toastui-editor-defaultUI {
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+    background-color: var(--color-page-surface);
+    color: var(--color-text-main);
+}
+
+.tui-editor-defaultUI .te-editor,
+.toastui-editor-defaultUI .toastui-editor-main {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+.tui-editor-defaultUI .te-ww-container,
+.toastui-editor-defaultUI .toastui-editor-ww-container {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+.tui-editor-contents,
+.toastui-editor-contents {
+    max-width: 100% !important;
+}
+
+/* sticky toolbar */
+.toastui-editor-defaultUI-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+}
+
+.toastui-editor-main {
+    position: relative;
+    z-index: 0;
+}
+
+.toastui-editor-defaultUI {
+    overflow-y: visible !important;
+}
+
+/* editor fonts */
+.toastui-editor-contents,
+.toastui-editor-ww-container,
+.toastui-editor-defaultUI,
+.tui-editor-contents {
+    font-family: "Pretendard Variable", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif !important;
+}
+
+/* headings spacing */
+.toastui-editor-contents h1,
+.toastui-editor-contents h2,
+.toastui-editor-contents h3,
+.toastui-editor-contents h4,
+.toastui-editor-contents h5,
+.toastui-editor-contents h6,
+.tui-editor-contents h1,
+.tui-editor-contents h2,
+.tui-editor-contents h3,
+.tui-editor-contents h4,
+.tui-editor-contents h5,
+.tui-editor-contents h6 {
+    margin-top: 1.2em;
+    margin-bottom: 0.4em;
+}
+
+.toastui-editor-contents h1 p,
+.toastui-editor-contents h2 p,
+.toastui-editor-contents h3 p,
+.toastui-editor-contents h4 p,
+.toastui-editor-contents h5 p,
+.toastui-editor-contents h6 p {
+    margin: 0;
+}
+
+/* tables */
+.toastui-editor-contents table,
+.tui-editor-contents table,
+.toastui-editor-ww-container table,
+.toastui-editor-ww-container .ProseMirror table {
+    width: 90% !important;
+    max-width: 100% !important;
+    table-layout: fixed;
+    border-collapse: collapse;
+    box-sizing: border-box;
+}
+
+.toastui-editor-contents th,
+.toastui-editor-contents td,
+.tui-editor-contents th,
+.tui-editor-contents td {
+    min-width: 80px;
+    height: auto !important;
+    padding: 3px 8px !important;
+    line-height: 1.2;
+}
+
+/* ===========================
+   Toast UI Theme Overrides (공통, 필수)
+   =========================== */
+
+/* Toolbar */
+.toastui-editor-defaultUI-toolbar {
+    background-color: var(--color-page-surface);
+    border-bottom: 1px solid var(--color-border-subtle);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+/* Content text */
+.toastui-editor-contents,
+.tui-editor-contents,
+.toastui-editor-ww-container {
+    color: var(--color-text-main);
+}
+
+/* links (토큰 기반, 라이트/다크 자연스럽게) */
+.toastui-editor-contents a,
+.tui-editor-contents a {
+    color: color-mix(in srgb, var(--color-accent) 85%, var(--color-text-main));
+    text-decoration: none !important;
+    font-weight: 600;
+}
+.toastui-editor-contents a:hover,
+.tui-editor-contents a:hover {
+    color: color-mix(in srgb, var(--color-accent) 92%, var(--color-text-main));
+}
+
+/* table header: 토큰 기반 */
+.toastui-editor-contents th,
+.tui-editor-contents th {
+    background-color: color-mix(in srgb, var(--color-border-subtle) 55%, transparent);
+    color: var(--color-text-main);
+    font-weight: 600;
+}
+
+/* ===========================
+   Mobile tweaks
+   =========================== */
+
+@media (max-width: 640px) {
+    .wiki-doc-main-card {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box;
+    }
+
+    .wiki-doc-main-card > div {
+        max-width: 100% !important;
+        box-sizing: border-box;
+    }
+
+    .toastui-editor-defaultUI {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        box-sizing: border-box;
+    }
+
+    .toastui-editor-defaultUI .toastui-editor-main,
+    .toastui-editor-defaultUI .toastui-editor-ww-container,
+    .toastui-editor-contents,
+    .tui-editor-contents {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box;
+    }
+
+    .toastui-editor-defaultUI-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        row-gap: 4px;
+    }
+
+    .toastui-editor-defaultUI-toolbar .toastui-editor-toolbar-group {
+        flex-wrap: wrap;
+    }
+}
+
+/* ===========================
+   Toast UI: 본문 텍스트만 가독성 보정
+   (heading 제외)
+   =========================== */
+
+/* EDIT MODE (ProseMirror) */
+.toastui-editor-defaultUI .ProseMirror p,
+.toastui-editor-defaultUI .ProseMirror li,
+.toastui-editor-defaultUI .ProseMirror blockquote,
+.toastui-editor-defaultUI .ProseMirror td,
+.toastui-editor-defaultUI .ProseMirror th {
+    color: var(--color-text-main) !important;
+}
+
+/* VIEW MODE */
+.tui-viewer-wrapper .toastui-editor-contents p,
+.tui-viewer-wrapper .toastui-editor-contents li,
+.tui-viewer-wrapper .toastui-editor-contents blockquote,
+.tui-viewer-wrapper .toastui-editor-contents td,
+.tui-viewer-wrapper .toastui-editor-contents th {
+    color: var(--color-text-main) !important;
+}

@@ -110,7 +110,6 @@ function markdownToLines(md = '', title = '') {
         let bold = false;
         let italic = false;
         let underline = false;
-        let strike = false;
         let color = null;
 
         // ── span 색상 추출
@@ -386,7 +385,7 @@ function addHeadingNumbers(lines = []) {
 
 // 🔹 엑셀 시트명 유니크하게 만들기 (31자 제한 + 중복 방지)
 function makeUniqueSheetName(baseName, usedNames) {
-    let name = (baseName || 'Sheet').replace(/[\\/?*\[\]:]/g, ' ');
+    let name = (baseName || 'Sheet').replace(/[[\]\\/?*:]/g, ' ');
     name = name.slice(0, 31).trim() || 'Sheet';
 
     if (!usedNames.has(name)) {
@@ -459,7 +458,7 @@ export async function downloadMyDocumentsExcel(userId) {
     summary.getColumn(2).width = 15; // 문서 수
 
     // 🔹 헤더 행: "항목/값" 제거하고 바로 "백업일시 / 문서 수"를 헤더로 사용
-    const summaryHeaderRow = summary.addRow(['백업일시', '문서 수']);
+    summary.addRow(['백업일시', '문서 수']);
     applyHeaderStyle(summary.getCell(1, 1));
     applyHeaderStyle(summary.getCell(1, 2));
 
@@ -555,7 +554,7 @@ export async function downloadMyDocumentsExcel(userId) {
 
             // 3) "내용" 라벨 행 (A~D 병합 + 헤더 스타일)
             const labelRowIndex = currentRow + 1;
-            const labelRow = ws.addRow(['내용', null, null, null]);
+            ws.addRow(['내용', null, null, null]);
             currentRow += 1;
             ws.mergeCells(labelRowIndex, 1, labelRowIndex, 4);
             const labelCell = ws.getCell(labelRowIndex, 1);

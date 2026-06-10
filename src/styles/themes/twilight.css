@@ -1,0 +1,151 @@
+/* src/styles/themes/twilight.css */
+/* ---------- twilight theme ----------
+   - midnight 기반 + 보라/코발트/딥핑크 포인트 (네온 과하지 않게)
+   - 배경은 더 "블루-퍼플" 쪽으로 이동
+--------------------------------- */
+
+:root[data-theme="twilight"], .app-shell[data-theme="twilight"] {
+    /* Base */
+    --color-bg-app: #050617;                 /* deep indigo */
+    --color-bg-header: rgba(13, 13, 34, 0.92);
+    --color-surface: #0b0c24;
+    --color-surface-elevated: #0b0c24;
+
+    /* dusk는 border를 midnight보다 살짝 더 보이게 */
+    --color-border-subtle: rgba(214, 208, 255, 0.22);
+    --color-border-unified: rgba(214, 208, 255, 0.26);
+
+    --color-text-main: rgba(241, 245, 249, 0.96);
+    --color-text-muted: rgba(203, 213, 225, 0.72);
+
+    /* Accent */
+    --color-accent: #a78bfa;                 /* violet-400/500 느낌 */
+    --color-accent-contrast: #0b0c24;
+
+    /* Controls */
+    --color-control-bg: rgba(5, 6, 23, 0.30);
+    --color-control-hover-bg: rgba(241, 245, 249, 0.08);
+    --color-control-fg: rgba(241, 245, 249, 0.92);
+    --color-control-border: rgba(214, 208, 255, 0.18);
+
+    /* Ghost */
+    --color-ghost-fg: rgba(241, 245, 249, 0.80);
+    --color-ghost-hover-bg: rgba(241, 245, 249, 0.08);
+    --color-ghost-active-bg: rgba(167, 139, 250, 0.16);
+    --color-ghost-active-fg: rgba(241, 245, 249, 0.94);
+
+    /* Header tabs */
+    --color-header-pill-bg: rgba(214, 208, 255, 0.10);
+    --color-header-pill-border: rgba(214, 208, 255, 0.16);
+    --color-header-tab-fg: rgba(241, 245, 249, 0.72);
+    --color-header-tab-hover-fg: rgba(241, 245, 249, 0.92);
+    --color-header-tab-active-bg: rgba(167, 139, 250, 0.14);
+    --color-header-tab-active-fg: rgba(241, 245, 249, 0.96);
+    --color-header-tab-active-shadow: 0 1px 2px rgba(0, 0, 0, 0.40);
+
+    --wiki-heading-number-color: rgba(203, 213, 225, 0.80);
+
+    /* Buttons */
+    --color-btn-ring: rgba(167, 139, 250, 0.22);
+
+    --color-btn-primary-bg: rgba(167, 139, 250, 0.20);
+    --color-btn-primary-hover-bg: rgba(59, 130, 246, 0.20); /* 살짝 코발트로 shift */
+    --color-btn-primary-fg: rgba(241, 245, 249, 0.96);
+    --color-btn-primary-border: rgba(167, 139, 250, 0.18);
+
+    --color-btn-ghost-fg: var(--color-ghost-fg);
+    --color-btn-ghost-hover-bg: var(--color-ghost-hover-bg);
+    --color-btn-ghost-active-bg: rgba(59, 130, 246, 0.18);
+    --color-btn-ghost-active-fg: rgba(241, 245, 249, 0.96);
+    --color-btn-ghost-border: rgba(214, 208, 255, 0.22);
+    --color-btn-ghost-hover-border: rgba(214, 208, 255, 0.38);
+
+    /* Page surfaces */
+    --color-page-surface: #0b0c24;
+    --color-page-surface-2: rgba(214, 208, 255, 0.06);
+    --color-page-shadow: 0 12px 34px rgba(0, 0, 0, 0.40);
+
+    /* Overlay */
+    --color-overlay-bg: rgba(5, 6, 23, 0.58);
+
+    /* Success */
+    --color-success-bg: rgba(16, 185, 129, 0.10);
+    --color-success-border: rgba(16, 185, 129, 0.22);
+    --color-success-fg: rgba(167, 243, 208, 0.95);
+    --color-success-hover-bg: rgba(16, 185, 129, 0.16);
+
+    /* Panels */
+    --color-panel-bg: rgba(214, 208, 255, 0.06);
+    --color-panel-border: rgba(214, 208, 255, 0.18);
+
+    /* Calendar day cell */
+    --color-day-bg: rgba(5, 6, 23, 0.35);
+    --color-day-hover-bg: rgba(241, 245, 249, 0.06);
+    --color-day-selected-ring: rgba(167, 139, 250, 0.28);
+
+    /* Modal */
+    --color-modal-backdrop: rgba(0, 0, 0, 0.50);
+    --color-modal-bg: #0b0c24;
+
+    /* Badge OFF */
+    --color-badge-off-bg: rgba(214, 208, 255, 0.12);
+    --color-badge-off-border: rgba(214, 208, 255, 0.22);
+    --color-badge-off-fg: rgba(241, 245, 249, 0.74);
+
+    --color-success: #6ee7b7;
+
+    /* Calendar action badges */
+    --color-badge-viewed-bg: rgba(245, 158, 11, 0.16);
+    --color-badge-viewed-border: rgba(245, 158, 11, 0.26);
+    --color-badge-viewed-fg: rgba(253, 230, 138, 0.92);
+
+    --color-badge-updated-bg: rgba(14, 165, 233, 0.14);
+    --color-badge-updated-border: rgba(14, 165, 233, 0.24);
+    --color-badge-updated-fg: rgba(186, 230, 253, 0.90);
+
+    --color-badge-created-bg: rgba(168, 85, 247, 0.14);
+    --color-badge-created-border: rgba(168, 85, 247, 0.24);
+    --color-badge-created-fg: rgba(233, 213, 255, 0.90);
+
+    --color-dot: rgba(214, 208, 255, 0.34);
+
+    /* Segmented tabs */
+    --color-tabbar-bg: rgba(214, 208, 255, 0.10);
+    --color-tabbar-border: rgba(214, 208, 255, 0.18);
+
+    --color-tab-bg: transparent;
+    --color-tab-fg: rgba(241, 245, 249, 0.82);
+    --color-tab-hover-fg: rgba(241, 245, 249, 0.92);
+
+    --color-tab-active-bg: rgba(167, 139, 250, 0.16);
+    --color-tab-active-fg: rgba(241, 245, 249, 0.96);
+    --color-tab-active-shadow: 0 1px 2px rgba(0, 0, 0, 0.40);
+
+    --color-tree-line: rgba(214, 208, 255, 0.28);
+
+    --color-danger-bg: rgba(248, 113, 113, 0.14);
+    --color-danger-border: rgba(248, 113, 113, 0.28);
+    --color-danger-fg: rgba(254, 202, 202, 0.95);
+    --color-danger-hover-bg: rgba(248, 113, 113, 0.22);
+
+    --color-section-line: rgba(59, 130, 246, 0.45);
+
+    --color-empty-icon-bg: rgba(214, 208, 255, 0.08);
+    --color-empty-title-fg: rgba(241, 245, 249, 0.94);
+    --color-empty-desc-fg: rgba(203, 213, 225, 0.88);
+
+    /* Dialog */
+    --color-dialog-bg: #0b0c24;
+    --color-dialog-title: rgba(241, 245, 249, 0.96);
+    --color-dialog-backdrop: rgba(5, 6, 23, 0.14);
+    --color-dialog-border: rgba(214, 208, 255, 0.32);
+    --color-dialog-ring: rgba(167, 139, 250, 0.18);
+    --color-dialog-msg: rgba(203, 213, 225, 0.92);
+
+    /* Snackbar */
+    --color-snackbar-bg: rgba(13, 13, 34, 0.90);
+    --color-snackbar-fg: rgba(241, 245, 249, 0.96);
+    --color-snackbar-border: rgba(214, 208, 255, 0.18);
+    --color-snackbar-ring: rgba(167, 139, 250, 0.14);
+    --color-snackbar-shadow: 0 22px 60px rgba(0, 0, 0, 0.58);
+}

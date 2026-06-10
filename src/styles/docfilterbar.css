@@ -1,0 +1,71 @@
+/* K) src/styles/docfilterbar.css */
+/* ===========================
+   DocumentFilterBar theme
+   =========================== */
+
+/* 공통(라이트/다크 공용) */
+.doc-filterbar {
+    background-color: var(--color-page-surface);
+    color: var(--color-text-main);
+    border: 1px solid var(--color-border-subtle);
+    box-shadow: var(--color-page-shadow);
+}
+
+/* "정렬" 텍스트 같은 muted */
+.doc-filterbar .df-muted {
+    color: var(--color-text-muted);
+}
+
+/* input/select/label 공통 톤 */
+.doc-filterbar input[type="text"],
+.doc-filterbar select {
+    background-color: color-mix(in srgb, var(--color-page-surface) 70%, transparent);
+    color: var(--color-text-main);
+    border: 1px solid var(--color-border-subtle);
+}
+
+/* focus 링: 네온 무드 유지 */
+.doc-filterbar input[type="text"]:focus,
+.doc-filterbar select:focus {
+    outline: none;
+    border-color: color-mix(in srgb, var(--color-accent) 60%, var(--color-border-subtle));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent);
+    background-color: var(--color-page-surface);
+}
+
+/* 즐겨찾기 필터 pill(label) */
+.doc-filterbar .df-pill {
+    background-color: var(--color-page-surface-2);
+    border: 1px solid var(--color-border-subtle);
+    color: var(--color-text-muted);
+}
+
+/* 체크박스(기본 OS 모양 유지 + accent-color만 테마별) */
+.doc-filterbar input[type="checkbox"] {
+    accent-color: rgba(255, 255, 255, 0.95); /* 네온 톤 유지 */
+}
+
+.app-shell[data-theme="noon"] .doc-filterbar {
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06) !important; /* 기존보다 y/blur 줄임 */
+}
+
+/* ===== midnight에서만 추가로 네온/대비 보정 ===== */
+.app-shell[data-theme="midnight"] .doc-filterbar {
+    background-color: color-mix(in srgb, var(--color-page-surface) 92%, transparent);
+    border-color: var(--color-border-unified);
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.35);
+}
+
+.app-shell[data-theme="midnight"] .doc-filterbar .df-pill {
+    background-color: color-mix(in srgb, var(--color-accent) 8%, transparent);
+    border-color: color-mix(in srgb, var(--color-accent) 22%, var(--color-border-subtle));
+    color: rgba(229, 231, 235, 0.80);
+}
+
+.app-shell[data-theme="midnight"] .doc-filterbar input[type="checkbox"] {
+    accent-color: rgba(147, 197, 253, 0.95); /* 네온 블루 계열 */
+}
+
+.app-shell[data-theme="midnight"] aside.border-r {
+    border-right-color: var(--color-border-subtle) !important;
+}

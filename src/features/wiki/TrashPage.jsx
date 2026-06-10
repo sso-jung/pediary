@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { useDeletedDocuments } from './hooks/useDeletedDocuments';
 import { useHardDeleteDocument } from './hooks/useHardDeleteDocument';
 import { useRestoreDocument } from './hooks/useRestoreDocument';
-import { useCategories } from './hooks/useCategories';
 import { useSnackbar } from '../../components/ui/SnackbarContext';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import SectionHeader from '../../components/ui/SectionHeader';
@@ -11,7 +10,6 @@ import EmptyState from '../../components/ui/EmptyState';
 
 export default function TrashPage() {
     const { data: deletedDocs, isLoading } = useDeletedDocuments();
-    const { data: categories } = useCategories();
     const hardDeleteMutation = useHardDeleteDocument();
     const restoreMutation = useRestoreDocument();
     const { showSnackbar } = useSnackbar();

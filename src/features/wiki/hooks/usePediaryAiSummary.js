@@ -70,7 +70,11 @@ export function usePediaryAiSummary(rawActivity = [], recentDocsOverride = null)
         .filter((d) => d._count > 0)
         .sort((a, b) => b._count - a._count)
         .slice(0, 5)
-        .map(({ _count, ...rest }) => rest);
+        .map((doc) => {
+          const rest = { ...doc };
+          delete rest._count;
+          return rest;
+        });
 
     return {
       recentActivityPayload,

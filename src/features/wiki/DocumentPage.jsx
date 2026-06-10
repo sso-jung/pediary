@@ -1,5 +1,5 @@
 // src/features/wiki/DocumentPage.jsx
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useParams, useSearchParams, useLocation, Link, useNavigate } from 'react-router-dom';
 import { Viewer } from '@toast-ui/react-editor';
 import 'tui-color-picker/dist/tui-color-picker.css';
@@ -19,7 +19,6 @@ import MarkdownEditor from './MarkdownEditor';
 import { parseInternalLinkInner } from '../../lib/internalLinkFormat';
 import ListIcon from '../../components/icons/ListIcon.jsx'
 import { downloadDocumentExcel } from '../../lib/exportMyDocumentsExcel';
-import { fontWidgetRules } from './wikiFontWidgetRules';
 import { renderFontWidgetsInMarkdown } from './wikiFontRender';
 
 import { useQuery } from '@tanstack/react-query';
@@ -409,6 +408,9 @@ function DocumentHeader({
 }
 
 function SectionSidebar({ headings, isEditing, onClickHeading, numberColor }) {
+    void isEditing;
+    void numberColor;
+
     return (
         <aside
             className="hidden md:block h-full overflow-y-auto rounded-2xl p-2 text-[10px] shadow-soft ui-surface
@@ -521,6 +523,7 @@ export default function DocumentPage() {
     const [searchParams] = useSearchParams();
     const location = useLocation();
     const navigate = useNavigate();
+    const locationHash = location.hash;
     const user = useAuthStore((s) => s.user);
 
     const userId = user?.id;
@@ -666,7 +669,7 @@ export default function DocumentPage() {
 
     // URL 해시 → 해당 섹션으로 스크롤
     useEffect(() => {
-        const { hash } = location;
+        const hash = locationHash;
         if (!hash) return;
         if (isEditing) return;
 
@@ -686,7 +689,7 @@ export default function DocumentPage() {
             top: offset,
             behavior: 'smooth',
         });
-    }, [location.hash, isEditing, markdownWithAnchors]);
+    }, [locationHash, isEditing, markdownWithAnchors]);
 
     // 역링크 훅 사용
     const backlinks = useBacklinks(doc, allDocs);
@@ -697,7 +700,7 @@ export default function DocumentPage() {
 
     const AUTO_LOG_MIN_INTERVAL_MS = 5 * 60 * 1000; // 5분
 
-    const saveDocument = async ({ isAuto = false } = {}) => {
+    const saveDocument = useCallback(async ({ isAuto = false } = {}) => {
       if (!doc) return;
 
       try {
@@ -779,7 +782,16 @@ export default function DocumentPage() {
           showSnackbar('저장에 실패했습니다. 잠시 후 다시 시도해 주세요.');
         }
       }
-    };
+    }, [
+      doc,
+      content,
+      visibility,
+      categoryId,
+      updateMutation,
+      user,
+      showSnackbar,
+      AUTO_LOG_MIN_INTERVAL_MS,
+    ]);
 
     const handleSave = async (e) => {
         e.preventDefault();
@@ -842,7 +854,7 @@ export default function DocumentPage() {
         }, 1000);
 
         return () => clearTimeout(timer);
-    }, [content, visibility, categoryId, isEditing, doc]);
+    }, [content, visibility, categoryId, isEditing, doc, saveDocument]);
 
     if (isLoading || !doc) {
         return (

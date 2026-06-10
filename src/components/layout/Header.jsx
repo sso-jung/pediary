@@ -22,7 +22,7 @@ export default function Header({
 
     const path = location.pathname;
 
-    const logoSrc = theme === 'dark' ? pediaryMarkDark : pediaryMark;
+    const logoSrc = (theme === 'midnight' || theme === 'dusk') ? pediaryMarkDark : pediaryMark;
 
     const isMaterials = path.startsWith('/materials');
 
@@ -125,8 +125,12 @@ export default function Header({
                         onClick={onToggleTheme}
                         className="ui-control h-7 w-7 sm:h-8 sm:w-8 text-[11px] sm:text-[13px]"
                         aria-label="테마 전환"
+                        title={theme}
                     >
-                        {theme === 'dark' ? '🌙' : '☀️'}
+                        {theme === 'noon' && '☀️'}
+                        {theme === 'midnight' && '🌙'}
+                        {theme === 'twilight' && '🌅'}
+                        {theme === 'dusk' && '🌆'}
                     </button>
                 )}
 

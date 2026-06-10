@@ -355,7 +355,6 @@ export default function ActivityCalendar() {
                                     '0',
                                 )}-${String(d).padStart(2, '0')}`;
                                 const items = activityByDate[key] || [];
-                                const summaryItems = items.slice(0, 3);
 
                                 return (
                                     <button

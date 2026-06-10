@@ -1,0 +1,142 @@
+/* D) src/styles/themes/noon.css */
+/* ---------- noon theme ---------- */
+
+:root[data-theme="noon"], .app-shell[data-theme="noon"] {
+    /* Base */
+    --color-bg-app: #f3f4f8;
+    --color-bg-header: rgba(255, 255, 255, 0.9);
+    --color-surface: #ffffff;
+    --color-surface-elevated: #ffffff;
+    --color-border-subtle: rgba(220, 225, 234, 0.35);
+
+    --color-text-main: #0f172a;
+    --color-text-muted: #6b7280;
+
+    /* Accent */
+    --color-accent: #668de1;
+    --color-accent-contrast: #ffffff;
+
+    /* Controls */
+    --color-control-bg: rgba(255, 255, 255, 0.70);
+    --color-control-hover-bg: rgba(15, 23, 42, 0.06);
+    --color-control-fg: #475569;
+    --color-control-border: rgba(148, 163, 184, 0.35);
+
+    /* Ghost */
+    --color-ghost-fg: #475569;
+    --color-ghost-hover-bg: rgba(15, 23, 42, 0.06);
+    --color-ghost-active-bg: rgba(37, 99, 235, 0.10);
+    --color-ghost-active-fg: #1d4ed8;
+
+    /* Header tabs */
+    --color-header-pill-bg: rgba(15, 23, 42, 0.04);
+    --color-header-pill-border: rgba(148, 163, 184, 0.28);
+    --color-header-tab-fg: #6b7280;
+    --color-header-tab-hover-fg: #334155;
+    --color-header-tab-active-bg: rgba(255, 255, 255, 0.92);
+    --color-header-tab-active-fg: #0f172a;
+    --color-header-tab-active-shadow: 0 1px 2px rgba(15, 23, 42, 0.10);
+
+    --wiki-heading-number-color: #536ea8;
+
+    /* Buttons */
+    --color-btn-ring: rgba(132, 152, 196, 0.45);
+
+    --color-btn-primary-bg: #8498c4;
+    --color-btn-primary-hover-bg: #687ba6;
+    --color-btn-primary-fg: #ffffff;
+
+    --color-btn-ghost-fg: var(--color-ghost-fg);
+    --color-btn-ghost-hover-bg: var(--color-ghost-hover-bg);
+    --color-btn-ghost-active-bg: var(--color-ghost-active-bg);
+    --color-btn-ghost-active-fg: var(--color-ghost-active-fg);
+    --color-btn-ghost-border: rgba(148, 163, 184, 0.35);
+    --color-btn-ghost-hover-border: rgba(148, 163, 184, 0.50);
+
+    /* Page surfaces */
+    --color-page-surface: #ffffff;
+    --color-page-surface-2: rgba(15, 23, 42, 0.03);
+    --color-page-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+
+    /* Overlay */
+    --color-overlay-bg: rgba(255, 255, 255, 0.72);
+
+    /* Success */
+    --color-success-bg: rgba(16, 185, 129, 0.12);
+    --color-success-border: rgba(16, 185, 129, 0.30);
+    --color-success-fg: #047857;
+    --color-success-hover-bg: rgba(16, 185, 129, 0.18);
+
+    /* Panels */
+    --color-panel-bg: rgba(15, 23, 42, 0.015);
+    --color-panel-border: rgba(148, 163, 184, 0.20);
+
+    /* Calendar day cell */
+    --color-day-bg: #ffffff;
+    --color-day-hover-bg: rgba(15, 23, 42, 0.03);
+    --color-day-selected-ring: rgba(132, 152, 196, 0.55);
+
+    /* Modal */
+    --color-modal-backdrop: rgba(0, 0, 0, 0.30);
+    --color-modal-bg: #ffffff;
+
+    /* Badge OFF */
+    --color-badge-off-bg: rgba(207, 215, 227, 0.12);
+    --color-badge-off-border: rgba(148, 163, 184, 0.22);
+    --color-badge-off-fg: rgba(50, 69, 98, 0.7);
+
+    --color-success: #2F6F7A;
+
+    /* Calendar action badges */
+    --color-badge-viewed-bg: rgba(245, 158, 11, 0.14);
+    --color-badge-viewed-border: rgba(245, 158, 11, 0.28);
+    --color-badge-viewed-fg: rgba(180, 83, 9, 0.98);
+
+    --color-badge-updated-bg: rgba(14, 165, 233, 0.14);
+    --color-badge-updated-border: rgba(14, 165, 233, 0.28);
+    --color-badge-updated-fg: rgba(3, 105, 161, 0.98);
+
+    --color-badge-created-bg: rgba(168, 85, 247, 0.14);
+    --color-badge-created-border: rgba(168, 85, 247, 0.28);
+    --color-badge-created-fg: rgba(107, 33, 168, 0.98);
+
+    --color-dot: rgba(15, 23, 42, 0.22);
+
+    /* Segmented tabs */
+    --color-tabbar-bg: rgba(15, 23, 42, 0.06);
+    --color-tabbar-border: rgba(148, 163, 184, 0.20);
+
+    --color-tab-bg: transparent;
+    --color-tab-fg: rgba(107, 114, 128, 1);
+    --color-tab-hover-fg: rgba(51, 65, 85, 1);
+
+    --color-tab-active-bg: rgba(255, 255, 255, 0.92);
+    --color-tab-active-fg: rgba(15, 23, 42, 1);
+    --color-tab-active-shadow: 0 1px 2px rgba(15, 23, 42, 0.10);
+
+    --color-tree-line: rgba(148, 163, 184, 0.55);
+
+    --color-danger-bg: rgba(248, 113, 113, 0.10);
+    --color-danger-border: rgba(248, 113, 113, 0.30);
+    --color-danger-fg: rgba(185, 28, 28, 0.95);
+    --color-danger-hover-bg: rgba(248, 113, 113, 0.16);
+
+    --color-section-line: rgba(132, 152, 196, 0.55);
+
+    --color-empty-icon-bg: rgba(15, 23, 42, 0.03);
+    --color-empty-title-fg: rgba(15, 23, 42, 0.92);
+    --color-empty-desc-fg: rgba(100, 116, 139, 0.78);
+
+    /* Dialog */
+    --color-dialog-backdrop: rgba(0, 0, 0, 0.30);
+    --color-dialog-bg: var(--color-modal-bg);
+    --color-dialog-border: var(--color-border-subtle);
+    --color-dialog-title: rgba(15, 23, 42, 0.92);
+    --color-dialog-msg: rgba(71, 85, 105, 0.95);
+
+    --color-snackbar-bg: rgba(255, 255, 255, 0.96);
+    --color-snackbar-fg: rgba(15, 23, 42, 0.95);
+    --color-snackbar-border: rgba(148, 163, 184, 0.32);
+    --color-snackbar-ring: rgba(102, 141, 225, 0.25); /* accent 기반 */
+    --color-snackbar-shadow: 0 14px 34px rgba(15, 23, 42, 0.18);
+}

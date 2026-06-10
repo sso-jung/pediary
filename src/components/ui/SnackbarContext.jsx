@@ -23,6 +23,7 @@ export function SnackbarProvider({ children }) {
     );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSnackbar() {
     const ctx = useContext(SnackbarContext);
     if (!ctx) {

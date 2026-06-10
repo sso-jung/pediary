@@ -1,0 +1,73 @@
+/* B) src/styles/base.css */
+/* ===========================
+   Base
+   =========================== */
+
+html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+html,
+body,
+#root {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    overflow: hidden; /* ✅ 브라우저 전체 스크롤 막기 */
+    background-color: var(--color-bg-app);
+    color: var(--color-text-main);
+
+    font-family: "Pretendard Variable", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+    font-weight: 500;
+}
+
+/* Pediary 헤더 전용 폰트 (필요 시만 사용) */
+.pediary-heading {
+    font-family: "Pretendard Variable", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+}
+
+/* ===========================
+   Animations
+   =========================== */
+
+@keyframes fade-in-down {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -20px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
+
+.animate-fade-in-down {
+    animation: fade-in-down 0.25s ease-out;
+}
+
+/* ===========================
+   Wiki Utilities
+   =========================== */
+
+.wiki-align-left,
+.wiki-align-center,
+.wiki-align-right,
+.wiki-align-justify {
+    white-space: pre-line;
+}
+
+.wiki-align-left { text-align: left; }
+.wiki-align-center { text-align: center; }
+.wiki-align-right { text-align: right; }
+.wiki-align-justify { text-align: justify; }
+
+/* 위키 부분 폰트 크기 – 위치 상관없이 강제로 적용 */
+.wiki-font-sm { font-size: 12px !important; }
+.wiki-font-md { font-size: 14px !important; }
+.wiki-font-lg { font-size: 18px !important; }
