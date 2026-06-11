@@ -131,22 +131,38 @@ function fontSizeSyntaxPlugin(context) {
 function paragraphAlignSyntaxPlugin() {
     return {
         wysiwygCommands: {
-            paragraphAlign({ align }, { tr, selection, doc }, dispatch) {
-                if (!['left', 'center', 'right', 'justify'].includes(align)) return false;
+            paragraphAlign({ align }, { tr, selection, doc, schema }, dispatch) {
+                if (!['left', 'center', 'right', 'justify'].includes(align)) {
+                    return false;
+                }
+
+                const spanMark = schema.marks.span;
+                if (!spanMark) return false;
 
                 const targets = new Map();
+
                 const addTarget = (pos, node) => {
-                    if (!node || !['paragraph', 'heading'].includes(node.type.name)) return;
+                    if (!node) return;
+
+                    // 기존 코드처럼 문단/헤딩 대상으로 처리
+                    if (!['paragraph', 'heading'].includes(node.type.name)) return;
+
+                    // 내용 없는 블록은 제외
+                    if (!node.content?.size) return;
+
                     targets.set(pos, node);
                 };
 
+                // 드래그 선택된 범위에 포함된 paragraph/heading 수집
                 doc.nodesBetween(selection.from, selection.to, (node, pos) => {
                     addTarget(pos, node);
                 });
 
+                // 커서만 있고 선택 영역이 없으면 현재 paragraph/heading 잡기
                 if (targets.size === 0) {
                     for (let depth = selection.$from.depth; depth > 0; depth -= 1) {
                         const node = selection.$from.node(depth);
+
                         if (['paragraph', 'heading'].includes(node.type.name)) {
                             addTarget(selection.$from.before(depth), node);
                             break;
@@ -157,14 +173,16 @@ function paragraphAlignSyntaxPlugin() {
                 if (targets.size === 0) return false;
 
                 targets.forEach((node, pos) => {
-                    const htmlAttrs = {
-                        ...(node.attrs.htmlAttrs || {}),
-                        style: mergeTextAlignStyle(node.attrs.htmlAttrs?.style || '', align),
-                    };
-                    tr.setNodeMarkup(pos, undefined, {
-                        ...node.attrs,
-                        htmlAttrs,
+                    const from = pos + 1;
+                    const to = pos + node.content.size;
+
+                    const mark = spanMark.create({
+                        htmlAttrs: {
+                            class: `wiki-align-${align}`,
+                        },
                     });
+
+                    tr.addMark(from, to, mark);
                 });
 
                 dispatch(tr);
@@ -844,56 +862,19 @@ export default function MarkdownEditor({
     const applyParagraphAlign = useCallback((align) => {
         const instance = editorRef.current?.getInstance();
         if (!instance) return;
+        if (!['left', 'center', 'right', 'justify'].includes(align)) return;
 
         instance.exec('paragraphAlign', { align });
 
         requestAnimationFrame(() => {
-            const markdown = normalizeFontSizeTokensToSpans(instance.getMarkdown?.() || '');
-            onChange(markdown);
+            const nextMarkdown = normalizeFontSizeTokensToSpans(
+                instance.getMarkdown?.() || ''
+            );
+
+            console.log('정렬 저장 markdown:', nextMarkdown);
+            onChange(nextMarkdown);
         });
     }, [onChange]);
-
-    // const unwrapAlignBlock = (line = '') => {
-    //     return line
-    //         .replace(/^<div class="wiki-align-(left|center|right|justify)">$/i, '')
-    //         .replace(/^<div class='wiki-align-(left|center|right|justify)'>$/i, '')
-    //         .replace(/^<\/div>$/i, '');
-    // };
-    //
-    // const applyParagraphAlign = useCallback((align) => {
-    //     const instance = editorRef.current?.getInstance();
-    //     if (!instance) return;
-    //     if (!['left', 'center', 'right', 'justify'].includes(align)) return;
-    //
-    //     const selectedText = instance.getSelectedText?.() || '';
-    //
-    //     if (!selectedText.trim()) {
-    //         instance.exec('paragraphAlign', { align });
-    //
-    //         requestAnimationFrame(() => {
-    //             const nextMarkdown = normalizeFontSizeTokensToSpans(instance.getMarkdown?.() || '');
-    //             onChange(nextMarkdown);
-    //         });
-    //         return;
-    //     }
-    //
-    //     const cleanSelected = selectedText
-    //         .split('\n')
-    //         .map((line) => unwrapAlignBlock(line))
-    //         .join('\n');
-    //
-    //     const alignedBlock = `<div class="wiki-align-${align}">\n${cleanSelected}\n</div>`;
-    //
-    //     instance.replaceSelection(alignedBlock);
-    //
-    //     requestAnimationFrame(() => {
-    //         instance.exec('paragraphAlign', { align });
-    //
-    //         const nextMarkdown = normalizeFontSizeTokensToSpans(instance.getMarkdown?.() || '');
-    //         console.log('정렬 저장 markdown:', nextMarkdown);
-    //         onChange(nextMarkdown);
-    //     });
-    // }, [onChange]);
 
     const openFontPicker = useCallback(() => {
         const pickerWidth = 220; // 대략

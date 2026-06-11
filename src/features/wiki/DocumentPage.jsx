@@ -775,6 +775,7 @@ export default function DocumentPage() {
 
     // 🔹 보기 모드용 폰트 위젯 렌더링 (widget 토큰 제거 + span으로 변환)
     const renderedForView = renderFontWidgetsInMarkdown(parsedMarkdown);
+
     const { markdownWithAnchors, headings } = buildSectionTree(renderedForView);
 
 // 사이드바 섹션 클릭 시 스크롤

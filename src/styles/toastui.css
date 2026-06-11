@@ -33,23 +33,110 @@
     font-weight: 600;
 }
 
+/* ===========================
+   Wiki Align
+   - 정렬 class는 span에 저장됨
+   - span 자체는 inline 유지
+   - 실제 정렬은 부모 p/h 태그에 적용
+   =========================== */
+
+/* align span 자체는 절대 block으로 만들면 안 됨 */
 .toastui-editor-contents .wiki-align-left,
-.ProseMirror .wiki-align-left {
+.toastui-editor-contents .wiki-align-center,
+.toastui-editor-contents .wiki-align-right,
+.toastui-editor-contents .wiki-align-justify,
+.toastui-editor-defaultUI .ProseMirror .wiki-align-left,
+.toastui-editor-defaultUI .ProseMirror .wiki-align-center,
+.toastui-editor-defaultUI .ProseMirror .wiki-align-right,
+.toastui-editor-defaultUI .ProseMirror .wiki-align-justify,
+.ProseMirror .wiki-align-left,
+.ProseMirror .wiki-align-center,
+.ProseMirror .wiki-align-right,
+.ProseMirror .wiki-align-justify {
+    display: inline !important;
+    width: auto !important;
+    text-align: inherit !important;
+}
+
+/* VIEW MODE */
+.toastui-editor-contents p:has(.wiki-align-left),
+.toastui-editor-contents h1:has(.wiki-align-left),
+.toastui-editor-contents h2:has(.wiki-align-left),
+.toastui-editor-contents h3:has(.wiki-align-left),
+.toastui-editor-contents h4:has(.wiki-align-left),
+.toastui-editor-contents h5:has(.wiki-align-left),
+.toastui-editor-contents h6:has(.wiki-align-left) {
     text-align: left !important;
 }
 
-.toastui-editor-contents .wiki-align-center,
-.ProseMirror .wiki-align-center {
+.toastui-editor-contents p:has(.wiki-align-center),
+.toastui-editor-contents h1:has(.wiki-align-center),
+.toastui-editor-contents h2:has(.wiki-align-center),
+.toastui-editor-contents h3:has(.wiki-align-center),
+.toastui-editor-contents h4:has(.wiki-align-center),
+.toastui-editor-contents h5:has(.wiki-align-center),
+.toastui-editor-contents h6:has(.wiki-align-center) {
     text-align: center !important;
 }
 
-.toastui-editor-contents .wiki-align-right,
-.ProseMirror .wiki-align-right {
+.toastui-editor-contents p:has(.wiki-align-right),
+.toastui-editor-contents h1:has(.wiki-align-right),
+.toastui-editor-contents h2:has(.wiki-align-right),
+.toastui-editor-contents h3:has(.wiki-align-right),
+.toastui-editor-contents h4:has(.wiki-align-right),
+.toastui-editor-contents h5:has(.wiki-align-right),
+.toastui-editor-contents h6:has(.wiki-align-right) {
     text-align: right !important;
 }
 
-.toastui-editor-contents .wiki-align-justify,
-.ProseMirror .wiki-align-justify {
+.toastui-editor-contents p:has(.wiki-align-justify),
+.toastui-editor-contents h1:has(.wiki-align-justify),
+.toastui-editor-contents h2:has(.wiki-align-justify),
+.toastui-editor-contents h3:has(.wiki-align-justify),
+.toastui-editor-contents h4:has(.wiki-align-justify),
+.toastui-editor-contents h5:has(.wiki-align-justify),
+.toastui-editor-contents h6:has(.wiki-align-justify) {
+    text-align: justify !important;
+}
+
+/* EDIT MODE */
+.toastui-editor-defaultUI .ProseMirror p:has(.wiki-align-left),
+.toastui-editor-defaultUI .ProseMirror h1:has(.wiki-align-left),
+.toastui-editor-defaultUI .ProseMirror h2:has(.wiki-align-left),
+.toastui-editor-defaultUI .ProseMirror h3:has(.wiki-align-left),
+.toastui-editor-defaultUI .ProseMirror h4:has(.wiki-align-left),
+.toastui-editor-defaultUI .ProseMirror h5:has(.wiki-align-left),
+.toastui-editor-defaultUI .ProseMirror h6:has(.wiki-align-left) {
+    text-align: left !important;
+}
+
+.toastui-editor-defaultUI .ProseMirror p:has(.wiki-align-center),
+.toastui-editor-defaultUI .ProseMirror h1:has(.wiki-align-center),
+.toastui-editor-defaultUI .ProseMirror h2:has(.wiki-align-center),
+.toastui-editor-defaultUI .ProseMirror h3:has(.wiki-align-center),
+.toastui-editor-defaultUI .ProseMirror h4:has(.wiki-align-center),
+.toastui-editor-defaultUI .ProseMirror h5:has(.wiki-align-center),
+.toastui-editor-defaultUI .ProseMirror h6:has(.wiki-align-center) {
+    text-align: center !important;
+}
+
+.toastui-editor-defaultUI .ProseMirror p:has(.wiki-align-right),
+.toastui-editor-defaultUI .ProseMirror h1:has(.wiki-align-right),
+.toastui-editor-defaultUI .ProseMirror h2:has(.wiki-align-right),
+.toastui-editor-defaultUI .ProseMirror h3:has(.wiki-align-right),
+.toastui-editor-defaultUI .ProseMirror h4:has(.wiki-align-right),
+.toastui-editor-defaultUI .ProseMirror h5:has(.wiki-align-right),
+.toastui-editor-defaultUI .ProseMirror h6:has(.wiki-align-right) {
+    text-align: right !important;
+}
+
+.toastui-editor-defaultUI .ProseMirror p:has(.wiki-align-justify),
+.toastui-editor-defaultUI .ProseMirror h1:has(.wiki-align-justify),
+.toastui-editor-defaultUI .ProseMirror h2:has(.wiki-align-justify),
+.toastui-editor-defaultUI .ProseMirror h3:has(.wiki-align-justify),
+.toastui-editor-defaultUI .ProseMirror h4:has(.wiki-align-justify),
+.toastui-editor-defaultUI .ProseMirror h5:has(.wiki-align-justify),
+.toastui-editor-defaultUI .ProseMirror h6:has(.wiki-align-justify) {
     text-align: justify !important;
 }
 
