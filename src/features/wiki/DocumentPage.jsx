@@ -37,6 +37,20 @@ function stripHeadingText(rawText = '') {
     return s.trim();
 }
 
+function startsWithPlainText(markdown = '') {
+    const firstLine = markdown
+        .split('\n')
+        .map((line) => line.trim())
+        .find((line) => line.length > 0);
+
+    if (!firstLine) return false;
+
+    // heading으로 시작하면 false
+    if (/^#{1,6}\s+/.test(firstLine)) return false;
+
+    return true;
+}
+
 // 🔹 마크다운에서 heading 찾아서 번호 + 앵커(id) 붙이는 함수
 function buildSectionTree(markdown) {
     if (!markdown) {
@@ -776,6 +790,8 @@ export default function DocumentPage() {
     // 🔹 보기 모드용 폰트 위젯 렌더링 (widget 토큰 제거 + span으로 변환)
     const renderedForView = renderFontWidgetsInMarkdown(parsedMarkdown);
 
+    const viewStartsWithPlainText = startsWithPlainText(renderedForView);
+
     const { markdownWithAnchors, headings } = buildSectionTree(renderedForView);
 
 // 사이드바 섹션 클릭 시 스크롤
@@ -1110,7 +1126,10 @@ export default function DocumentPage() {
                     ) : (
                         <div
                             ref={viewerContainerRef}
-                            className="wiki-doc-viewer-shell tui-viewer-wrapper h-full overflow-y-auto p-2 lg:p-2"
+                            className={
+                                'wiki-doc-viewer-shell tui-viewer-wrapper h-full overflow-y-auto p-2 lg:p-2 ' +
+                                (viewStartsWithPlainText ? 'wiki-view-starts-plain' : '')
+                            }
                             style={
                                 sectionColor
                                     ? {['--wiki-heading-number-color']: sectionColor}

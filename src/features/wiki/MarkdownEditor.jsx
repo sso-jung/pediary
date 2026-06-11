@@ -81,14 +81,75 @@ function fontSizeValueToPx(sizePt) {
     return Number(sizePt) || 14;
 }
 
-function mergeTextAlignStyle(style = '', align) {
+function lineHeightValueToCode(value) {
+    return Math.round(Number(value) * 100);
+}
+
+function lineHeightCodeToValue(code) {
+    return Number(code) / 100;
+}
+
+function mergeClassName(existing = '', next = '') {
+    const set = new Set(
+        `${existing} ${next}`
+            .split(/\s+/)
+            .map((v) => v.trim())
+            .filter(Boolean)
+    );
+
+    return Array.from(set).join(' ');
+}
+
+function mergeStyleProperty(style = '', prop, value) {
     const cleaned = style
         .split(';')
         .map((part) => part.trim())
-        .filter((part) => part && !/^text-align\s*:/i.test(part));
+        .filter((part) => part && !new RegExp(`^${prop}\\s*:`, 'i').test(part));
 
-    cleaned.push(`text-align: ${align}`);
+    cleaned.push(`${prop}: ${value}`);
     return cleaned.join('; ');
+}
+
+function getSpanHtmlAttrs(node, spanMarkType) {
+    const spanMark = node.marks?.find((mark) => mark.type === spanMarkType);
+    return spanMark?.attrs?.htmlAttrs || {};
+}
+
+function applyMergedSpanMarkToTextRange({
+                                            tr,
+                                            doc,
+                                            schema,
+                                            from,
+                                            to,
+                                            mergeHtmlAttrs,
+                                        }) {
+    const spanMarkType = schema.marks.span;
+    if (!spanMarkType) return false;
+
+    let applied = false;
+
+    doc.nodesBetween(from, to, (node, pos) => {
+        if (!node.isText) return;
+
+        const start = Math.max(from, pos);
+        const end = Math.min(to, pos + node.nodeSize);
+        if (start >= end) return;
+
+        const oldAttrs = getSpanHtmlAttrs(node, spanMarkType);
+
+        const nextHtmlAttrs = mergeHtmlAttrs(oldAttrs);
+
+        const nextMark = spanMarkType.create({
+            htmlAttrs: nextHtmlAttrs,
+        });
+
+        tr.removeMark(start, end, spanMarkType);
+        tr.addMark(start, end, nextMark);
+
+        applied = true;
+    });
+
+    return applied;
 }
 
 function fontSizeSyntaxPlugin(context) {
@@ -114,13 +175,21 @@ function fontSizeSyntaxPlugin(context) {
                 const { from, to } = selection;
                 if (from === to) return false;
 
-                const mark = schema.marks.span.create({
-                    htmlAttrs: {
-                        class: 'wiki-font-custom',
-                        style: `font-size:${sizePx}px`,
-                    },
+                const applied = applyMergedSpanMarkToTextRange({
+                    tr,
+                    doc: tr.doc,
+                    schema,
+                    from,
+                    to,
+                    mergeHtmlAttrs: (oldAttrs) => ({
+                        ...oldAttrs,
+                        class: mergeClassName(oldAttrs.class || '', 'wiki-font-custom'),
+                        style: mergeStyleProperty(oldAttrs.style || '', 'font-size', `${sizePx}px`),
+                    }),
                 });
-                tr.addMark(from, to, mark);
+
+                if (!applied) return false;
+
                 dispatch(tr);
                 return true;
             },
@@ -176,13 +245,20 @@ function paragraphAlignSyntaxPlugin() {
                     const from = pos + 1;
                     const to = pos + node.content.size;
 
-                    const mark = spanMark.create({
-                        htmlAttrs: {
-                            class: `wiki-align-${align}`,
-                        },
+                    applyMergedSpanMarkToTextRange({
+                        tr,
+                        doc,
+                        schema,
+                        from,
+                        to,
+                        mergeHtmlAttrs: (oldAttrs) => ({
+                            ...oldAttrs,
+                            class: mergeClassName(
+                                (oldAttrs.class || '').replace(/\bwiki-align-(left|center|right|justify)\b/g, ''),
+                                `wiki-align-${align}`
+                            ),
+                        }),
                     });
-
-                    tr.addMark(from, to, mark);
                 });
 
                 dispatch(tr);
@@ -733,12 +809,26 @@ export default function MarkdownEditor({
 
         let selected = instance.getSelectedText?.() || '';
         if (selected) {
+            const selection = instance.getSelection?.();
+
             instance.exec('fontSize', { sizePx });
 
             requestAnimationFrame(() => {
+                // 선택 영역이 애매하게 남는 것 방지
+                if (
+                    Array.isArray(selection) &&
+                    typeof selection[1] === 'number' &&
+                    instance.setSelection
+                ) {
+                    instance.setSelection(selection[1], selection[1]);
+                } else {
+                    window.getSelection?.()?.removeAllRanges?.();
+                }
+
                 const nextMarkdown = normalizeFontSizeTokensToSpans(instance.getMarkdown?.() || '');
                 onChange(nextMarkdown);
             });
+
             return;
         }
 
@@ -855,7 +945,11 @@ export default function MarkdownEditor({
     // =========================
     const [isFontPickerOpen, setIsFontPickerOpen] = useState(false);
     const [fontPickerPos, setFontPickerPos] = useState({ top: 0, left: 0 });
+    const [currentFontSize, setCurrentFontSize] = useState(14);
+
     const fontPickerRef = useRef(null);
+    const fontSizeButtonRef = useRef(null);
+    const fontSizeLabelRef = useRef(null);
 
     const fontSizes = [11, 12, 13, 14, 15, 16, 17, 18, 20, 22, 24, 28];
 
@@ -876,36 +970,93 @@ export default function MarkdownEditor({
         });
     }, [onChange]);
 
-    const openFontPicker = useCallback(() => {
-        const pickerWidth = 220; // 대략
-        const pickerHeight = 200;
+    const updateCurrentFontSizeFromSelection = useCallback(() => {
+        const instance = editorRef.current?.getInstance?.();
+        const root = editorRef.current?.getRootElement?.();
+        if (!instance || !root) return;
+
+        const sel = window.getSelection?.();
+        if (!sel || sel.rangeCount === 0) {
+            setCurrentFontSize(14);
+            return;
+        }
+
+        let node = sel.focusNode || sel.anchorNode;
+        if (!node) return;
+
+        if (node.nodeType === Node.TEXT_NODE) {
+            node = node.parentElement;
+        }
+
+        if (!(node instanceof Element)) return;
+        if (!root.contains(node)) return;
+
+        const fontEl = node.closest('[style*="font-size"]');
+        const fontSize = fontEl?.style?.fontSize || '';
+
+        const px = parseFloat(fontSize);
+        setCurrentFontSize(Number.isFinite(px) ? Math.round(px) : 14);
+    }, []);
+
+    const openFontPicker = useCallback((anchorRect) => {
+        const pickerWidth = 68;
+        const pickerHeight = 280;
         const margin = 8;
+
+        const rect =
+            anchorRect ||
+            fontSizeButtonRef.current?.getBoundingClientRect?.();
 
         let top = (window.innerHeight - pickerHeight) / 2;
         let left = (window.innerWidth - pickerWidth) / 2;
 
-        const sel = window.getSelection();
-        if (sel && sel.rangeCount > 0) {
-            const rect = sel.getRangeAt(0).getBoundingClientRect();
-            if (rect && rect.width !== 0 && rect.height !== 0) {
-                top = rect.bottom + 6;
-                left = rect.left;
-            }
+        if (rect) {
+            // 글자크기 버튼의 왼쪽 시작점과 dropdown 왼쪽 시작점 맞춤
+            top = rect.bottom + 4;
+            left = rect.left;
         }
 
-        // 화면 밖으로 나가지 않도록 클램프
         top = Math.min(
             Math.max(margin, top),
             window.innerHeight - pickerHeight - margin
         );
+
         left = Math.min(
             Math.max(margin, left),
             window.innerWidth - pickerWidth - margin
         );
 
+        updateCurrentFontSizeFromSelection();
         setFontPickerPos({ top, left });
-        setIsFontPickerOpen(true);
-    }, []);
+        setIsFontPickerOpen((prev) => !prev);
+    }, [updateCurrentFontSizeFromSelection]);
+
+    useEffect(() => {
+        const root = editorRef.current?.getRootElement?.();
+        if (!root) return;
+
+        const update = () => {
+            requestAnimationFrame(updateCurrentFontSizeFromSelection);
+        };
+
+        document.addEventListener('selectionchange', update);
+        root.addEventListener('keyup', update, true);
+        root.addEventListener('mouseup', update, true);
+        root.addEventListener('click', update, true);
+
+        return () => {
+            document.removeEventListener('selectionchange', update);
+            root.removeEventListener('keyup', update, true);
+            root.removeEventListener('mouseup', update, true);
+            root.removeEventListener('click', update, true);
+        };
+    }, [updateCurrentFontSizeFromSelection]);
+
+    useEffect(() => {
+        if (fontSizeLabelRef.current) {
+            fontSizeLabelRef.current.textContent = `${currentFontSize}`;
+        }
+    }, [currentFontSize]);
 
     // 🔹 Ctrl+Shift+F 또는 Ctrl+Numpad+ → 폰트 크기 선택 팝업 열기
     useEffect(() => {
@@ -962,8 +1113,8 @@ export default function MarkdownEditor({
     }, [isFontPickerOpen]);
 
     useEffect(() => {
-        const handleOpenFontPicker = () => {
-            openFontPicker();
+        const handleOpenFontPicker = (e) => {
+            openFontPicker(e.detail?.rect);
         };
         const handleOpenInternalLink = () => {
             openInternalLinkPalette();
@@ -1082,6 +1233,58 @@ export default function MarkdownEditor({
             });
             return button;
         };
+
+        const makeFontSizeButton = () => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.title = '글자 크기';
+            button.className = 'pediary-toastui-font-size-button';
+
+            const label = document.createElement('span');
+            label.className = 'pediary-toastui-font-size-label';
+            label.textContent = `${currentFontSize}`;
+
+            const unit = document.createElement('span');
+            unit.className = 'pediary-toastui-font-size-unit';
+            unit.textContent = 'px';
+
+            const caret = document.createElement('span');
+            caret.className = 'pediary-toastui-font-size-caret';
+            caret.textContent = '▾';
+
+            button.appendChild(label);
+            button.appendChild(unit);
+            button.appendChild(caret);
+
+            fontSizeButtonRef.current = button;
+            fontSizeLabelRef.current = label;
+
+            button.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+            });
+
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+
+                const rect = button.getBoundingClientRect();
+
+                window.dispatchEvent(new CustomEvent('pediary:open-font-picker', {
+                    detail: {
+                        rect: {
+                            top: rect.top,
+                            right: rect.right,
+                            bottom: rect.bottom,
+                            left: rect.left,
+                            width: rect.width,
+                            height: rect.height,
+                        },
+                    },
+                }));
+            });
+
+            return button;
+        };
+
         const makeAlignButton = (icon, tooltip, align) => {
             const button = document.createElement('button');
             button.type = 'button';
@@ -1109,7 +1312,7 @@ export default function MarkdownEditor({
                 {
                     name: 'fontSize',
                     tooltip: '글자 크기',
-                    el: makeButton(fontSizeIcon, '글자 크기', 'pediary:open-font-picker'),
+                    el: makeFontSizeButton(),
                 },
                 {
                     name: 'internalLink',
@@ -1193,40 +1396,35 @@ export default function MarkdownEditor({
             {isFontPickerOpen && (
                 <div
                     ref={fontPickerRef}
-                    className="fixed z-30 w-44 rounded-xl border border-slate-200 bg-white shadow-lg text-[11px]"
+                    className="fixed z-50 w-[68px] overflow-hidden rounded-md border border-slate-200 bg-white py-1 text-[12px] shadow-lg"
                     style={{
                         top: fontPickerPos.top,
                         left: fontPickerPos.left,
                     }}
                 >
-                    <div className="border-b border-slate-100 px-3 py-2 text-slate-600">
-                        <span className="font-semibold">글자 크기</span>
-                        <span className="ml-1 text-[10px] text-slate-400">
-              Ctrl+Shift+F 또는 키패드 +
-            </span>
-                    </div>
-                    <div className="px-2 py-2 flex flex-wrap gap-1">
-                        {fontSizes.map((size) => (
-                            <button
-                                key={size}
-                                type="button"
-                                className="flex-1 min-w-[40px] rounded-md border border-slate-200 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50"
-                                onClick={() => {
-                                    applyInlineFontSize(size);
-                                    setIsFontPickerOpen(false);
-                                }}
-                            >
-                                {size}pt
-                            </button>
-                        ))}
-                    </div>
-                    <button
-                        type="button"
-                        className="w-full border-t border-slate-100 px-3 py-1.5 text-[10px] text-slate-400 hover:bg-slate-50"
-                        onClick={() => setIsFontPickerOpen(false)}
-                    >
-                        닫기 (Esc)
-                    </button>
+                    {fontSizes.map((size) => (
+                        <button
+                            key={size}
+                            type="button"
+                            className={
+                                'flex w-full items-center justify-between px-2 py-1.5 text-left ui-side-subitem ' +
+                                (currentFontSize === size
+                                    ? 'ui-side-subitem-active font-semibold'
+                                    : '')
+                            }
+                            onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+
+                                applyInlineFontSize(size);
+                                setCurrentFontSize(size);
+                                setIsFontPickerOpen(false);
+                            }}
+                        >
+                            <span>{size}</span>
+                            <span className="text-[10px] text-slate-400">px</span>
+                        </button>
+                    ))}
                 </div>
             )}
 

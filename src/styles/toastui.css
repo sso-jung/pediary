@@ -365,6 +365,59 @@
     margin: 0;
 }
 
+.toastui-editor-defaultUI-toolbar .pediary-toastui-font-size-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    width: 54px;
+    height: 32px;
+    margin: 0;
+    padding: 0 6px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: #555;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    transform: translateY(-2.5px);
+}
+
+.pediary-toastui-font-size-label {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.pediary-toastui-font-size-unit {
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    opacity: 0.65;
+    transform: translateY(1px);
+}
+
+.pediary-toastui-font-size-caret {
+    font-size: 9px;
+    line-height: 1;
+    opacity: 0.65;
+    transform: translateY(-1px);
+}
+
+.toastui-editor-defaultUI-toolbar .pediary-toastui-font-size-button:hover {
+    border-color: color-mix(in srgb, var(--color-border-subtle) 85%, transparent);
+    background-color: color-mix(in srgb, var(--color-page-surface) 86%, var(--color-border-subtle));
+    color: var(--color-text-main);
+}
+
+.pediary-toastui-font-size-unit,
+.pediary-toastui-font-size-caret {
+    font-size: 10px;
+    opacity: 0.65;
+}
+
 /* tables */
 .toastui-editor-contents table,
 .tui-editor-contents table,
@@ -553,4 +606,9 @@
     padding-left: 12px !important;
     padding-right: 12px !important;
     box-sizing: border-box;
+}
+
+/* 읽기모드에서 첫 내용이 일반 텍스트일 때만 살짝 내려줌 */
+.wiki-doc-viewer-shell.wiki-view-starts-plain .toastui-editor-contents > p:first-of-type {
+    margin-top: 20px !important;
 }
