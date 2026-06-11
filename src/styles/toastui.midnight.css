@@ -153,36 +153,6 @@
     color: var(--color-text-main) !important;
 }
 
-/* ===========================
-   midnight: scrollbar (editor + viewer)
-   =========================== */
-
-/* Firefox */
-.app-shell[data-theme="midnight"] {
-    scrollbar-color: rgba(148,163,184,0.55) rgba(2,6,23,0.20);
-    scrollbar-width: thin;
-}
-
-/* Chrome / Edge / Safari (전역 적용) */
-.app-shell[data-theme="midnight"] *::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-}
-
-.app-shell[data-theme="midnight"] *::-webkit-scrollbar-track {
-    background: rgba(2,6,23,0.20);
-}
-
-.app-shell[data-theme="midnight"] *::-webkit-scrollbar-thumb {
-    background: rgba(148,163,184,0.55);
-    border-radius: 999px;
-    border: 2px solid rgba(2,6,23,0.20);
-}
-
-.app-shell[data-theme="midnight"] *::-webkit-scrollbar-thumb:hover {
-    background: rgba(148,163,184,0.70);
-}
-
 /* =========================================================
    midnight: Toast UI task checkbox = KEEP SHAPE, SWAP SVG COLORS
    ========================================================= */

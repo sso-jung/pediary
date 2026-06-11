@@ -21,14 +21,14 @@ body {
     background-color: var(--color-bg-app);
     color: var(--color-text-main);
 
-    font-family: "Pretendard Variable", system-ui, -apple-system, BlinkMacSystemFont,
+    font-family: "Noto Sans KR", "Pretendard Variable", system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
     font-weight: 500;
 }
 
 /* Pediary 헤더 전용 폰트 (필요 시만 사용) */
 .pediary-heading {
-    font-family: "Pretendard Variable", system-ui, -apple-system, BlinkMacSystemFont,
+    font-family: "Noto Sans KR", "Pretendard Variable", system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
 }
 

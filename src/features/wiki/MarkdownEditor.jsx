@@ -6,13 +6,14 @@ import 'tui-color-picker/dist/tui-color-picker.css';
 import '@toast-ui/editor-plugin-color-syntax/dist/toastui-editor-plugin-color-syntax.css';
 import colorSyntax from '@toast-ui/editor-plugin-color-syntax';
 import { buildInternalLink } from '../../lib/internalLinkFormat';
-import { fontWidgetRules } from './wikiFontWidgetRules';
+import { normalizeFontSizeTokensToSpans } from './wikiFontRender';
 
 function stripHeadingText(rawText = '') {
     let s = rawText;
     s = s.replace(/<[^>]*>/g, '');
     s = s.replace(/\[([^\]]+)\]\((?:[^)]+)\)/g, '$1');
-    s = s.replace(/[*_`~]/g, '');
+    s = s.replace(/\\([\\`*_[\]{}()#+\-.!|~>])/g, '$1');
+    s = s.replace(/[*_`]/g, '');
     s = s.replace(/\s+/g, ' ');
     return s.trim();
 }
@@ -25,8 +26,6 @@ function extractSectionsFromMarkdown(markdown) {
     const counters = [0, 0, 0, 0, 0, 0, 0]; // 1~6 레벨 카운터
     const sections = [];
 
-    let lastHeadingKey = null;
-
     for (const line of lines) {
         const match = line.match(/^(#{1,6})\s+(.*)$/); // "# 제목" ~ "###### 제목"
         if (!match) continue;
@@ -38,13 +37,6 @@ function extractSectionsFromMarkdown(markdown) {
 
         // 1) 내용이 없는 헤딩은 무시
         if (!plainText) continue;
-
-        // 2) 바로 앞 헤딩과 레벨+텍스트가 같으면 중복으로 간주
-        const headingKey = `${level}|${plainText}`;
-        if (headingKey === lastHeadingKey) {
-            continue;
-        }
-        lastHeadingKey = headingKey;
 
         counters[level] += 1;
         for (let i = level + 1; i < counters.length; i++) {
@@ -63,39 +55,122 @@ function extractSectionsFromMarkdown(markdown) {
     return sections;
 }
 
-// 🔹 "열려 있는 [[... 링크 조각" 찾기
-function findOpenInternalLink(markdown) {
-    if (!markdown) return { open: false };
+function findLastTextColor(markdown = '') {
+    const colorRe = /<span\b[^>]*style=["'][^"']*color\s*:\s*([^;"']+)/gi;
+    let match;
+    let color = '';
 
-    // 문서 전체에서 마지막 [[ 위치
-    const idx = markdown.lastIndexOf('[[');
-    if (idx === -1) return { open: false };
-
-    const after = markdown.slice(idx + 2);
-
-    // 🔹 idx 이후에 ]]가 하나라도 나오면 → 이미 닫힌 링크로 보고 자동완성 안 띄움
-    if (after.includes(']]')) {
-        return { open: false };
+    while ((match = colorRe.exec(markdown)) !== null) {
+        color = match[1].trim();
     }
 
-    // 🔹 아직 ]]가 없다면 "열려 있는 [[조각" 이라고 보고,
-    //    공백/줄바꿈 전까지를 검색어로 사용
-    let endIdx = after.length;
-    const newlineIdx = after.search(/[\r\n]/);
-    const spaceIdx = after.search(/\s/);
+    return color;
+}
 
-    if (newlineIdx !== -1 && newlineIdx < endIdx) endIdx = newlineIdx;
-    if (spaceIdx !== -1 && spaceIdx < endIdx) endIdx = spaceIdx;
+function escapeHtmlText(text = '') {
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
 
-    const segment = after.slice(0, endIdx);
-    const tail = after.slice(endIdx);
+function fontSizeValueToPx(sizePt) {
+    if (sizePt === 'sm') return 12;
+    if (sizePt === 'md') return 14;
+    if (sizePt === 'lg') return 18;
+    return Number(sizePt) || 14;
+}
 
+function mergeTextAlignStyle(style = '', align) {
+    const cleaned = style
+        .split(';')
+        .map((part) => part.trim())
+        .filter((part) => part && !/^text-align\s*:/i.test(part));
+
+    cleaned.push(`text-align: ${align}`);
+    return cleaned.join('; ');
+}
+
+function fontSizeSyntaxPlugin(context) {
     return {
-        open: true,
-        index: idx, // [[ 위치
-        query: segment, // 검색어
-        segmentLength: segment.length,
-        tail, // 그 이후 나머지
+        markdownCommands: {
+            fontSize({ sizePx }, { tr, selection, schema }, dispatch) {
+                if (!sizePx) return false;
+
+                const slice = selection.content();
+                const textContent = slice.content.textBetween(0, slice.content.size, '\n');
+                if (!textContent) return false;
+
+                const html = `<span class="wiki-font-custom" style="font-size:${sizePx}px">${escapeHtmlText(textContent)}</span>`;
+                tr.replaceSelectionWith(schema.text(html));
+                dispatch(tr);
+                return true;
+            },
+        },
+        wysiwygCommands: {
+            fontSize({ sizePx }, { tr, selection, schema }, dispatch) {
+                if (!sizePx) return false;
+
+                const { from, to } = selection;
+                if (from === to) return false;
+
+                const mark = schema.marks.span.create({
+                    htmlAttrs: {
+                        class: 'wiki-font-custom',
+                        style: `font-size:${sizePx}px`,
+                    },
+                });
+                tr.addMark(from, to, mark);
+                dispatch(tr);
+                return true;
+            },
+        },
+    };
+}
+
+function paragraphAlignSyntaxPlugin() {
+    return {
+        wysiwygCommands: {
+            paragraphAlign({ align }, { tr, selection, doc }, dispatch) {
+                if (!['left', 'center', 'right', 'justify'].includes(align)) return false;
+
+                const targets = new Map();
+                const addTarget = (pos, node) => {
+                    if (!node || !['paragraph', 'heading'].includes(node.type.name)) return;
+                    targets.set(pos, node);
+                };
+
+                doc.nodesBetween(selection.from, selection.to, (node, pos) => {
+                    addTarget(pos, node);
+                });
+
+                if (targets.size === 0) {
+                    for (let depth = selection.$from.depth; depth > 0; depth -= 1) {
+                        const node = selection.$from.node(depth);
+                        if (['paragraph', 'heading'].includes(node.type.name)) {
+                            addTarget(selection.$from.before(depth), node);
+                            break;
+                        }
+                    }
+                }
+
+                if (targets.size === 0) return false;
+
+                targets.forEach((node, pos) => {
+                    const htmlAttrs = {
+                        ...(node.attrs.htmlAttrs || {}),
+                        style: mergeTextAlignStyle(node.attrs.htmlAttrs?.style || '', align),
+                    };
+                    tr.setNodeMarkup(pos, undefined, {
+                        ...node.attrs,
+                        htmlAttrs,
+                    });
+                });
+
+                dispatch(tr);
+                return true;
+            },
+        },
     };
 }
 
@@ -117,6 +192,10 @@ export default function MarkdownEditor({
 
     // 🔹 팝업 리스트 컨테이너 ref (스크롤 따라가기용)
     const paletteListRef = useRef(null);
+    const linkSearchInputRef = useRef(null);
+    const linkPaletteRef = useRef(null);
+    const linkInsertSelectionRef = useRef(null);
+    const linkBracketRef = useRef({ active: false, timer: null });
 
     // 팝업 열림 상태 ref (keydown에서 최신값 쓰려고)
     const isLinkPaletteOpenRef = useRef(false);
@@ -128,12 +207,15 @@ export default function MarkdownEditor({
     const hasUserEditedRef = useRef(false); // 🔹 사용자 수정 여부 (Ctrl+Z 첫 단계 방지용)
     const initialMarkdownRef = useRef('');  // 🔹 최초 로딩된 마크다운 스냅샷
     const lastAppliedValueRef = useRef(null);
+    const recentTextColorRef = useRef('');
 
     // ✅ 문서가 바뀌면(=docKey 변경) 내부 상태를 리셋
     useEffect(() => {
           hasUserEditedRef.current = false;
           initialMarkdownRef.current = '';
           lastAppliedValueRef.current = null;
+          linkInsertSelectionRef.current = null;
+          linkBracketRef.current = { active: false, timer: null };
     }, [docKey]);
 
     // useEffect(() => {
@@ -154,18 +236,28 @@ export default function MarkdownEditor({
     useEffect(() => {
         const instance = editorRef.current?.getInstance?.();
         if (!instance) return;
-        const next = value ?? '';
+        const next = normalizeFontSizeTokensToSpans(value ?? '');
         const current = instance.getMarkdown?.() ?? '';
         // 사용자가 이미 타이핑 시작했으면 외부 value로 덮지 않음
-        if (hasUserEditedRef.current) return;
+        if (hasUserEditedRef.current) {
+            recentTextColorRef.current = findLastTextColor(current) || recentTextColorRef.current;
+            return;
+        }
         // 같은 값이면 스킵
-        if (current === next) return;
-        if (lastAppliedValueRef.current === next) return;
+        if (current === next) {
+            recentTextColorRef.current = findLastTextColor(next) || recentTextColorRef.current;
+            return;
+        }
+        if (lastAppliedValueRef.current === next) {
+            recentTextColorRef.current = findLastTextColor(next) || recentTextColorRef.current;
+            return;
+        }
         instance.setMarkdown(next);
         lastAppliedValueRef.current = next;
 
         // 초기 undo 기준도 여기서 설정
         initialMarkdownRef.current = next;
+        recentTextColorRef.current = findLastTextColor(next) || recentTextColorRef.current;
     }, [value]);
 
     // 🔹 에디터 명령 실행 헬퍼
@@ -199,27 +291,9 @@ export default function MarkdownEditor({
 
         hasUserEditedRef.current = true; // 사용자 수정 발생
 
-        const markdown = instance.getMarkdown() || '';
+        const markdown = normalizeFontSizeTokensToSpans(instance.getMarkdown() || '');
+        recentTextColorRef.current = findLastTextColor(markdown) || recentTextColorRef.current;
         onChange(markdown);
-
-        const info = findOpenInternalLink(markdown);
-
-        if (!info.open) {
-            // 열려 있는 [[ 조각이 없으면 팝업 닫기
-            if (isLinkPaletteOpenRef.current) {
-                setIsLinkPaletteOpen(false);
-                setLinkQuery('');
-                setHighlightIndex(0);
-            }
-            return;
-        }
-
-        // 열려 있는 [[조각이 있으면 → 팝업 열고 검색어 업데이트
-        if (!isLinkPaletteOpenRef.current) {
-            setIsLinkPaletteOpen(true);
-            setHighlightIndex(0);
-        }
-        setLinkQuery(info.query || '');
     };
 
     // 🔹 링크 후보: 문서 단위 + 섹션 단위 모두 포함
@@ -266,25 +340,86 @@ export default function MarkdownEditor({
             const title = item.docTitle?.toLowerCase() || '';
 
             if (item.type === 'doc') {
-                // 문서 전체 후보: 제목이 검색어로 "시작"하면
-                return title.startsWith(q);
+                // 문서 전체 후보: 제목에 검색어가 포함되면
+                return title.includes(q);
             } else {
-                // 섹션 후보: 섹션 제목 또는 문서 제목이 검색어로 시작하면
+                // 섹션 후보: 섹션 제목 또는 문서 제목에 검색어가 포함되면
                 const heading = item.headingText?.toLowerCase() || '';
-                return heading.startsWith(q) || title.startsWith(q);
+                return heading.includes(q) || title.includes(q);
             }
         });
     }, [linkCandidates, linkQuery]);
 
-    // 🔹 [[ + 검색어 → [[제목]] / [[제목#1.1|고기]] 으로 치환
+    const closeInternalLinkPalette = useCallback(() => {
+        setIsLinkPaletteOpen(false);
+        setLinkQuery('');
+        setHighlightIndex(0);
+        linkInsertSelectionRef.current = null;
+
+        requestAnimationFrame(() => {
+            editorRef.current?.getInstance?.()?.focus?.();
+        });
+    }, []);
+
+    const openInternalLinkPalette = useCallback(() => {
+        const instance = editorRef.current?.getInstance();
+        if (!instance) return;
+
+        linkInsertSelectionRef.current = instance.getSelection?.() || null;
+        setIsLinkPaletteOpen(true);
+        setLinkQuery('');
+        setHighlightIndex(0);
+
+        requestAnimationFrame(() => {
+            linkSearchInputRef.current?.focus();
+        });
+    }, []);
+
+    const deletePreviousBracket = useCallback(() => {
+        const instance = editorRef.current?.getInstance();
+        const selection = instance?.getSelection?.();
+        if (!instance || !selection) return false;
+
+        if (
+            Array.isArray(selection) &&
+            typeof selection[0] === 'number' &&
+            typeof selection[1] === 'number' &&
+            selection[0] === selection[1] &&
+            selection[0] > 0
+        ) {
+            instance.deleteSelection(selection[0] - 1, selection[0]);
+            linkInsertSelectionRef.current = [selection[0] - 1, selection[0] - 1];
+            return true;
+        }
+
+        if (
+            Array.isArray(selection) &&
+            Array.isArray(selection[0]) &&
+            Array.isArray(selection[1])
+        ) {
+            const start = selection[0];
+            const end = selection[1];
+            if (
+                start[0] === end[0] &&
+                start[1] === end[1] &&
+                start[1] > 0
+            ) {
+                const before = [start[0], start[1] - 1];
+                instance.deleteSelection(before, start);
+                linkInsertSelectionRef.current = [before, before];
+                return true;
+            }
+        }
+
+        return false;
+    }, []);
+
+    // 🔹 선택한 문서/섹션을 현재 커서 위치에 삽입
     const applyInternalLink = useCallback((item) => {
         if (!item) return;
 
         const instance = editorRef.current?.getInstance();
         if (!instance) return;
-
-        const markdown = instance.getMarkdown() || '';
-        const info = findOpenInternalLink(markdown);
 
         // 🔹 새 포맷으로 삽입할 문자열 결정
         //   - 문서 전체: [[doc:123|제목]]
@@ -305,68 +440,23 @@ export default function MarkdownEditor({
             });
         }
 
-        let newMarkdown;
-
-        if (!info.open) {
-            // 혹시 못 찾으면 그냥 현재 위치에 삽입
-            instance.insertText(insertion);
-            newMarkdown = instance.getMarkdown() || '';
-        } else {
-            const { index, tail } = info;
-            const before = markdown.slice(0, index); // [[ 이전 전체
-            newMarkdown = before + insertion + tail;
-            instance.setMarkdown(newMarkdown);
+        const selection = linkInsertSelectionRef.current;
+        if (selection && instance.setSelection) {
+            instance.setSelection(selection[0], selection[1]);
         }
 
+        instance.replaceSelection(insertion);
+        const newMarkdown = instance.getMarkdown() || '';
         onChange(newMarkdown);
 
         setIsLinkPaletteOpen(false);
         setLinkQuery('');
         setHighlightIndex(0);
+        linkInsertSelectionRef.current = null;
 
-        // 커서를 삽입된 ]] 뒤로 옮기기
-        const caretIndex = newMarkdown.indexOf(insertion) + insertion.length;
-        if (caretIndex > 1) {
-            const textBeforeCaret = newMarkdown.slice(0, caretIndex);
-            const lines = textBeforeCaret.split('\n');
-            const line = lines.length - 1;
-            const ch = lines[lines.length - 1].length;
-
-            if (instance.setSelection) {
-                instance.setSelection({ line, ch }, { line, ch });
-            }
-            if (instance.focus) {
-                instance.focus();
-            }
-        }
-    }, [onChange]);
-
-    // 🔹 Esc: [[ + 검색어 조각 삭제
-    const cancelInternalLink = useCallback(() => {
-        const instance = editorRef.current?.getInstance();
-        if (!instance) return;
-
-        const markdown = instance.getMarkdown() || '';
-        const info = findOpenInternalLink(markdown);
-        if (!info.open) {
-            // 열려 있는 조각 없으면 그냥 팝업만 닫기
-            setIsLinkPaletteOpen(false);
-            setLinkQuery('');
-            setHighlightIndex(0);
-            return;
-        }
-
-        const { index, tail } = info;
-        const before = markdown.slice(0, index); // [[ 이전
-        // [[ + 검색어 부분 제거하고 tail만 남김
-        const newMarkdown = before + tail;
-
-        instance.setMarkdown(newMarkdown);
-        onChange(newMarkdown);
-
-        setIsLinkPaletteOpen(false);
-        setLinkQuery('');
-        setHighlightIndex(0);
+        requestAnimationFrame(() => {
+            editorRef.current?.getInstance?.()?.focus?.();
+        });
     }, [onChange]);
 
     // 🔹 keydown: 팝업 열려 있는 동안 ↑↓ / Enter / Esc 처리
@@ -380,7 +470,7 @@ export default function MarkdownEditor({
             if (e.key === 'Escape') {
                 e.preventDefault();
                 e.stopPropagation();
-                cancelInternalLink();
+                closeInternalLinkPalette();
                 return;
             }
 
@@ -417,7 +507,75 @@ export default function MarkdownEditor({
 
         window.addEventListener('keydown', handleKey, true);
         return () => window.removeEventListener('keydown', handleKey, true);
-    }, [filteredCandidates, highlightIndex, applyInternalLink, cancelInternalLink]);
+    }, [filteredCandidates, highlightIndex, applyInternalLink, closeInternalLinkPalette]);
+
+    // 🔹 [[ 입력 시 내부 링크 팝업 열기
+    useEffect(() => {
+        const handleLinkTrigger = (e) => {
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            if (isLinkPaletteOpenRef.current) return;
+
+            if (e.key !== '[') {
+                if (e.key.length === 1 && linkBracketRef.current.active) {
+                    const timer = linkBracketRef.current.timer;
+                    if (timer) clearTimeout(timer);
+                    linkBracketRef.current = { active: false, timer: null };
+                }
+                return;
+            }
+
+            const instance = editorRef.current?.getInstance();
+            const root = editorRef.current?.getRootElement?.();
+            const active = document.activeElement;
+            if (!instance || !root || !active || !root.contains(active)) return;
+
+            const bracketState = linkBracketRef.current;
+            if (bracketState.active) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                if (bracketState.timer) {
+                    clearTimeout(bracketState.timer);
+                }
+                linkBracketRef.current = { active: false, timer: null };
+
+                deletePreviousBracket();
+                openInternalLinkPalette();
+                return;
+            }
+
+            if (bracketState.timer) {
+                clearTimeout(bracketState.timer);
+            }
+
+            const timer = window.setTimeout(() => {
+                linkBracketRef.current = { active: false, timer: null };
+            }, 700);
+            linkBracketRef.current = { active: true, timer };
+        };
+
+        window.addEventListener('keydown', handleLinkTrigger, true);
+        return () => {
+            window.removeEventListener('keydown', handleLinkTrigger, true);
+            const timer = linkBracketRef.current?.timer;
+            if (timer) clearTimeout(timer);
+        };
+    }, [deletePreviousBracket, openInternalLinkPalette]);
+
+    // 🔹 내부 링크 팝업 바깥 클릭 시 닫기
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (!isLinkPaletteOpenRef.current) return;
+            const el = linkPaletteRef.current;
+            if (!el) return;
+            if (!el.contains(e.target)) {
+                closeInternalLinkPalette();
+            }
+        };
+
+        window.addEventListener('mousedown', handleClickOutside, true);
+        return () => window.removeEventListener('mousedown', handleClickOutside, true);
+    }, [closeInternalLinkPalette]);
 
     // 🔹 헤딩 단축키 (Alt+1~6 → H1~H6)
     useEffect(() => {
@@ -492,8 +650,14 @@ export default function MarkdownEditor({
 
         // DOM 업데이트가 끝난 뒤에 찾도록 한 틱 미루기
         requestAnimationFrame(() => {
+            const root = editorRef.current?.getRootElement?.();
+            if (!root) return;
+
             // TUI 에디터 내부 렌더 영역
-            const contents = document.querySelector('.toastui-editor-contents');
+            const contents =
+                root.querySelector('.toastui-editor-ww-container .toastui-editor-contents') ||
+                root.querySelector('.toastui-editor-ww-container .ProseMirror') ||
+                root.querySelector('.ProseMirror');
             if (!contents) return;
 
             const targetText = (activeHeading.text || '')
@@ -504,18 +668,35 @@ export default function MarkdownEditor({
             const headingEls = contents.querySelectorAll('h1,h2,h3,h4,h5,h6');
             if (!headingEls.length) return;
 
-            const targetEl = Array.from(headingEls).find((el) => {
+            const sameLevelEls = Array.from(headingEls).filter(
+                (el) => Number(el.tagName.slice(1)) === activeHeading.level,
+            );
+            const sameLevelIndex = Math.max(
+                0,
+                Number(activeHeading.number?.split('.').at(-1) || 1) - 1,
+            );
+
+            const targetEl = sameLevelEls.find((el) => {
                 const text = (el.textContent || '')
                     .replace(/\s+/g, ' ')
                     .trim();
                 return text === targetText;
-            });
+            }) || sameLevelEls[sameLevelIndex];
 
-            if (!targetEl || !targetEl.scrollIntoView) return;
+            if (!targetEl) return;
 
-            targetEl.scrollIntoView({
+            const scrollContainer =
+                targetEl.closest('.toastui-editor-contents') ||
+                targetEl.closest('.ProseMirror');
+            if (!scrollContainer) return;
+
+            const containerRect = scrollContainer.getBoundingClientRect();
+            const targetRect = targetEl.getBoundingClientRect();
+            const offset = targetRect.top - containerRect.top + scrollContainer.scrollTop - 8;
+
+            scrollContainer.scrollTo({
+                top: offset,
                 behavior: 'smooth',
-                block: 'start',
             });
         });
     }, [activeHeading]);
@@ -527,75 +708,22 @@ export default function MarkdownEditor({
         const instance = editorRef.current?.getInstance();
         if (!instance) return;
 
-        const markdown = instance.getMarkdown() || '';
-        const tokenReGlobal = /\{\{(?:fs:)?(sm|md|lg|\d+)\|([\s\S]+?)\}\}/g;
-
+        const markdown = normalizeFontSizeTokensToSpans(instance.getMarkdown() || '');
+        const sizePx = fontSizeValueToPx(sizePt);
         const cursor = instance.getCursor?.();
         const lines = markdown.split('\n');
 
-        // 1) 커서가 기존 토큰 안에 있거나, 같은 라인에 토큰이 있는 경우 → 그 토큰만 크기 변경
-        if (cursor) {
-            let idx = 0;
-            for (let i = 0; i < cursor.line; i += 1) {
-                idx += lines[i].length + 1; // 개행 포함
-            }
-            idx += cursor.ch;
-
-            // 1-1) 커서 위치 기준으로 토큰 찾기
-            let m;
-            while ((m = tokenReGlobal.exec(markdown)) !== null) {
-                const start = m.index;
-                const end = start + m[0].length;
-                if (idx >= start && idx <= end) {
-                    const inner = m[2];
-                    const newToken = `{{fs:${sizePt}|${inner}}}`;
-                    const newMarkdown =
-                        markdown.slice(0, start) + newToken + markdown.slice(end);
-                    instance.setMarkdown(newMarkdown);
-                    onChange(newMarkdown);
-                    return;
-                }
-            }
-
-            // 1-2) 커서가 토큰 안은 아니더라도, 동일한 라인에 토큰이 있으면 그 토큰 변경
-            let lineStart = 0;
-            for (let i = 0; i < cursor.line; i += 1) {
-                lineStart += lines[i].length + 1;
-            }
-            const lineText = lines[cursor.line] ?? '';
-            const tokenReLine = /\{\{(?:fs:)?(sm|md|lg|\d+)\|([\s\S]+?)\}\}/;
-            const lm = tokenReLine.exec(lineText);
-            if (lm) {
-                const tokenStart = lineStart + lm.index;
-                const tokenEnd = tokenStart + lm[0].length;
-                const inner = lm[2];
-                const newToken = `{{fs:${sizePt}|${inner}}}`;
-                const newMarkdown =
-                    markdown.slice(0, tokenStart) + newToken + markdown.slice(tokenEnd);
-                instance.setMarkdown(newMarkdown);
-                onChange(newMarkdown);
-                return;
-            }
-        }
-
-        // 2) 선택된 텍스트가 있는 경우 → 그 텍스트를 토큰으로 감싸기
         let selected = instance.getSelectedText?.() || '';
         if (selected) {
-            // 기존 토큰 제거
-            selected = selected.replace(
-                /\{\{(?:fs:)?(sm|md|lg|\d+)\|([\s\S]+?)\}\}/g,
-                '$2'
-            );
-            // 줄바꿈은 공백으로
-            selected = selected.replace(/\s*\n+\s*/g, ' ').trim();
-            if (selected) {
-                const token = `{{fs:${sizePt}|${selected}}}`;
-                instance.replaceSelection(token);
-            }
+            instance.exec('fontSize', { sizePx });
+
+            requestAnimationFrame(() => {
+                const nextMarkdown = normalizeFontSizeTokensToSpans(instance.getMarkdown?.() || '');
+                onChange(nextMarkdown);
+            });
             return;
         }
 
-        // 3) 선택이 없으면 → 커서 기준 “단어 전체”를 감싸기 (일반 텍스트용)
         if (cursor) {
             let idx = 0;
             for (let i = 0; i < cursor.line; i += 1) {
@@ -621,17 +749,33 @@ export default function MarkdownEditor({
 
             if (end > start) {
                 const word = markdown.slice(start, end);
-                const token = `{{fs:${sizePt}|${word}}}`;
+                const span = `<span class="wiki-font-custom" style="font-size:${sizePx}px">${escapeHtmlText(word)}</span>`;
                 const newMarkdown =
-                    markdown.slice(0, start) + token + markdown.slice(end);
+                    markdown.slice(0, start) + span + markdown.slice(end);
                 instance.setMarkdown(newMarkdown);
                 onChange(newMarkdown);
                 return;
             }
         }
 
-        // 4) 토큰도 없고, 선택된 텍스트도 없고, 단어도 못 찾은 경우 → 아무것도 하지 않음
-        // (예전처럼 {{fs:...|텍스트}} 같은 기본 삽입은 하지 않음)
+        // 선택된 텍스트도 없고, 단어도 못 찾은 경우 → 아무것도 하지 않음
+    }, [onChange]);
+
+    const applyRecentTextColor = useCallback(() => {
+        const instance = editorRef.current?.getInstance();
+        const color = recentTextColorRef.current;
+        if (!instance || !color) return;
+
+        const selected = instance.getSelectedText?.() || '';
+        if (!selected) return;
+
+        instance.exec('color', { selectedColor: color });
+
+        requestAnimationFrame(() => {
+            const markdown = instance.getMarkdown?.() || '';
+            recentTextColorRef.current = findLastTextColor(markdown) || color;
+            onChange(markdown);
+        });
     }, [onChange]);
 
     // 🔹 부분 폰트 크기 변경 커맨드 등록
@@ -662,6 +806,32 @@ export default function MarkdownEditor({
         );
     }, [applyInlineFontSize]);
 
+    // 🔹 Ctrl+Alt+C / Cmd+Alt+C → 최근 글자색을 선택 영역에 다시 적용
+    useEffect(() => {
+        const handleRecentColorShortcut = (e) => {
+            const isMac = navigator.platform.toUpperCase().includes('MAC');
+            const isCtrlOrMeta = isMac ? e.metaKey : e.ctrlKey;
+            const isColorKey = isCtrlOrMeta && e.altKey && (e.key === 'c' || e.key === 'C');
+
+            if (!isColorKey) return;
+
+            const instance = editorRef.current?.getInstance();
+            const root = editorRef.current?.getRootElement?.();
+            if (!instance || !root) return;
+
+            const active = document.activeElement;
+            if (!active || !root.contains(active)) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            applyRecentTextColor();
+        };
+
+        window.addEventListener('keydown', handleRecentColorShortcut, true);
+        return () => window.removeEventListener('keydown', handleRecentColorShortcut, true);
+    }, [applyRecentTextColor]);
+
     // =========================
     // 폰트 팝업 위치/열림 상태
     // =========================
@@ -670,6 +840,91 @@ export default function MarkdownEditor({
     const fontPickerRef = useRef(null);
 
     const fontSizes = [11, 12, 13, 14, 15, 16, 17, 18, 20, 22, 24, 28];
+
+    const applyParagraphAlign = useCallback((align) => {
+        const instance = editorRef.current?.getInstance();
+        if (!instance) return;
+
+        instance.exec('paragraphAlign', { align });
+
+        requestAnimationFrame(() => {
+            const markdown = normalizeFontSizeTokensToSpans(instance.getMarkdown?.() || '');
+            onChange(markdown);
+        });
+    }, [onChange]);
+
+    // const unwrapAlignBlock = (line = '') => {
+    //     return line
+    //         .replace(/^<div class="wiki-align-(left|center|right|justify)">$/i, '')
+    //         .replace(/^<div class='wiki-align-(left|center|right|justify)'>$/i, '')
+    //         .replace(/^<\/div>$/i, '');
+    // };
+    //
+    // const applyParagraphAlign = useCallback((align) => {
+    //     const instance = editorRef.current?.getInstance();
+    //     if (!instance) return;
+    //     if (!['left', 'center', 'right', 'justify'].includes(align)) return;
+    //
+    //     const selectedText = instance.getSelectedText?.() || '';
+    //
+    //     if (!selectedText.trim()) {
+    //         instance.exec('paragraphAlign', { align });
+    //
+    //         requestAnimationFrame(() => {
+    //             const nextMarkdown = normalizeFontSizeTokensToSpans(instance.getMarkdown?.() || '');
+    //             onChange(nextMarkdown);
+    //         });
+    //         return;
+    //     }
+    //
+    //     const cleanSelected = selectedText
+    //         .split('\n')
+    //         .map((line) => unwrapAlignBlock(line))
+    //         .join('\n');
+    //
+    //     const alignedBlock = `<div class="wiki-align-${align}">\n${cleanSelected}\n</div>`;
+    //
+    //     instance.replaceSelection(alignedBlock);
+    //
+    //     requestAnimationFrame(() => {
+    //         instance.exec('paragraphAlign', { align });
+    //
+    //         const nextMarkdown = normalizeFontSizeTokensToSpans(instance.getMarkdown?.() || '');
+    //         console.log('정렬 저장 markdown:', nextMarkdown);
+    //         onChange(nextMarkdown);
+    //     });
+    // }, [onChange]);
+
+    const openFontPicker = useCallback(() => {
+        const pickerWidth = 220; // 대략
+        const pickerHeight = 200;
+        const margin = 8;
+
+        let top = (window.innerHeight - pickerHeight) / 2;
+        let left = (window.innerWidth - pickerWidth) / 2;
+
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0) {
+            const rect = sel.getRangeAt(0).getBoundingClientRect();
+            if (rect && rect.width !== 0 && rect.height !== 0) {
+                top = rect.bottom + 6;
+                left = rect.left;
+            }
+        }
+
+        // 화면 밖으로 나가지 않도록 클램프
+        top = Math.min(
+            Math.max(margin, top),
+            window.innerHeight - pickerHeight - margin
+        );
+        left = Math.min(
+            Math.max(margin, left),
+            window.innerWidth - pickerWidth - margin
+        );
+
+        setFontPickerPos({ top, left });
+        setIsFontPickerOpen(true);
+    }, []);
 
     // 🔹 Ctrl+Shift+F 또는 Ctrl+Numpad+ → 폰트 크기 선택 팝업 열기
     useEffect(() => {
@@ -693,39 +948,12 @@ export default function MarkdownEditor({
             e.preventDefault();
             e.stopPropagation();
 
-            const pickerWidth = 220; // 대략
-            const pickerHeight = 200;
-            const margin = 8;
-
-            let top = window.innerHeight / 2;
-            let left = window.innerWidth / 2;
-
-            const sel = window.getSelection();
-            if (sel && sel.rangeCount > 0) {
-                const rect = sel.getRangeAt(0).getBoundingClientRect();
-                if (rect && rect.width !== 0 && rect.height !== 0) {
-                    top = rect.bottom + 6;
-                    left = rect.left;
-                }
-            }
-
-            // 화면 밖으로 나가지 않도록 클램프
-            top = Math.min(
-                Math.max(margin, top),
-                window.innerHeight - pickerHeight - margin
-            );
-            left = Math.min(
-                Math.max(margin, left),
-                window.innerWidth - pickerWidth - margin
-            );
-
-            setFontPickerPos({ top, left });
-            setIsFontPickerOpen(true);
+            openFontPicker();
         };
 
         window.addEventListener('keydown', handleFontShortcut, true);
         return () => window.removeEventListener('keydown', handleFontShortcut, true);
-    }, []);
+    }, [openFontPicker]);
 
     // 🔹 ESC 로 폰트 팝업 닫기
     useEffect(() => {
@@ -751,6 +979,27 @@ export default function MarkdownEditor({
         window.addEventListener('mousedown', handleClickOutside, true);
         return () => window.removeEventListener('mousedown', handleClickOutside, true);
     }, [isFontPickerOpen]);
+
+    useEffect(() => {
+        const handleOpenFontPicker = () => {
+            openFontPicker();
+        };
+        const handleOpenInternalLink = () => {
+            openInternalLinkPalette();
+        };
+        const handleParagraphAlign = (e) => {
+            applyParagraphAlign(e.detail?.align);
+        };
+
+        window.addEventListener('pediary:open-font-picker', handleOpenFontPicker);
+        window.addEventListener('pediary:open-internal-link', handleOpenInternalLink);
+        window.addEventListener('pediary:paragraph-align', handleParagraphAlign);
+        return () => {
+            window.removeEventListener('pediary:open-font-picker', handleOpenFontPicker);
+            window.removeEventListener('pediary:open-internal-link', handleOpenInternalLink);
+            window.removeEventListener('pediary:paragraph-align', handleParagraphAlign);
+        };
+    }, [openFontPicker, openInternalLinkPalette, applyParagraphAlign]);
 
     // 🔹 아무것도 수정 안 한 상태에서 Ctrl+Z 누르면 전체 삭제되는 것 + 초기 내용보다 더 뒤로 가는 것 방지
     useEffect(() => {
@@ -788,11 +1037,139 @@ export default function MarkdownEditor({
         return () => window.removeEventListener('keydown', handleUndo, true);
     }, []);
 
+    const toolbarItems = useMemo(() => {
+        const fontSizeIcon = `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5.75 19.25L11.75 4.75L17.75 19.25" style="stroke-width: 1.5" />
+                <path d="M7.75 13.75H15.75" style="stroke-width: 1.5" />
+                <path d="M20.5 4.75V9.75" style="stroke-width: 1.6" />
+                <path d="M18 7.25H23" style="stroke-width: 1.6" />
+            </svg>
+        `;
+        const internalLinkIcon = `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M8.75 4.75H6.25C5.45 4.75 4.75 5.45 4.75 6.25V17.75C4.75 18.55 5.45 19.25 6.25 19.25H8.75" style="stroke-width: 1.6" />
+                <path d="M15.25 4.75H17.75C18.55 4.75 19.25 5.45 19.25 6.25V17.75C19.25 18.55 18.55 19.25 17.75 19.25H15.25" style="stroke-width: 1.6" />
+                <path d="M10 12H14" style="stroke-width: 1.6" />
+            </svg>
+        `;
+        const alignLeftIcon = `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 7H19" />
+                <path d="M5 11H15" />
+                <path d="M5 15H19" />
+                <path d="M5 19H13" />
+            </svg>
+        `;
+        const alignCenterIcon = `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 7H19" />
+                <path d="M8 11H16" />
+                <path d="M5 15H19" />
+                <path d="M9 19H15" />
+            </svg>
+        `;
+        const alignRightIcon = `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 7H19" />
+                <path d="M9 11H19" />
+                <path d="M5 15H19" />
+                <path d="M11 19H19" />
+            </svg>
+        `;
+        const alignJustifyIcon = `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 7H19" />
+                <path d="M5 11H19" />
+                <path d="M5 15H19" />
+                <path d="M5 19H19" />
+            </svg>
+        `;
+
+        const makeButton = (icon, tooltip, eventName) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.title = tooltip;
+            button.className = 'pediary-toastui-toolbar-button';
+            button.innerHTML = icon;
+            button.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+            });
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                window.dispatchEvent(new CustomEvent(eventName));
+            });
+            return button;
+        };
+        const makeAlignButton = (icon, tooltip, align) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.title = tooltip;
+            button.className = 'pediary-toastui-toolbar-button';
+            button.innerHTML = icon;
+            button.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+            });
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                window.dispatchEvent(new CustomEvent('pediary:paragraph-align', {
+                    detail: { align },
+                }));
+            });
+            return button;
+        };
+
+        return [
+            [
+                'heading',
+                'bold',
+                'italic',
+                'strike',
+                {
+                    name: 'fontSize',
+                    tooltip: '글자 크기',
+                    el: makeButton(fontSizeIcon, '글자 크기', 'pediary:open-font-picker'),
+                },
+                {
+                    name: 'internalLink',
+                    tooltip: '내부 링크',
+                    el: makeButton(internalLinkIcon, '내부 링크', 'pediary:open-internal-link'),
+                },
+            ],
+            [
+                {
+                    name: 'alignLeft',
+                    tooltip: '왼쪽 정렬',
+                    el: makeAlignButton(alignLeftIcon, '왼쪽 정렬', 'left'),
+                },
+                {
+                    name: 'alignCenter',
+                    tooltip: '가운데 정렬',
+                    el: makeAlignButton(alignCenterIcon, '가운데 정렬', 'center'),
+                },
+                {
+                    name: 'alignRight',
+                    tooltip: '오른쪽 정렬',
+                    el: makeAlignButton(alignRightIcon, '오른쪽 정렬', 'right'),
+                },
+                {
+                    name: 'alignJustify',
+                    tooltip: '양쪽 정렬',
+                    el: makeAlignButton(alignJustifyIcon, '양쪽 정렬', 'justify'),
+                },
+            ],
+            ['ul', 'ol', 'task'],
+            // ['table'],
+            ['link','hr', 'quote'],
+            // ['hr', 'quote', 'code', 'codeblock'],
+        ];
+    }, []);
+
     return (
         <div className={fullHeight ? 'h-full' : ''}>
             <Editor
                 ref={editorRef}
-                initialValue={value || ''}
+                initialValue={normalizeFontSizeTokensToSpans(value || '')}
                 previewStyle="vertical"
                 // 🔹 fullHeight일 땐 부모 div 높이 100% 채우고, 그 안에서 스크롤
                 height={fullHeight ? '100%' : 'auto'}
@@ -801,6 +1178,8 @@ export default function MarkdownEditor({
                 hideModeSwitch={true}
                 useCommandShortcut={true}
                 plugins={[
+                    fontSizeSyntaxPlugin,
+                    paragraphAlignSyntaxPlugin,
                     [
                         colorSyntax,
                         {
@@ -825,14 +1204,7 @@ export default function MarkdownEditor({
                         },
                     ],
                 ]}
-                toolbarItems={[
-                    ['heading', 'bold', 'italic', 'strike'],
-                    ['ul', 'ol', 'task'],
-                    ['table'],
-                    ['link'],
-                    ['hr', 'quote', 'code', 'codeblock'],
-                ]}
-                widgetRules={fontWidgetRules}
+                toolbarItems={toolbarItems}
                 onChange={handleChange}
             />
 
@@ -879,19 +1251,35 @@ export default function MarkdownEditor({
 
             {/* 🔹 내부 링크 자동완성 팝업 */}
             {isLinkPaletteOpen && (
-                <div className="absolute bottom-4 left-1/2 z-20 w-80 -translate-x-1/2 rounded-xl border border-slate-200 bg-white shadow-lg">
+                <div
+                    ref={linkPaletteRef}
+                    className="fixed left-1/2 top-1/2 z-40 w-[22rem] max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-200 bg-white shadow-lg"
+                >
                     <div className="border-b border-slate-100 px-3 py-2 text-[11px] text-slate-500">
-                        <span className="font-semibold">내부 링크 추가</span>
-                        <span className="ml-2 text-[10px] text-slate-400">
-              제목이나 섹션을 타이핑해. ↑↓ / Enter / Esc
-            </span>
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-slate-700">내부 링크 추가</span>
+                            <span className="rounded-full bg-slate-100 px-2 py-[2px] text-[10px] text-slate-500">
+                                [[
+                            </span>
+                        </div>
+                        <p className="mt-1 text-[10px] text-slate-400">
+                            문서명이나 섹션명으로 검색해. ↑↓ / Enter / Esc
+                        </p>
                     </div>
                     <div className="px-3 py-2">
-                        <div className="mb-1 text-[10px] text-slate-400">
-                            검색어:{' '}
-                            <span className="font-mono">
-                {linkQuery || ' '}
-              </span>
+                        <div className="mb-2 flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50 px-2 py-1.5">
+                            <span className="text-[10px] text-slate-400">검색</span>
+                            <input
+                                ref={linkSearchInputRef}
+                                type="text"
+                                value={linkQuery}
+                                onChange={(e) => {
+                                    setLinkQuery(e.target.value);
+                                    setHighlightIndex(0);
+                                }}
+                                className="min-w-0 flex-1 bg-transparent text-[11px] text-slate-700 outline-none placeholder:text-slate-400"
+                                placeholder="문서나 섹션을 입력해"
+                            />
                         </div>
                         {filteredCandidates.length === 0 ? (
                             <div className="rounded-lg bg-slate-50 px-2 py-2 text-[11px] text-slate-400">
@@ -900,7 +1288,7 @@ export default function MarkdownEditor({
                         ) : (
                             <ul
                                 ref={paletteListRef}
-                                className="max-h-52 space-y-1 overflow-y-auto py-1 text-[12px]"
+                                className="max-h-80 overflow-y-auto py-0.5 text-[12px]"
                             >
                                 {filteredCandidates.map((item, idx) => (
                                     <li
@@ -914,7 +1302,7 @@ export default function MarkdownEditor({
                                             applyInternalLink(item);
                                         }}
                                         className={
-                                            'cursor-pointer rounded-lg px-2 py-1 ' +
+                                            'cursor-pointer rounded-md px-2 py-0.5 ' +
                                             (idx === highlightIndex
                                                 ? 'bg-slate-100 text-slate-900'
                                                 : 'text-slate-700 hover:bg-slate-50')
@@ -925,17 +1313,18 @@ export default function MarkdownEditor({
                                                 <div className="truncate font-medium">
                                                     {item.docTitle}
                                                 </div>
-                                                <div className="truncate text-[10px] text-slate-400">
-                                                    /wiki/{item.slug}
-                                                </div>
                                             </>
                                         ) : (
                                             <>
                                                 <div className="truncate font-medium">
-                                                    {item.headingText}
-                                                </div>
-                                                <div className="truncate text-[10px] text-slate-400">
-                                                    {item.docTitle} · {item.sectionNumber}
+                                                    {item.docTitle}
+                                                    <span className="mx-1 text-slate-300">&gt;</span>
+                                                    <span className="text-slate-500">
+                                                        {item.sectionNumber}
+                                                    </span>
+                                                    <span className="ml-1">
+                                                        {item.headingText}
+                                                    </span>
                                                 </div>
                                             </>
                                         )}

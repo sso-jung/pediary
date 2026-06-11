@@ -34,6 +34,7 @@
     /* 패널/서브면도 노을색 과다 방지 */
     --color-panel-bg: rgba(255, 255, 255, 0.28);
     --color-panel-border: rgba(120, 110, 140, 0.14);
+    --color-tree-line: rgba(100, 90, 120, 0.46);
 
     /* 탭바 */
     --color-tabbar-bg: rgba(255, 255, 255, 0.36);

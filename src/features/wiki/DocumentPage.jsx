@@ -19,7 +19,7 @@ import MarkdownEditor from './MarkdownEditor';
 import { parseInternalLinkInner } from '../../lib/internalLinkFormat';
 import ListIcon from '../../components/icons/ListIcon.jsx'
 import { downloadDocumentExcel } from '../../lib/exportMyDocumentsExcel';
-import { renderFontWidgetsInMarkdown } from './wikiFontRender';
+import { normalizeFontSizeTokensToSpans, renderFontWidgetsInMarkdown } from './wikiFontRender';
 
 import { useQuery } from '@tanstack/react-query';
 import { fetchMyProfile } from '../../lib/wikiApi';
@@ -31,7 +31,8 @@ function stripHeadingText(rawText = '') {
     let s = rawText;
     s = s.replace(/<[^>]*>/g, '');
     s = s.replace(/\[([^\]]+)\]\((?:[^)]+)\)/g, '$1');
-    s = s.replace(/[*_`~]/g, '');
+    s = s.replace(/\\([\\`*_[\]{}()#+\-.!|~>])/g, '$1');
+    s = s.replace(/[*_`]/g, '');
     s = s.replace(/\s+/g, ' ');
     return s.trim();
 }
@@ -189,6 +190,8 @@ function useBacklinks(doc, allDocs) {
 
 function DocumentHeader({
                             doc,
+                            title,
+                            setTitle,
                             user,
                             isOwner,
                             canEdit,
@@ -201,17 +204,85 @@ function DocumentHeader({
                             autosaveStatus,
                             updateLoading,
                             onClickTitleArea,
+                            onClickGoList,
                             onClickView,
                             onClickEdit,
-                            onClickGoList,
                             onClickExportExcel,
                             exporting,
                         }) {
-    const handleChangeCategory = (e) => {
-        const value = e.target.value;
-        const newCatId = value === '' ? null : Number(value);
-        setCategoryId(newCatId);
-    };
+    const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+    const categoryMenuRef = useRef(null);
+    const selectedCategoryItemRef = useRef(null);
+
+    const categoryOptions = useMemo(() => {
+        const list = (categories || []).filter((c) => c.user_id === user?.id && !c.deleted_at);
+        const roots = [];
+        const childrenMap = new Map();
+
+        for (const c of list) {
+            if (c.parent_id == null) roots.push(c);
+            else {
+                if (!childrenMap.has(c.parent_id)) childrenMap.set(c.parent_id, []);
+                childrenMap.get(c.parent_id).push(c);
+            }
+        }
+
+        const sortCategories = (a, b) =>
+            (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
+            new Date(a.created_at || 0) - new Date(b.created_at || 0);
+
+        roots.sort(sortCategories);
+        for (const children of childrenMap.values()) {
+            children.sort(sortCategories);
+        }
+
+        const result = [];
+        for (const root of roots) {
+            result.push({ ...root, label: root.name, depth: 0 });
+            for (const child of childrenMap.get(root.id) || []) {
+                result.push({ ...child, label: child.name, depth: 1 });
+            }
+        }
+
+        for (const c of list.filter((cat) => cat.parent_id != null && !list.some((p) => p.id === cat.parent_id))) {
+            result.push({ ...c, label: c.name, depth: 0 });
+        }
+
+        return result;
+    }, [categories, user?.id]);
+
+    const selectedCategoryLabel =
+        categoryOptions.find((cat) => cat.id === categoryId)?.label || '미분류';
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            const el = categoryMenuRef.current;
+            if (!el) return;
+            if (!el.contains(e.target)) {
+                setIsCategoryOpen(false);
+            }
+        };
+
+        window.addEventListener('mousedown', handleClickOutside, true);
+        return () => window.removeEventListener('mousedown', handleClickOutside, true);
+    }, []);
+
+    useEffect(() => {
+        if (!isCategoryOpen) return;
+
+        requestAnimationFrame(() => {
+            selectedCategoryItemRef.current?.scrollIntoView?.({
+                block: 'nearest',
+            });
+        });
+    }, [isCategoryOpen, categoryId]);
+
+    const autosaveText =
+        autosaveStatus === 'dirty' ? '작성 중...' :
+        autosaveStatus === 'saving' ? '자동 저장 중...' :
+        autosaveStatus === 'saved' ? '저장됨' :
+        autosaveStatus === 'error' ? '자동 저장 실패' :
+        '';
 
     return (
         <div
@@ -221,39 +292,119 @@ function DocumentHeader({
             onClick={!isEditing ? onClickTitleArea : undefined}
         >
             {/* 왼쪽 영역 */}
-            <div className="flex-1">
+            <div className="min-w-0 flex-1">
                 {/* 편집 모드에서 보이는 카테고리 말머리 */}
                 {isOwner && isEditing && (
-                    <div className="mb flex flex-wrap items-center gap-2 text-[10pt] pl-[10px]">
-                        <span className="page-text-muted">카테고리</span>
-                        <select
-                            className="ui-input !w-auto !rounded-full !px-2 !py-[3px] !text-[10pt]"
-                            value={categoryId ?? ''}
-                            onChange={handleChangeCategory}
-                            disabled={updateLoading}
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onClickGoList?.();
+                            }}
+                            className="ui-control inline-flex h-7 items-center gap-1.5 !rounded-md px-2.5 text-[11px] font-semibold"
                         >
-                            <option value="">미분류</option>
-                            {categories
-                                ?.filter((c) => c.user_id === user?.id && !c.deleted_at)
-                                .map((cat) => (
-                                    <option key={cat.id} value={cat.id}>
-                                        {cat.name}
-                                    </option>
-                                ))}
-                        </select>
+                            <ListIcon className="h-[15px] w-[15px]" />
+                            <span>목록</span>
+                        </button>
+
+                        <div className="relative flex min-w-[160px] items-center gap-1.5 text-[11px]" ref={categoryMenuRef}>
+                            <span className="shrink-0 font-semibold page-text-main">카테고리</span>
+                            <button
+                                type="button"
+                                className="ui-input flex h-7 w-[144px] items-center justify-between gap-2 !rounded-md !px-2 !py-0 !text-left !text-[12px]"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsCategoryOpen((prev) => !prev);
+                                }}
+                                disabled={updateLoading}
+                            >
+                                <span className="min-w-0 truncate">{selectedCategoryLabel}</span>
+                                <svg
+                                    viewBox="0 0 20 20"
+                                    className="h-3.5 w-3.5 shrink-0 page-text-muted"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.8"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M5.5 7.5L10 12l4.5-4.5" />
+                                </svg>
+                            </button>
+                            {isCategoryOpen && (
+                                <div className="absolute left-[54px] top-[31px] z-30 max-h-72 w-[144px] overflow-y-auto rounded-md border py-1 text-[12px] shadow-lg"
+                                     style={{
+                                         borderColor: 'var(--color-border-subtle)',
+                                         backgroundColor: 'var(--color-page-surface)',
+                                         color: 'var(--color-text-main)',
+                                     }}
+                                >
+                                    <button
+                                        type="button"
+                                        ref={categoryId == null ? selectedCategoryItemRef : null}
+                                        className={
+                                            'block w-full whitespace-normal break-keep px-2 py-1.5 text-left leading-snug ui-side-subitem ' +
+                                            (categoryId == null ? 'ui-side-subitem-active' : '')
+                                        }
+                                        onClick={() => {
+                                            setCategoryId(null);
+                                            setIsCategoryOpen(false);
+                                        }}
+                                    >
+                                        미분류
+                                    </button>
+                                    {categoryOptions.map((cat) => (
+                                        <button
+                                            key={cat.id}
+                                            type="button"
+                                            ref={cat.id === categoryId ? selectedCategoryItemRef : null}
+                                            className={
+                                                'block w-full whitespace-normal break-keep px-2 py-1.5 text-left leading-snug ui-side-subitem ' +
+                                                (cat.id === categoryId ? 'ui-side-subitem-active' : '')
+                                            }
+                                            onClick={() => {
+                                                setCategoryId(cat.id);
+                                                setIsCategoryOpen(false);
+                                            }}
+                                        >
+                                            <span className={cat.depth > 0 ? 'flex items-start gap-1 pl-1.5 text-[11.5px] page-text-main opacity-80' : 'font-semibold page-text-main'}>
+                                                {cat.depth > 0 && (
+                                                    <span className="mt-[0.6em] h-px w-1.5 shrink-0 bg-current opacity-35" />
+                                                )}
+                                                <span>{cat.label}</span>
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <label className="flex min-w-[220px] flex-1 items-center gap-1.5 text-[11px]">
+                            <span className="shrink-0 font-semibold page-text-main">제목</span>
+                            <input
+                                type="text"
+                                className="ui-input !h-7 min-w-0 flex-1 !rounded-md !px-3 !py-0 !text-[13px] font-semibold"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                disabled={updateLoading}
+                                placeholder="문서 제목"
+                            />
+                        </label>
                     </div>
                 )}
 
                 {/* 보기 모드: 제목 + 공개범위 뱃지 */}
                 {!isEditing && (
-                    <div className="flex flex-wrap items-baseline gap-2">
-                        <h1 className="text-xl lg:text-[20px] xl:text-2xl font-semibold tracking-tight page-text-main">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <h1 className="min-w-0 truncate text-[24px] font-bold leading-tight tracking-normal page-text-main">
                             {doc.title}
                         </h1>
 
                         {isOwner && (
                             <span
-                                className={'inline-flex items-center rounded-full px-1 py-[1px] text-[11px] ' +
+                                className={'inline-flex shrink-0 items-center rounded-full px-2 py-[1px] text-[11px] font-semibold ' +
                                 (visibility === 'friends' ? 'ui-badge-friends' : 'ui-badge-private')}
                             >
                                 {visibility === 'friends' ? '친구 공개' : '나만 보기'}
@@ -264,7 +415,7 @@ function DocumentHeader({
             </div>
 
             {/* 오른쪽 컨트롤 묶음 */}
-            <div className="flex items-center gap-1 sm:gap-2">
+            <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2">
                 {/* 보기 모드 전용: 엑셀 다운로드 */}
                 {!isEditing && (
                     <button
@@ -274,7 +425,7 @@ function DocumentHeader({
                             onClickExportExcel?.();
                         }}
                         disabled={exporting}
-                        className="ui-btn-success inline-flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium shadow-sm disabled:opacity-60"
+                        className="ui-btn-success inline-flex h-7 items-center gap-1 rounded-md border px-2.5 py-0 text-[11px] font-semibold shadow-sm disabled:opacity-60"
                     >
                         <svg
                             className="h-4 w-4"
@@ -302,7 +453,7 @@ function DocumentHeader({
                             e.stopPropagation();
                             onClickGoList?.();
                         }}
-                        className="md:hidden ui-control !rounded-md px-2.5 py-1 text-[10px] md:text-[11px]"
+                        className="md:hidden ui-control h-7 !rounded-md px-2.5 py-0 text-[11px] font-semibold"
                     >
                         목록
                     </button>
@@ -310,39 +461,26 @@ function DocumentHeader({
 
                 {/* 편집 중일 때만 공개 범위 토글 */}
                 {canEdit && isEditing && (
-                    <div
-                        className="ui-tabbar inline-flex items-center px-1 py-[1px] text-[10px] lg:text-[11px] whitespace-nowrap">
-                        <span className="ml-2 mr-1 hidden page-text-muted sm:inline">
+                    <label className="flex items-center gap-1.5 text-[11px] whitespace-nowrap">
+                        <span className="font-semibold page-text-main">
                             공개 범위
                         </span>
-                        <button
-                            type="button"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setVisibility('private');
-                            }}
-                            className="ui-tab"
-                            data-active={visibility === 'private'}
+                        <select
+                            className="ui-input !h-7 !w-[96px] !rounded-md !px-2 !py-0 !text-[11px]"
+                            value={visibility}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => setVisibility(e.target.value)}
+                            disabled={updateLoading}
                         >
-                            나만 보기
-                        </button>
-                        <button
-                            type="button"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setVisibility('friends');
-                            }}
-                            className="ui-tab"
-                            data-active={visibility === 'friends'}
-                        >
-                            친구 공개
-                        </button>
-                    </div>
+                            <option value="private">나만 보기</option>
+                            <option value="friends">친구 공개</option>
+                        </select>
+                    </label>
                 )}
 
                 {/* 보기 / 편집 탭 */}
                 {isOwner && (
-                    <div className="ui-tabbar inline-flex items-center px-1 py-[1px] text-[10px] lg:text-[11px] whitespace-nowrap">
+                    <div className="ui-tabbar inline-flex h-7 items-center !rounded-md px-1 py-[1px] text-[10px] lg:text-[11px] whitespace-nowrap">
                         <button
                             type="button"
                             onClick={(e) => {
@@ -351,7 +489,7 @@ function DocumentHeader({
                                 // 여기서는 form submit 아님
                                 onClickView?.();
                             }}
-                            className="ui-tab"
+                            className="ui-tab !rounded-md !py-[4px]"
                             data-active={!isEditing}
                         >
                             보기
@@ -365,7 +503,7 @@ function DocumentHeader({
                                     // 여기서 직접 set은 안 함
                                     onClickEdit?.();
                                 }}
-                                className="ui-tab"
+                                className="ui-tab !rounded-md !py-[4px]"
                                 data-active={isEditing}
                             >
                                 편집
@@ -377,12 +515,11 @@ function DocumentHeader({
                 {/* 자동저장 상태 + 저장 버튼 */}
                 {canEdit && isEditing && (
                     <>
-                        <span className="text-[10px] page-text-muted mr-2">
-                            {autosaveStatus === 'dirty' && '작성 중…'}
-                            {autosaveStatus === 'saving' && '자동 저장 중…'}
-                            {autosaveStatus === 'saved' && '저장됨'}
-                            {autosaveStatus === 'error' && '자동 저장 실패'}
-                        </span>
+                        {autosaveText && (
+                            <span className="text-[10px] page-text-muted">
+                                {autosaveText}
+                            </span>
+                        )}
                         {autosaveStatus === 'saving' && (
                             <span
                                 className="
@@ -395,7 +532,7 @@ function DocumentHeader({
 
                         <button
                             type="submit"
-                            className="ui-btn-primary text-[11px] w-12 px-2.5 lg:px-3 !py-1 rounded-xl"
+                            className="ui-btn-primary h-7 text-[11px] w-12 px-2.5 lg:px-3 !py-0 rounded-md"
                             disabled={updateLoading}
                         >
                             {updateLoading ? '저장 중...' : '저장'}
@@ -544,6 +681,7 @@ export default function DocumentPage() {
     const { data: categories } = useCategories();
 
     const [categoryId, setCategoryId] = useState(null);
+    const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const initialIsEditing = searchParams.get('mode') === 'edit';
     const [isEditing, setIsEditing] = useState(initialIsEditing);
@@ -554,6 +692,7 @@ export default function DocumentPage() {
 
     const [autosaveStatus, setAutosaveStatus] = useState('idle');
     const lastSavedRef = useRef({
+        title: '',
         content: '',
         visibility: '',
         categoryId: null,
@@ -585,7 +724,8 @@ export default function DocumentPage() {
 
         const baseVisibility = doc.visibility || 'private';
         const baseCategoryId = doc.category_id ?? null;
-        const baseContent = doc.content_markdown || '';
+        const baseTitle = doc.title || '';
+        const baseContent = normalizeFontSizeTokensToSpans(doc.content_markdown || '');
 
         // 공통: 항상 최신 카테고리/가시성은 반영
         setCategoryId(baseCategoryId);
@@ -593,8 +733,10 @@ export default function DocumentPage() {
 
         // 1) 첫 초기화 시점: 무조건 문서 내용까지 세팅
         if (!initializedRef.current) {
+            setTitle(baseTitle);
             setContent(baseContent);
             lastSavedRef.current = {
+                title: baseTitle,
                 content: baseContent,
                 visibility: baseVisibility,
                 categoryId: baseCategoryId,
@@ -605,8 +747,10 @@ export default function DocumentPage() {
 
         // 2) 그 이후에는 "편집 중이 아닐 때만" 서버 내용 반영
         if (!isEditing) {
+            setTitle(baseTitle);
             setContent(baseContent);
             lastSavedRef.current = {
+                title: baseTitle,
                 content: baseContent,
                 visibility: baseVisibility,
                 categoryId: baseCategoryId,
@@ -639,7 +783,7 @@ export default function DocumentPage() {
 
         // 🔹 편집 모드: 에디터에 “이 헤딩으로 스크롤 해줘”라고 신호만 보냄
         if (isEditing) {
-            setActiveHeading(heading);
+            setActiveHeading({ ...heading, requestedAt: Date.now() });
             return;
         }
 
@@ -703,6 +847,16 @@ export default function DocumentPage() {
     const saveDocument = useCallback(async ({ isAuto = false } = {}) => {
       if (!doc) return;
 
+      const nextTitle = title.trim();
+      if (!nextTitle) {
+        if (isAuto) {
+          setAutosaveStatus('dirty');
+        } else {
+          showSnackbar('문서 제목을 입력해 주세요.');
+        }
+        return;
+      }
+
       try {
         await updateSectionLinksForDocument({
           documentId: doc.id,
@@ -713,7 +867,7 @@ export default function DocumentPage() {
         await new Promise((resolve, reject) => {
           updateMutation.mutate(
             {
-              title: doc.title,
+              title: nextTitle,
               contentMarkdown: content,
               visibility,
               categoryId,
@@ -727,6 +881,7 @@ export default function DocumentPage() {
 
         // ✅ 마지막 저장 스냅샷 업데이트
         lastSavedRef.current = {
+          title: nextTitle,
           content,
           visibility,
           categoryId,
@@ -784,6 +939,7 @@ export default function DocumentPage() {
       }
     }, [
       doc,
+      title,
       content,
       visibility,
       categoryId,
@@ -827,11 +983,17 @@ export default function DocumentPage() {
         if (!doc) return;
 
         const hasChanged =
+            title.trim() !== lastSavedRef.current.title ||
             content !== lastSavedRef.current.content ||
             visibility !== lastSavedRef.current.visibility ||
             categoryId !== lastSavedRef.current.categoryId;
 
         if (!hasChanged) return;
+
+        if (!title.trim()) {
+            setAutosaveStatus('dirty');
+            return;
+        }
 
         const isEmptyDraft =
             !content || content.trim() === '';
@@ -854,7 +1016,7 @@ export default function DocumentPage() {
         }, 1000);
 
         return () => clearTimeout(timer);
-    }, [content, visibility, categoryId, isEditing, doc, saveDocument]);
+    }, [title, content, visibility, categoryId, isEditing, doc, saveDocument]);
 
     if (isLoading || !doc) {
         return (
@@ -867,22 +1029,32 @@ export default function DocumentPage() {
     return (
         <div className="flex h-full min-h-0 flex-col space-y-2 lg:space-y-[10px]">
             {/* 상단 바 */}
-            <div className="grid gap-3 md:grid-cols-[200px,minmax(0,1fr)] basic:grid-cols-[210px,minmax(0,1fr)]
-                                       lg:grid-cols-[220px,minmax(0,1fr)] xl:grid-cols-[240px,minmax(0,1fr)]">
+            <div
+                className={
+                    isEditing
+                        ? 'grid gap-3'
+                        : 'grid gap-3 md:grid-cols-[200px,minmax(0,1fr)] basic:grid-cols-[210px,minmax(0,1fr)] lg:grid-cols-[220px,minmax(0,1fr)] xl:grid-cols-[240px,minmax(0,1fr)]'
+                }
+            >
                 {/* 🔹 데스크탑 전용 왼쪽 영역: 목록 버튼 */}
+                {!isEditing && (
                 <div className="hidden md:flex items-end">
                     <button
                         type="button"
                         onClick={handleGoList}
-                        className="ui-control !rounded-md px-2 py-[5px] text-[11px]"
+                        className="ui-control inline-flex h-7 items-center gap-1.5 !rounded-md px-2.5 py-0 text-[11px] font-semibold"
                     >
-                        <ListIcon />
+                        <ListIcon className="h-[15px] w-[15px]" />
+                        <span>목록</span>
                     </button>
                 </div>
+                )}
 
                 <form onSubmit={handleSave} className="flex flex-col gap-2">
                     <DocumentHeader
                         doc={doc}
+                        title={title}
+                        setTitle={setTitle}
                         user={user}
                         isOwner={isOwner}
                         canEdit={canEdit}

@@ -54,7 +54,7 @@ export default function DocumentsPage() {
         <div className="h-full overflow-y-auto rounded-2xl p-3 sm:p-4 shadow-soft ui-surface border border-border-subtle">
             <SectionHeader
                 title="전체 문서"
-                subtitle="카테고리와 상관없이, 내가 볼 수 있는 문서를 모두 모아 볼 수 있어."
+                subtitle=""
             />
 
             <div className="mt-3 mb-3 sm:mt-4 sm:mb-4">

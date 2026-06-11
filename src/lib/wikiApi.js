@@ -1149,6 +1149,7 @@ export async function fetchDeletedDocuments(userId) {
       category_id,
       title,
       slug,
+      content_markdown,
       visibility,
       created_at,
       updated_at,

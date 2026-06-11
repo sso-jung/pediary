@@ -101,6 +101,7 @@ function markdownToLines(md = '', title = '') {
                 underline: false,
                 strike: false,
                 color: null,
+                fontSize: null,
             });
             continue;
         }
@@ -111,6 +112,7 @@ function markdownToLines(md = '', title = '') {
         let italic = false;
         let underline = false;
         let color = null;
+        let customFontSize = null;
 
         // ── span 색상 추출
         const spanColorMatch = line.match(
@@ -119,6 +121,12 @@ function markdownToLines(md = '', title = '') {
         if (spanColorMatch) {
             const argb = cssColorToArgb(spanColorMatch[1]);
             if (argb) color = argb;
+        }
+        const spanFontSizeMatch = line.match(
+            /<span[^>]*style=["'][^"']*font-size\s*:\s*(\d+(?:\.\d+)?)px/i,
+        );
+        if (spanFontSizeMatch) {
+            customFontSize = Number(spanFontSizeMatch[1]) || null;
         }
         line = line.replace(/<\/?span[^>]*>/gi, '');
 
@@ -182,6 +190,7 @@ function markdownToLines(md = '', title = '') {
             underline,
             // strike: false,
             color,
+            fontSize: customFontSize,
         });
     }
 
@@ -590,6 +599,8 @@ export async function downloadMyDocumentsExcel(userId) {
                     else if (lvl === 2) fontSize = 14; // 헤딩2
                     else fontSize = 12;                // 헤딩3~
                     fontBold = true;
+                } else if (line.fontSize) {
+                    fontSize = line.fontSize;
                 }
 
                 const baseFont = {
@@ -827,6 +838,8 @@ export async function downloadDocumentExcel(doc) {
                 else if (lvl === 2) fontSize = 14; // H2
                 else fontSize = 12;                // H3~
                 fontBold = true;
+            } else if (line.fontSize) {
+                fontSize = line.fontSize;
             }
 
             const baseFont = {

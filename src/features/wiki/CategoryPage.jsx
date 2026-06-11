@@ -105,7 +105,8 @@ export default function CategoryPage() {
         <div className="h-full overflow-y-auto rounded-2xl p-3 sm:p-4 shadow-soft ui-surface border border-border-subtle">
             <SectionHeader
                 title={currentCategory ? currentCategory.name : '카테고리'}
-                subtitle="이 카테고리 안의 문서를 관리해 보자."
+                // subtitle="이 카테고리 안의 문서를 관리해 보자."
+                subtitle=""
             />
 
             <div className="mt-3 mb-3 sm:mt-4 sm:mb-4">

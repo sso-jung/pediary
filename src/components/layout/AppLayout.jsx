@@ -126,8 +126,8 @@ export default function AppLayout({ children }) {
                         <aside
                             className="
                                 hidden basic:block
-                                w-[220px] shrink-0 border-r border-border-subtle
-                                bg-surface-elevated/80 backdrop-blur overflow-y-auto
+                                w-[232px] min-h-0 shrink-0 border-r border-border-subtle
+                                bg-surface-elevated/80 backdrop-blur
                               "
                         >
                             <Sidebar />

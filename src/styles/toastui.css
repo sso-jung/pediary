@@ -3,6 +3,19 @@
    Wiki / Toast UI (Link)
    =========================== */
 
+@font-face {
+    font-family: "Noto Sans KR";
+    src: url("/fonts/NotoSansKR[wght].ttf") format("truetype");
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+
+:root {
+    --wiki-body-font-size: 14px;
+    --wiki-body-line-height: 1.6;
+}
+
 /* ✅ (요청대로 그대로 유지) */
 .toastui-editor-contents a {
     color: #2563eb;
@@ -16,8 +29,28 @@
 
 /* ✅ (요청대로 그대로 유지) */
 .wiki-heading-number {
-    color: var(--wiki-heading-number-color);
+    color: color-mix(in srgb, var(--wiki-heading-number-color) 72%, var(--color-text-muted));
     font-weight: 600;
+}
+
+.toastui-editor-contents .wiki-align-left,
+.ProseMirror .wiki-align-left {
+    text-align: left !important;
+}
+
+.toastui-editor-contents .wiki-align-center,
+.ProseMirror .wiki-align-center {
+    text-align: center !important;
+}
+
+.toastui-editor-contents .wiki-align-right,
+.ProseMirror .wiki-align-right {
+    text-align: right !important;
+}
+
+.toastui-editor-contents .wiki-align-justify,
+.ProseMirror .wiki-align-justify {
+    text-align: justify !important;
 }
 
 /* ===========================
@@ -71,11 +104,17 @@
 .toastui-editor-ww-container,
 .toastui-editor-defaultUI,
 .tui-editor-contents {
-    font-family: "Pretendard Variable", system-ui, -apple-system, BlinkMacSystemFont,
+    font-family: "Noto Sans KR", "Pretendard Variable", system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif !important;
 }
 
-/* headings spacing */
+/* headings */
+.toastui-editor-defaultUI .ProseMirror h1,
+.toastui-editor-defaultUI .ProseMirror h2,
+.toastui-editor-defaultUI .ProseMirror h3,
+.toastui-editor-defaultUI .ProseMirror h4,
+.toastui-editor-defaultUI .ProseMirror h5,
+.toastui-editor-defaultUI .ProseMirror h6,
 .toastui-editor-contents h1,
 .toastui-editor-contents h2,
 .toastui-editor-contents h3,
@@ -88,8 +127,137 @@
 .tui-editor-contents h4,
 .tui-editor-contents h5,
 .tui-editor-contents h6 {
-    margin-top: 1.2em;
-    margin-bottom: 0.4em;
+    color: var(--color-text-main) !important;
+    font-family: "Noto Sans KR", "Pretendard Variable", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif !important;
+    font-weight: 700 !important;
+    line-height: 1.28 !important;
+    letter-spacing: 0;
+    border: 0 !important;
+}
+
+.toastui-editor-defaultUI .ProseMirror h1,
+.toastui-editor-contents h1,
+.tui-editor-contents h1 {
+    position: relative;
+    margin: 24px 0 12px !important;
+    padding-bottom: 0.38em !important;
+    font-size: 28px !important;
+    font-weight: 760 !important;
+}
+
+.toastui-editor-defaultUI .ProseMirror h2,
+.toastui-editor-contents h2,
+.tui-editor-contents h2 {
+    position: relative;
+    margin: 24px 0 12px !important;
+    padding-bottom: 0.34em !important;
+    font-size: 24px !important;
+    font-weight: 740 !important;
+}
+
+.toastui-editor-defaultUI .ProseMirror h1::after,
+.toastui-editor-contents h1::after,
+.tui-editor-contents h1::after,
+.toastui-editor-defaultUI .ProseMirror h2::after,
+.toastui-editor-contents h2::after,
+.tui-editor-contents h2::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    border-radius: 999px;
+}
+
+.toastui-editor-defaultUI .ProseMirror h1::after,
+.toastui-editor-contents h1::after,
+.tui-editor-contents h1::after {
+    height: 4px;
+    background:
+        linear-gradient(
+            to bottom,
+            color-mix(in srgb, var(--color-text-main) 54%, var(--color-border-subtle)) 0,
+            color-mix(in srgb, var(--color-text-main) 54%, var(--color-border-subtle)) 1px,
+            transparent 1px,
+            transparent 3px,
+            color-mix(in srgb, var(--color-text-main) 42%, var(--color-border-subtle)) 3px,
+            color-mix(in srgb, var(--color-text-main) 42%, var(--color-border-subtle)) 4px
+        );
+}
+
+.toastui-editor-defaultUI .ProseMirror h2::after,
+.toastui-editor-contents h2::after,
+.tui-editor-contents h2::after {
+    height: 1px;
+    background: color-mix(in srgb, var(--color-text-main) 18%, var(--color-border-subtle));
+}
+
+.toastui-editor-defaultUI .ProseMirror h3,
+.toastui-editor-contents h3,
+.tui-editor-contents h3 {
+    margin: 24px 0 12px !important;
+    font-size: 21px !important;
+    font-weight: 720 !important;
+}
+
+.toastui-editor-defaultUI .ProseMirror h4,
+.toastui-editor-contents h4,
+.tui-editor-contents h4 {
+    margin: 24px 0 12px !important;
+    font-size: 18px !important;
+    font-weight: 700 !important;
+}
+
+.toastui-editor-defaultUI .ProseMirror h5,
+.toastui-editor-contents h5,
+.tui-editor-contents h5 {
+    margin: 24px 0 12px !important;
+    font-size: 16px !important;
+    font-weight: 680 !important;
+}
+
+.toastui-editor-defaultUI .ProseMirror h6,
+.toastui-editor-contents h6,
+.tui-editor-contents h6 {
+    margin: 24px 0 12px !important;
+    font-size: 15px !important;
+    font-weight: 660 !important;
+    color: color-mix(in srgb, var(--color-text-main) 86%, var(--color-text-muted)) !important;
+}
+
+.toastui-editor-defaultUI .ProseMirror h1 *,
+.toastui-editor-defaultUI .ProseMirror h2 *,
+.toastui-editor-defaultUI .ProseMirror h3 *,
+.toastui-editor-defaultUI .ProseMirror h4 *,
+.toastui-editor-defaultUI .ProseMirror h5 *,
+.toastui-editor-defaultUI .ProseMirror h6 *,
+.toastui-editor-contents h1 *,
+.toastui-editor-contents h2 *,
+.toastui-editor-contents h3 *,
+.toastui-editor-contents h4 *,
+.toastui-editor-contents h5 *,
+.toastui-editor-contents h6 *,
+.tui-editor-contents h1 *,
+.tui-editor-contents h2 *,
+.tui-editor-contents h3 *,
+.tui-editor-contents h4 *,
+.tui-editor-contents h5 *,
+.tui-editor-contents h6 * {
+    font-size: inherit !important;
+    line-height: inherit !important;
+}
+
+.toastui-editor-defaultUI .ProseMirror h1:first-child,
+.toastui-editor-defaultUI .ProseMirror h2:first-child,
+.toastui-editor-defaultUI .ProseMirror h3:first-child,
+.toastui-editor-contents h1:first-child,
+.toastui-editor-contents h2:first-child,
+.toastui-editor-contents h3:first-child,
+.tui-editor-contents h1:first-child,
+.tui-editor-contents h2:first-child,
+.tui-editor-contents h3:first-child {
+    margin-top: 0 !important;
 }
 
 .toastui-editor-contents h1 p,
@@ -97,7 +265,13 @@
 .toastui-editor-contents h3 p,
 .toastui-editor-contents h4 p,
 .toastui-editor-contents h5 p,
-.toastui-editor-contents h6 p {
+.toastui-editor-contents h6 p,
+.toastui-editor-defaultUI .ProseMirror h1 p,
+.toastui-editor-defaultUI .ProseMirror h2 p,
+.toastui-editor-defaultUI .ProseMirror h3 p,
+.toastui-editor-defaultUI .ProseMirror h4 p,
+.toastui-editor-defaultUI .ProseMirror h5 p,
+.toastui-editor-defaultUI .ProseMirror h6 p {
     margin: 0;
 }
 
@@ -132,6 +306,37 @@
     background-color: var(--color-page-surface);
     border-bottom: 1px solid var(--color-border-subtle);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+.toastui-editor-defaultUI-toolbar .pediary-toastui-toolbar-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 3px;
+    background: transparent;
+    color: #555;
+    cursor: pointer;
+}
+
+.toastui-editor-defaultUI-toolbar .pediary-toastui-toolbar-button svg {
+    width: 21px;
+    height: 21px;
+    stroke: currentColor;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+}
+
+.toastui-editor-defaultUI-toolbar .pediary-toastui-toolbar-button:hover {
+    border-color: color-mix(in srgb, var(--color-border-subtle) 85%, transparent);
+    background-color: color-mix(in srgb, var(--color-page-surface) 86%, var(--color-border-subtle));
+    color: var(--color-text-main);
 }
 
 /* Content text */
@@ -211,19 +416,30 @@
    =========================== */
 
 /* EDIT MODE (ProseMirror) */
+.toastui-editor-defaultUI .ProseMirror,
+.toastui-editor-defaultUI .toastui-editor-contents {
+    font-size: var(--wiki-body-font-size) !important;
+}
+
 .toastui-editor-defaultUI .ProseMirror p,
 .toastui-editor-defaultUI .ProseMirror li,
 .toastui-editor-defaultUI .ProseMirror blockquote,
 .toastui-editor-defaultUI .ProseMirror td,
 .toastui-editor-defaultUI .ProseMirror th {
     color: var(--color-text-main) !important;
+    line-height: var(--wiki-body-line-height) !important;
 }
 
 /* VIEW MODE */
+.tui-viewer-wrapper .toastui-editor-contents {
+    font-size: var(--wiki-body-font-size) !important;
+}
+
 .tui-viewer-wrapper .toastui-editor-contents p,
 .tui-viewer-wrapper .toastui-editor-contents li,
 .tui-viewer-wrapper .toastui-editor-contents blockquote,
 .tui-viewer-wrapper .toastui-editor-contents td,
 .tui-viewer-wrapper .toastui-editor-contents th {
     color: var(--color-text-main) !important;
+    line-height: var(--wiki-body-line-height) !important;
 }

@@ -126,9 +126,9 @@ export default function MyInfoPanel() {
                 <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold ui-page-title">내 정보</span>
                 </div>
-                <p className="mt-1 text-[11px]" style={{color: "var(--color-text-muted)"}}>
-                    닉네임과 비밀번호를 관리하고, 나의 기록 통계를 확인해 보자.
-                </p>
+                {/*<p className="mt-1 text-[11px]" style={{color: "var(--color-text-muted)"}}>*/}
+                {/*    닉네임과 비밀번호를 관리하고, 나의 기록 통계를 확인해 보자.*/}
+                {/*</p>*/}
             </div>
 
             {/* 내용 영역 */}
@@ -303,9 +303,9 @@ export default function MyInfoPanel() {
                             </div>
                         </div>
                     </div>
-                    <p className="mt-1 text-[10px]" style={{color: "var(--color-text-muted)"}}>
-                        활동일수는 이번 달에 문서를 작성하거나 수정, 조회한 날의 수야.
-                    </p>
+                    {/*<p className="mt-1 text-[10px]" style={{color: "var(--color-text-muted)"}}>*/}
+                    {/*    활동일수는 이번 달에 문서를 작성하거나 수정, 조회한 날의 수야.*/}
+                    {/*</p>*/}
                 </section>
             </div>
         </div>

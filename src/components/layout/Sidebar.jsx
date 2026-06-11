@@ -1,5 +1,5 @@
 // Sidebar.jsx
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCategories } from '../../features/wiki/hooks/useCategories';
 import { useCreateCategory } from '../../features/wiki/hooks/useCreateCategory';
@@ -11,6 +11,8 @@ import ConfirmDialog from '../ui/ConfirmDialog';
 import { useSnackbar } from '../ui/SnackbarContext';
 import EmptyState from '../ui/EmptyState.jsx';
 import { useUpdateCategoryName } from "../../features/wiki/hooks/useUpdateCategoryName.js";
+
+const CATEGORY_COLLAPSE_STORAGE_KEY = 'pediary.sidebar.categoryCollapsed';
 
 function FolderIcon({ className = '' }) {
     return (
@@ -44,6 +46,13 @@ export default function Sidebar() {
 
     const [editingCategoryId, setEditingCategoryId] = useState(null);
     const [editingName, setEditingName] = useState('');
+    const [collapsedCategoryMap, setCollapsedCategoryMap] = useState(() => {
+        try {
+            return JSON.parse(sessionStorage.getItem(CATEGORY_COLLAPSE_STORAGE_KEY) || '{}');
+        } catch {
+            return {};
+        }
+    });
 
     const navigate = useNavigate();
     const location = useLocation();
@@ -54,6 +63,17 @@ export default function Sidebar() {
         return Number(match[1]);
     };
     const currentCategoryId = getCurrentCategoryId();
+
+    useEffect(() => {
+        sessionStorage.setItem(CATEGORY_COLLAPSE_STORAGE_KEY, JSON.stringify(collapsedCategoryMap));
+    }, [collapsedCategoryMap]);
+
+    const toggleCategoryCollapsed = (categoryId) => {
+        setCollapsedCategoryMap((prev) => ({
+            ...prev,
+            [categoryId]: !prev[categoryId],
+        }));
+    };
 
     const handleAddCategory = (e) => {
         e.preventDefault();
@@ -120,11 +140,13 @@ export default function Sidebar() {
             const isMine = user && c.user_id === user.id;
             const roots = isMine ? myRoots : friendRoots;
             const childrenMap = isMine ? myChildrenMap : friendChildrenMap;
+            const parentId = c.parent_id ?? c.parentId ?? null;
 
-            if (c.parent_id == null) roots.push(c);
+            if (parentId == null) roots.push(c);
             else {
-                if (!childrenMap.has(c.parent_id)) childrenMap.set(c.parent_id, []);
-                childrenMap.get(c.parent_id).push(c);
+                const parentKey = String(parentId);
+                if (!childrenMap.has(parentKey)) childrenMap.set(parentKey, []);
+                childrenMap.get(parentKey).push(c);
             }
         });
 
@@ -252,19 +274,19 @@ export default function Sidebar() {
     };
 
     return (
-        <div className="flex h-full flex-col gap-4 p-3">
+        <div className="flex h-full min-h-0 flex-col gap-4 p-3">
             {/* ✅ 헤더: ui-panel 토큰 사용 */}
-            <div className="ui-panel rounded-2xl p-3 shadow-soft">
-                <p className="font-semibold ui-page-title">목차</p>
-                <p className="mt-1 text-xs ui-page-subtitle">
-                    카테고리를 트리 구조로 정리해서
-                    <br />
-                    문서를 더 깔끔하게 관리해 보자.
-                </p>
-            </div>
+            {/*<div className="ui-panel shrink-0 rounded-2xl p-3 shadow-soft">*/}
+            {/*    <p className="font-semibold ui-page-title">목차</p>*/}
+            {/*    <p className="mt-1 text-xs ui-page-subtitle">*/}
+            {/*        카테고리를 트리 구조로 정리해서*/}
+            {/*        <br />*/}
+            {/*        문서를 더 깔끔하게 관리해 보자.*/}
+            {/*    </p>*/}
+            {/*</div>*/}
 
             {/* ✅ 입력: ui-input 토큰 사용 */}
-            <form onSubmit={handleAddCategory} className="space-y-2">
+            <form onSubmit={handleAddCategory} className="shrink-0 space-y-2">
                 <input
                     type="text"
                     className="ui-input w-full px-3 py-2 text-xs"
@@ -282,7 +304,7 @@ export default function Sidebar() {
             </form>
 
             {/* ✅ 목록 컨테이너: ui-surface 토큰 사용 */}
-            <div className="ui-surface mt-2 flex-1 overflow-y-auto rounded-2xl py-2.5 px-1.5 shadow-soft">
+            <div className="ui-sidebar-scroll ui-surface mt-2 min-h-0 flex-1 overflow-y-auto rounded-2xl py-2.5 px-1.5 shadow-soft">
                 {isLoading ? (
                     <p className="text-xs ui-page-subtitle">카테고리를 불러오는 중...</p>
                 ) : !categories || categories.length === 0 ? (
@@ -323,17 +345,18 @@ export default function Sidebar() {
                                         {myRoots.map((root, idx) => {
                                             const rootActive = isRootActive(root.id);
                                             const isMineRoot = root.user_id === user?.id;
-                                            const children = myChildrenMap.get(root.id) || [];
+                                            const children = myChildrenMap.get(String(root.id)) || [];
                                             const isLastRoot = idx === myRoots.length - 1;
+                                            const isCollapsed = !!collapsedCategoryMap[root.id];
 
                                             return (
-                                                <li key={root.id} className="relative pl-5">
+                                                <li key={root.id} className="relative pl-3">
                                                     {/* ✅ 세로선: ui-tree-line */}
                                                     <span
                                                         aria-hidden
                                                         className={[
-                                                            "pointer-events-none absolute left-[14px] border-l border-dashed ui-tree-line",
-                                                            isLastRoot ? "top-0 bottom-1/2" : "top-0 bottom-0",
+                                                            "pointer-events-none absolute left-[9px] border-l ui-tree-line",
+                                                            isLastRoot ? "top-0 h-[14px]" : "top-0 bottom-0",
                                                         ].join(" ")}
                                                     />
 
@@ -357,9 +380,39 @@ export default function Sidebar() {
                                                             draggingCategoryId === root.id ? "opacity-60" : "",
                                                         ].join(" ")}
                                                     >
-                                                        <div className="relative flex min-w-0 flex-1 items-center gap-1.5">
+                                                        <div className="relative flex min-w-0 flex-1 items-center gap-1">
                                                             {/* ✅ 가로선: ui-tree-branch (너 index.css 기준) */}
-                                                            <span aria-hidden className="ui-tree-branch -left-[12px] w-[12px]" />
+                                                            <span aria-hidden className="ui-tree-branch -left-[8px] w-[8px]" />
+                                                            {children.length > 0 && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        toggleCategoryCollapsed(root.id);
+                                                                    }}
+                                                                    className="ui-side-icon flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded hover:bg-[var(--color-panel-bg)]"
+                                                                    aria-label={isCollapsed ? '카테고리 펼치기' : '카테고리 접기'}
+                                                                >
+                                                                    <svg
+                                                                        viewBox="0 0 16 16"
+                                                                        className={[
+                                                                            "h-2.5 w-2.5 transition-transform",
+                                                                            isCollapsed ? "-rotate-90" : "",
+                                                                        ].join(" ")}
+                                                                        fill="none"
+                                                                        stroke="currentColor"
+                                                                        strokeWidth="1.8"
+                                                                        strokeLinecap="round"
+                                                                        strokeLinejoin="round"
+                                                                        aria-hidden="true"
+                                                                    >
+                                                                        <path d="M4 6l4 4 4-4" />
+                                                                    </svg>
+                                                                </button>
+                                                            )}
+                                                            {children.length === 0 && (
+                                                                <span className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                                            )}
                                                             <FolderIcon className={rootActive ? "ui-side-icon-active" : "ui-side-icon"} />
 
                                                             {editingCategoryId === root.id ? (
@@ -404,7 +457,7 @@ export default function Sidebar() {
                                                     </div>
 
                                                     {/* 2depth */}
-                                                    {children.length > 0 && (
+                                                    {children.length > 0 && !isCollapsed && (
                                                         <ul className="mt-[2px] space-y-[2px]">
                                                             {children.map((child, cIdx) => {
                                                                 const childActive = isCategoryActive(child.id);
@@ -412,12 +465,12 @@ export default function Sidebar() {
                                                                 const isLastChild = cIdx === children.length - 1;
 
                                                                 return (
-                                                                    <li key={child.id} className="relative pl-7">
+                                                                    <li key={child.id} className="relative pl-4">
                                                                         {/* ✅ 세로선 */}
                                                                         <span
                                                                             aria-hidden
                                                                             className={[
-                                                                                "pointer-events-none absolute left-[14px] border-l border-dashed ui-tree-line",
+                                                                                "pointer-events-none absolute left-[9px] border-l ui-tree-line",
                                                                                 isLastChild ? "top-0 bottom-1/2" : "top-0 bottom-0",
                                                                             ].join(" ")}
                                                                         />
@@ -435,7 +488,7 @@ export default function Sidebar() {
                                                                         >
                                                                             <div className="relative flex min-w-0 flex-1 items-center gap-1">
                                                                                 {/* ✅ 가로선 */}
-                                                                                <span aria-hidden className="ui-tree-branch -left-[18px] w-[12px]" />
+                                                                                <span aria-hidden className="ui-tree-branch -left-[11px] w-[7px]" />
 
                                                                                 {editingCategoryId === child.id ? (
                                                                                     <input
@@ -499,7 +552,8 @@ export default function Sidebar() {
                                 <ul className="space-y-1 text-sm">
                                     {friendRoots.map((root) => {
                                         const rootActive = isRootActive(root.id);
-                                        const children = friendChildrenMap.get(root.id) || [];
+                                        const children = friendChildrenMap.get(String(root.id)) || [];
+                                        const isCollapsed = !!collapsedCategoryMap[root.id];
 
                                         return (
                                             <li key={root.id} className="space-y-[2px]">
@@ -510,6 +564,36 @@ export default function Sidebar() {
                                                         rootActive ? "ui-side-item-active" : "",
                                                     ].join(" ")}
                                                 >
+                                                    {children.length > 0 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                toggleCategoryCollapsed(root.id);
+                                                            }}
+                                                            className="ui-side-icon flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded hover:bg-[var(--color-panel-bg)]"
+                                                            aria-label={isCollapsed ? '카테고리 펼치기' : '카테고리 접기'}
+                                                        >
+                                                            <svg
+                                                                viewBox="0 0 16 16"
+                                                                className={[
+                                                                    "h-2.5 w-2.5 transition-transform",
+                                                                    isCollapsed ? "-rotate-90" : "",
+                                                                ].join(" ")}
+                                                                fill="none"
+                                                                stroke="currentColor"
+                                                                strokeWidth="1.8"
+                                                                strokeLinecap="round"
+                                                                strokeLinejoin="round"
+                                                                aria-hidden="true"
+                                                            >
+                                                                <path d="M4 6l4 4 4-4" />
+                                                            </svg>
+                                                        </button>
+                                                    )}
+                                                    {children.length === 0 && (
+                                                        <span className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                                    )}
                                                     <FolderIcon className={rootActive ? "ui-side-icon-active" : "ui-side-icon"} />
                                                     <span className="max-w-full truncate text-[12.5px]" title={root.name}>
                             {root.name}
@@ -519,16 +603,16 @@ export default function Sidebar() {
                           </span>
                                                 </div>
 
-                                                {children.length > 0 && (
+                                                {children.length > 0 && !isCollapsed && (
                                                     <ul className="mt-[2px] space-y-[2px]">
                                                         {children.map((child) => {
                                                             const childActive = isCategoryActive(child.id);
 
                                                             return (
-                                                                <li key={child.id} className="relative pl-7">
+                                                                <li key={child.id} className="relative pl-4">
                                   <span
                                       aria-hidden
-                                      className="pointer-events-none absolute left-[14px] top-0 bottom-1/2 border-l border-dashed ui-tree-line"
+                                      className="pointer-events-none absolute left-[9px] top-0 bottom-1/2 border-l ui-tree-line"
                                   />
                                                                     <div
                                                                         onClick={() => handleClickCategory(child.id)}
@@ -538,7 +622,7 @@ export default function Sidebar() {
                                                                         ].join(" ")}
                                                                     >
                                                                         <div className="relative flex min-w-0 flex-1 items-center gap-1">
-                                                                            <span aria-hidden className="ui-tree-branch -left-[18px] w-[12px]" />
+                                                                            <span aria-hidden className="ui-tree-branch -left-[11px] w-[7px]" />
                                                                             <span className="max-w-full truncate" title={child.name}>
                                         {child.name}
                                       </span>
@@ -564,7 +648,7 @@ export default function Sidebar() {
                 type="button"
                 onClick={() => navigate('/trash')}
                 className={[
-                    "ui-surface rounded-2xl border px-3 py-2 text-xs font-medium transition flex items-center gap-2",
+                    "ui-surface shrink-0 rounded-2xl border px-3 py-2 text-xs font-medium transition flex items-center gap-2",
                     isTrashActive ? "ui-trash-active" : "ui-trash",
                 ].join(" ")}
             >

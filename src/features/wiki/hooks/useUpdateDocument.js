@@ -24,6 +24,7 @@ export function useUpdateDocument(documentId, slug) {
                 user.id,
                 updatedDoc.category_id,
             ]);
+            queryClient.invalidateQueries(['allDocuments', user.id]);
 
             // 수정 로그 남기기
             if (updatedDoc?.id) {
