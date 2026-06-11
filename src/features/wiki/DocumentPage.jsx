@@ -1051,7 +1051,7 @@ export default function DocumentPage() {
                 </div>
                 )}
 
-                <form onSubmit={handleSave} className="flex flex-col gap-2">
+                <form onSubmit={handleSave} className="wiki-doc-main-header flex min-w-0 w-full max-w-[var(--wiki-doc-content-max)] justify-self-start flex-col gap-2">
                     <DocumentHeader
                         doc={doc}
                         title={title}
@@ -1092,9 +1092,10 @@ export default function DocumentPage() {
                     numberColor={sectionColor}
                 />
 
-                <div className="wiki-doc-main-card h-full rounded-2xl shadow-soft overflow-x-hidden ui-surface">
+                <div
+                    className="wiki-doc-main-card h-full min-w-0 w-full max-w-[var(--wiki-doc-content-max)] justify-self-start rounded-2xl shadow-soft overflow-x-hidden ui-surface">
                     {isEditing ? (
-                        <div className="h-full w-full p-3 lg:p-4 box-border">
+                        <div className="wiki-doc-editor-shell h-full w-full p-2 lg:p-2 box-border">
                             <div className="h-full">
                                 <MarkdownEditor
                                     docKey={doc.id}
@@ -1109,7 +1110,7 @@ export default function DocumentPage() {
                     ) : (
                         <div
                             ref={viewerContainerRef}
-                            className="tui-viewer-wrapper h-full overflow-y-auto p-3 lg:p-4"
+                            className="wiki-doc-viewer-shell tui-viewer-wrapper h-full overflow-y-auto p-2 lg:p-2"
                             style={
                                 sectionColor
                                     ? {['--wiki-heading-number-color']: sectionColor}

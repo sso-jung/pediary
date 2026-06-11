@@ -14,6 +14,9 @@
 :root {
     --wiki-body-font-size: 14px;
     --wiki-body-line-height: 1.6;
+
+    /* 문서 본문 카드의 기준 최대 너비 */
+    --wiki-doc-content-max: 1480px;
 }
 
 /* ✅ (요청대로 그대로 유지) */
@@ -529,4 +532,25 @@
 .tui-viewer-wrapper .toastui-editor-contents th {
     color: var(--color-text-main) !important;
     line-height: var(--wiki-body-line-height) !important;
+}
+
+/* ===========================
+   Wiki Document: edit/view width sync
+   =========================== */
+
+/* 에디터 외곽이 부모 너비를 꽉 쓰도록 */
+.wiki-doc-editor-shell .toastui-editor-defaultUI,
+.wiki-doc-editor-shell .toastui-editor-main,
+.wiki-doc-editor-shell .toastui-editor-ww-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+}
+
+/* 편집모드 실제 입력 영역과 읽기모드 본문 영역의 좌우 여백 통일 */
+.wiki-doc-editor-shell .ProseMirror,
+.wiki-doc-viewer-shell .toastui-editor-contents {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    box-sizing: border-box;
 }
