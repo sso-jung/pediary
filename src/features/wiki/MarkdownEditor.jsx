@@ -74,6 +74,83 @@ function escapeHtmlText(text = '') {
         .replace(/>/g, '&gt;');
 }
 
+function escapeAttr(value = '') {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function decodeHtmlText(value = '') {
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = value;
+    return textarea.value;
+}
+
+function stripHtmlTags(value = '') {
+    return String(value).replace(/<[^>]*>/g, '');
+}
+
+function getAttrValue(attrs = '', name) {
+    const re = new RegExp(`${name}=["']([^"']*)["']`, 'i');
+    const match = attrs.match(re);
+    return match ? decodeHtmlText(match[1]) : '';
+}
+
+// 저장용 내부링크 문법 -> 편집용 span
+function renderInternalLinksForEditor(markdown = '') {
+    return String(markdown).replace(
+        /\[\[doc:(\d+)(#[^\]|\s]+)?\|([^\]]+)\]\]/g,
+        (_, docId, section = '', label = '') => {
+            const target = `doc:${docId}${section}`;
+            const data = `${target}|${label}`;
+
+            return `<span class="wiki-internal-link-token" data-wiki-link="${escapeAttr(data)}">${escapeHtmlText(label)}</span>`;
+        }
+    );
+}
+
+// 편집용 span -> 저장용 내부링크 문법
+function restoreInternalLinksFromEditor(markdown = '') {
+    return String(markdown).replace(
+        /<span\b([^>]*)>([\s\S]*?)<\/span>/gi,
+        (full, attrs, inner) => {
+            if (!/\bwiki-internal-link-token\b/.test(attrs)) {
+                return full;
+            }
+
+            const data = getAttrValue(attrs, 'data-wiki-link');
+            if (!data) return stripHtmlTags(inner);
+
+            const pipeIndex = data.indexOf('|');
+            const target = pipeIndex >= 0 ? data.slice(0, pipeIndex) : data;
+
+            // 사용자가 편집모드에서 표시 텍스트를 수정했을 수도 있으니 inner를 우선 사용
+            const editedLabel = decodeHtmlText(stripHtmlTags(inner)).trim();
+            const fallbackLabel = pipeIndex >= 0 ? data.slice(pipeIndex + 1) : '';
+
+            const label = editedLabel || fallbackLabel;
+
+            return `[[${target}|${label}]]`;
+        }
+    );
+}
+
+function prepareMarkdownForEditor(markdown = '') {
+    return renderInternalLinksForEditor(
+        normalizeFontSizeTokensToSpans(markdown)
+    );
+}
+
+function getMarkdownForSave(instance) {
+    const markdown = normalizeFontSizeTokensToSpans(
+        instance?.getMarkdown?.() || ''
+    );
+
+    return restoreInternalLinksFromEditor(markdown);
+}
+
 function fontSizeValueToPx(sizePt) {
     if (sizePt === 'sm') return 12;
     if (sizePt === 'md') return 14;
@@ -268,6 +345,75 @@ function paragraphAlignSyntaxPlugin() {
     };
 }
 
+function lineHeightSyntaxPlugin() {
+    return {
+        wysiwygCommands: {
+            lineHeight({ lineHeight }, { tr, selection, doc, schema }, dispatch) {
+                const value = Number(lineHeight);
+                if (!value) return false;
+
+                const code = lineHeightValueToCode(value);
+
+                const targets = new Map();
+
+                const addTarget = (pos, node) => {
+                    if (!node) return;
+                    if (!['paragraph', 'heading'].includes(node.type.name)) return;
+                    if (!node.content?.size) return;
+
+                    targets.set(pos, node);
+                };
+
+                doc.nodesBetween(selection.from, selection.to, (node, pos) => {
+                    addTarget(pos, node);
+                });
+
+                if (targets.size === 0) {
+                    for (let depth = selection.$from.depth; depth > 0; depth -= 1) {
+                        const node = selection.$from.node(depth);
+
+                        if (['paragraph', 'heading'].includes(node.type.name)) {
+                            addTarget(selection.$from.before(depth), node);
+                            break;
+                        }
+                    }
+                }
+
+                if (targets.size === 0) return false;
+
+                let applied = false;
+
+                targets.forEach((node, pos) => {
+                    const from = pos + 1;
+                    const to = pos + node.content.size;
+
+                    const ok = applyMergedSpanMarkToTextRange({
+                        tr,
+                        doc,
+                        schema,
+                        from,
+                        to,
+                        mergeHtmlAttrs: (oldAttrs) => ({
+                            ...oldAttrs,
+                            class: mergeClassName(
+                                (oldAttrs.class || '').replace(/\bwiki-line-height-\d+\b/g, ''),
+                                `wiki-line-height-${code}`
+                            ),
+                        }),
+                    });
+
+                    if (ok) applied = true;
+                });
+
+                if (!applied) return false;
+
+                dispatch(tr);
+                return true;
+            },
+        },
+    };
+}
+
 export default function MarkdownEditor({
                                            value,
                                            onChange,
@@ -330,7 +476,7 @@ export default function MarkdownEditor({
     useEffect(() => {
         const instance = editorRef.current?.getInstance?.();
         if (!instance) return;
-        const next = normalizeFontSizeTokensToSpans(value ?? '');
+        const next = prepareMarkdownForEditor(value ?? '');
         const current = instance.getMarkdown?.() ?? '';
         // 사용자가 이미 타이핑 시작했으면 외부 value로 덮지 않음
         if (hasUserEditedRef.current) {
@@ -385,7 +531,7 @@ export default function MarkdownEditor({
 
         hasUserEditedRef.current = true; // 사용자 수정 발생
 
-        const markdown = normalizeFontSizeTokensToSpans(instance.getMarkdown() || '');
+        const markdown = getMarkdownForSave(instance);
         recentTextColorRef.current = findLastTextColor(markdown) || recentTextColorRef.current;
         onChange(markdown);
     };
@@ -540,8 +686,13 @@ export default function MarkdownEditor({
         }
 
         instance.replaceSelection(insertion);
-        const newMarkdown = instance.getMarkdown() || '';
-        onChange(newMarkdown);
+
+        // raw 문법으로 삽입한 뒤, 편집기 안에서는 span 형태로 다시 보여주기
+        const rawMarkdown = instance.getMarkdown() || '';
+        const editorMarkdown = prepareMarkdownForEditor(rawMarkdown);
+
+        instance.setMarkdown(editorMarkdown);
+        onChange(rawMarkdown);
 
         setIsLinkPaletteOpen(false);
         setLinkQuery('');
@@ -825,7 +976,7 @@ export default function MarkdownEditor({
                     window.getSelection?.()?.removeAllRanges?.();
                 }
 
-                const nextMarkdown = normalizeFontSizeTokensToSpans(instance.getMarkdown?.() || '');
+                const nextMarkdown = getMarkdownForSave(instance);
                 onChange(nextMarkdown);
             });
 
@@ -867,6 +1018,18 @@ export default function MarkdownEditor({
         }
 
         // 선택된 텍스트도 없고, 단어도 못 찾은 경우 → 아무것도 하지 않음
+    }, [onChange]);
+
+    const applyLineHeight = useCallback((lineHeight) => {
+        const instance = editorRef.current?.getInstance();
+        if (!instance) return;
+
+        instance.exec('lineHeight', { lineHeight });
+
+        requestAnimationFrame(() => {
+            const nextMarkdown = getMarkdownForSave(instance);
+            onChange(nextMarkdown);
+        });
     }, [onChange]);
 
     const applyRecentTextColor = useCallback(() => {
@@ -947,11 +1110,20 @@ export default function MarkdownEditor({
     const [fontPickerPos, setFontPickerPos] = useState({ top: 0, left: 0 });
     const [currentFontSize, setCurrentFontSize] = useState(14);
 
+    const [isLineHeightPickerOpen, setIsLineHeightPickerOpen] = useState(false);
+    const [lineHeightPickerPos, setLineHeightPickerPos] = useState({ top: 0, left: 0 });
+    const [currentLineHeight, setCurrentLineHeight] = useState(1.6);
+
     const fontPickerRef = useRef(null);
     const fontSizeButtonRef = useRef(null);
     const fontSizeLabelRef = useRef(null);
 
+    const lineHeightPickerRef = useRef(null);
+    const lineHeightButtonRef = useRef(null);
+    const lineHeightLabelRef = useRef(null);
+
     const fontSizes = [11, 12, 13, 14, 15, 16, 17, 18, 20, 22, 24, 28];
+    const lineHeights = [1.2, 1.4, 1.5, 1.6, 1.8, 2.0, 2.2];
 
     const applyParagraphAlign = useCallback((align) => {
         const instance = editorRef.current?.getInstance();
@@ -961,11 +1133,7 @@ export default function MarkdownEditor({
         instance.exec('paragraphAlign', { align });
 
         requestAnimationFrame(() => {
-            const nextMarkdown = normalizeFontSizeTokensToSpans(
-                instance.getMarkdown?.() || ''
-            );
-
-            console.log('정렬 저장 markdown:', nextMarkdown);
+            const nextMarkdown = getMarkdownForSave(instance);
             onChange(nextMarkdown);
         });
     }, [onChange]);
@@ -996,6 +1164,38 @@ export default function MarkdownEditor({
 
         const px = parseFloat(fontSize);
         setCurrentFontSize(Number.isFinite(px) ? Math.round(px) : 14);
+    }, []);
+
+    const updateCurrentLineHeightFromSelection = useCallback(() => {
+        const root = editorRef.current?.getRootElement?.();
+        if (!root) return;
+
+        const sel = window.getSelection?.();
+        if (!sel || sel.rangeCount === 0) {
+            setCurrentLineHeight(1.6);
+            return;
+        }
+
+        let node = sel.focusNode || sel.anchorNode;
+        if (!node) return;
+
+        if (node.nodeType === Node.TEXT_NODE) {
+            node = node.parentElement;
+        }
+
+        if (!(node instanceof Element)) return;
+        if (!root.contains(node)) return;
+
+        const lineHeightEl = node.closest('[class*="wiki-line-height-"]');
+        const className = lineHeightEl?.className || '';
+        const match = String(className).match(/\bwiki-line-height-(\d+)\b/);
+
+        if (!match) {
+            setCurrentLineHeight(1.6);
+            return;
+        }
+
+        setCurrentLineHeight(lineHeightCodeToValue(match[1]));
     }, []);
 
     const openFontPicker = useCallback((anchorRect) => {
@@ -1031,12 +1231,47 @@ export default function MarkdownEditor({
         setIsFontPickerOpen((prev) => !prev);
     }, [updateCurrentFontSizeFromSelection]);
 
+    const openLineHeightPicker = useCallback((anchorRect) => {
+        const pickerWidth = 68;
+        const pickerHeight = 220;
+        const margin = 8;
+
+        const rect =
+            anchorRect ||
+            lineHeightButtonRef.current?.getBoundingClientRect?.();
+
+        let top = (window.innerHeight - pickerHeight) / 2;
+        let left = (window.innerWidth - pickerWidth) / 2;
+
+        if (rect) {
+            top = rect.bottom + 4;
+            left = rect.left;
+        }
+
+        top = Math.min(
+            Math.max(margin, top),
+            window.innerHeight - pickerHeight - margin
+        );
+
+        left = Math.min(
+            Math.max(margin, left),
+            window.innerWidth - pickerWidth - margin
+        );
+
+        updateCurrentLineHeightFromSelection();
+        setLineHeightPickerPos({ top, left });
+        setIsLineHeightPickerOpen((prev) => !prev);
+    }, [updateCurrentLineHeightFromSelection]);
+
     useEffect(() => {
         const root = editorRef.current?.getRootElement?.();
         if (!root) return;
 
         const update = () => {
-            requestAnimationFrame(updateCurrentFontSizeFromSelection);
+            requestAnimationFrame(() => {
+                updateCurrentFontSizeFromSelection();
+                updateCurrentLineHeightFromSelection();
+            });
         };
 
         document.addEventListener('selectionchange', update);
@@ -1050,13 +1285,19 @@ export default function MarkdownEditor({
             root.removeEventListener('mouseup', update, true);
             root.removeEventListener('click', update, true);
         };
-    }, [updateCurrentFontSizeFromSelection]);
+    }, [updateCurrentFontSizeFromSelection, updateCurrentLineHeightFromSelection]);
 
     useEffect(() => {
         if (fontSizeLabelRef.current) {
             fontSizeLabelRef.current.textContent = `${currentFontSize}`;
         }
     }, [currentFontSize]);
+
+    useEffect(() => {
+        if (lineHeightLabelRef.current) {
+            lineHeightLabelRef.current.textContent = `${currentLineHeight}`;
+        }
+    }, [currentLineHeight]);
 
     // 🔹 Ctrl+Shift+F 또는 Ctrl+Numpad+ → 폰트 크기 선택 팝업 열기
     useEffect(() => {
@@ -1093,6 +1334,9 @@ export default function MarkdownEditor({
             if (e.key === 'Escape' && isFontPickerOpen) {
                 setIsFontPickerOpen(false);
             }
+            if (e.key === 'Escape' && isLineHeightPickerOpen) {
+                setIsLineHeightPickerOpen(false);
+            }
         };
         window.addEventListener('keydown', handleEsc, true);
         return () => window.removeEventListener('keydown', handleEsc, true);
@@ -1113,25 +1357,49 @@ export default function MarkdownEditor({
     }, [isFontPickerOpen]);
 
     useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (!isLineHeightPickerOpen) return;
+
+            const el = lineHeightPickerRef.current;
+            if (!el) return;
+
+            if (!el.contains(e.target)) {
+                setIsLineHeightPickerOpen(false);
+            }
+        };
+
+        window.addEventListener('mousedown', handleClickOutside, true);
+        return () => window.removeEventListener('mousedown', handleClickOutside, true);
+    }, [isLineHeightPickerOpen]);
+
+    useEffect(() => {
         const handleOpenFontPicker = (e) => {
             openFontPicker(e.detail?.rect);
         };
+
+        const handleOpenLineHeightPicker = (e) => {
+            openLineHeightPicker(e.detail?.rect);
+        };
+
         const handleOpenInternalLink = () => {
             openInternalLinkPalette();
         };
+
         const handleParagraphAlign = (e) => {
             applyParagraphAlign(e.detail?.align);
         };
 
         window.addEventListener('pediary:open-font-picker', handleOpenFontPicker);
+        window.addEventListener('pediary:open-line-height-picker', handleOpenLineHeightPicker);
         window.addEventListener('pediary:open-internal-link', handleOpenInternalLink);
         window.addEventListener('pediary:paragraph-align', handleParagraphAlign);
         return () => {
             window.removeEventListener('pediary:open-font-picker', handleOpenFontPicker);
+            window.removeEventListener('pediary:open-line-height-picker', handleOpenLineHeightPicker);
             window.removeEventListener('pediary:open-internal-link', handleOpenInternalLink);
             window.removeEventListener('pediary:paragraph-align', handleParagraphAlign);
         };
-    }, [openFontPicker, openInternalLinkPalette, applyParagraphAlign]);
+    }, [openFontPicker, openLineHeightPicker, openInternalLinkPalette, applyParagraphAlign]);
 
     // 🔹 아무것도 수정 안 한 상태에서 Ctrl+Z 누르면 전체 삭제되는 것 + 초기 내용보다 더 뒤로 가는 것 방지
     useEffect(() => {
@@ -1285,6 +1553,52 @@ export default function MarkdownEditor({
             return button;
         };
 
+        const makeLineHeightButton = () => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.title = '행간';
+            button.className = 'pediary-toastui-line-height-button';
+
+            const label = document.createElement('span');
+            label.className = 'pediary-toastui-line-height-label';
+            label.textContent = `${currentLineHeight}`;
+
+            const caret = document.createElement('span');
+            caret.className = 'pediary-toastui-line-height-caret';
+            caret.textContent = '▾';
+
+            button.appendChild(label);
+            button.appendChild(caret);
+
+            lineHeightButtonRef.current = button;
+            lineHeightLabelRef.current = label;
+
+            button.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+            });
+
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+
+                const rect = button.getBoundingClientRect();
+
+                window.dispatchEvent(new CustomEvent('pediary:open-line-height-picker', {
+                    detail: {
+                        rect: {
+                            top: rect.top,
+                            right: rect.right,
+                            bottom: rect.bottom,
+                            left: rect.left,
+                            width: rect.width,
+                            height: rect.height,
+                        },
+                    },
+                }));
+            });
+
+            return button;
+        };
+
         const makeAlignButton = (icon, tooltip, align) => {
             const button = document.createElement('button');
             button.type = 'button';
@@ -1341,6 +1655,11 @@ export default function MarkdownEditor({
                     tooltip: '양쪽 정렬',
                     el: makeAlignButton(alignJustifyIcon, '양쪽 정렬', 'justify'),
                 },
+                {
+                    name: 'lineHeight',
+                    tooltip: '행간',
+                    el: makeLineHeightButton(),
+                },
             ],
             ['ul', 'ol', 'task'],
             // ['table'],
@@ -1353,7 +1672,7 @@ export default function MarkdownEditor({
         <div className={fullHeight ? 'h-full' : ''}>
             <Editor
                 ref={editorRef}
-                initialValue={normalizeFontSizeTokensToSpans(value || '')}
+                initialValue={prepareMarkdownForEditor(value || '')}
                 previewStyle="vertical"
                 // 🔹 fullHeight일 땐 부모 div 높이 100% 채우고, 그 안에서 스크롤
                 height={fullHeight ? '100%' : 'auto'}
@@ -1364,6 +1683,7 @@ export default function MarkdownEditor({
                 plugins={[
                     fontSizeSyntaxPlugin,
                     paragraphAlignSyntaxPlugin,
+                    lineHeightSyntaxPlugin,
                     [
                         colorSyntax,
                         {
@@ -1423,6 +1743,41 @@ export default function MarkdownEditor({
                         >
                             <span>{size}</span>
                             <span className="text-[10px] text-slate-400">px</span>
+                        </button>
+                    ))}
+                </div>
+            )}
+
+            {/* 행간 */}
+            {isLineHeightPickerOpen && (
+                <div
+                    ref={lineHeightPickerRef}
+                    className="fixed z-50 w-[68px] overflow-hidden rounded-md border border-slate-200 bg-white py-1 text-[12px] shadow-lg"
+                    style={{
+                        top: lineHeightPickerPos.top,
+                        left: lineHeightPickerPos.left,
+                    }}
+                >
+                    {lineHeights.map((lineHeight) => (
+                        <button
+                            key={lineHeight}
+                            type="button"
+                            className={
+                                'flex w-full items-center justify-between px-2 py-1.5 text-left ui-side-subitem ' +
+                                (currentLineHeight === lineHeight
+                                    ? 'ui-side-subitem-active font-semibold'
+                                    : '')
+                            }
+                            onMouseDown={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+
+                                applyLineHeight(lineHeight);
+                                setCurrentLineHeight(lineHeight);
+                                setIsLineHeightPickerOpen(false);
+                            }}
+                        >
+                            <span>{lineHeight}</span>
                         </button>
                     ))}
                 </div>
