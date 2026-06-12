@@ -274,6 +274,46 @@ function fontSizeSyntaxPlugin(context) {
     };
 }
 
+function underlineSyntaxPlugin() {
+    return {
+        markdownCommands: {
+            underline(_, { tr, selection, schema }, dispatch) {
+                const slice = selection.content();
+                const textContent = slice.content.textBetween(0, slice.content.size, '\n');
+                if (!textContent) return false;
+
+                const html = `<span class="wiki-underline">${escapeHtmlText(textContent)}</span>`;
+                tr.replaceSelectionWith(schema.text(html));
+                dispatch(tr);
+                return true;
+            },
+        },
+        wysiwygCommands: {
+            underline(_, { tr, selection, schema }, dispatch) {
+                const { from, to } = selection;
+                if (from === to) return false;
+
+                const applied = applyMergedSpanMarkToTextRange({
+                    tr,
+                    doc: tr.doc,
+                    schema,
+                    from,
+                    to,
+                    mergeHtmlAttrs: (oldAttrs) => ({
+                        ...oldAttrs,
+                        class: mergeClassName(oldAttrs.class || '', 'wiki-underline'),
+                    }),
+                });
+
+                if (!applied) return false;
+
+                dispatch(tr);
+                return true;
+            },
+        },
+    };
+}
+
 function paragraphAlignSyntaxPlugin() {
     return {
         wysiwygCommands: {
@@ -1032,6 +1072,18 @@ export default function MarkdownEditor({
         });
     }, [onChange]);
 
+    const applyUnderline = useCallback(() => {
+        const instance = editorRef.current?.getInstance();
+        if (!instance) return;
+
+        instance.exec('underline');
+
+        requestAnimationFrame(() => {
+            const nextMarkdown = getMarkdownForSave(instance);
+            onChange(nextMarkdown);
+        });
+    }, [onChange]);
+
     const applyRecentTextColor = useCallback(() => {
         const instance = editorRef.current?.getInstance();
         const color = recentTextColorRef.current;
@@ -1102,6 +1154,33 @@ export default function MarkdownEditor({
         window.addEventListener('keydown', handleRecentColorShortcut, true);
         return () => window.removeEventListener('keydown', handleRecentColorShortcut, true);
     }, [applyRecentTextColor]);
+
+    // 🔹 Ctrl+U / Cmd+U → 밑줄
+    useEffect(() => {
+        const handleUnderlineShortcut = (e) => {
+            const isMac = navigator.platform.toUpperCase().includes('MAC');
+            const isCtrlOrMeta = isMac ? e.metaKey : e.ctrlKey;
+            const isUnderlineKey =
+                isCtrlOrMeta && !e.altKey && !e.shiftKey && (e.key === 'u' || e.key === 'U');
+
+            if (!isUnderlineKey) return;
+
+            const instance = editorRef.current?.getInstance();
+            const root = editorRef.current?.getRootElement?.();
+            if (!instance || !root) return;
+
+            const active = document.activeElement;
+            if (!active || !root.contains(active)) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            applyUnderline();
+        };
+
+        window.addEventListener('keydown', handleUnderlineShortcut, true);
+        return () => window.removeEventListener('keydown', handleUnderlineShortcut, true);
+    }, [applyUnderline]);
 
     // =========================
     // 폰트 팝업 위치/열림 상태
@@ -1389,17 +1468,23 @@ export default function MarkdownEditor({
             applyParagraphAlign(e.detail?.align);
         };
 
+        const handleUnderline = () => {
+            applyUnderline();
+        };
+
         window.addEventListener('pediary:open-font-picker', handleOpenFontPicker);
         window.addEventListener('pediary:open-line-height-picker', handleOpenLineHeightPicker);
         window.addEventListener('pediary:open-internal-link', handleOpenInternalLink);
         window.addEventListener('pediary:paragraph-align', handleParagraphAlign);
+        window.addEventListener('pediary:underline', handleUnderline);
         return () => {
             window.removeEventListener('pediary:open-font-picker', handleOpenFontPicker);
             window.removeEventListener('pediary:open-line-height-picker', handleOpenLineHeightPicker);
             window.removeEventListener('pediary:open-internal-link', handleOpenInternalLink);
             window.removeEventListener('pediary:paragraph-align', handleParagraphAlign);
+            window.removeEventListener('pediary:underline', handleUnderline);
         };
-    }, [openFontPicker, openLineHeightPicker, openInternalLinkPalette, applyParagraphAlign]);
+    }, [openFontPicker, openLineHeightPicker, openInternalLinkPalette, applyParagraphAlign, applyUnderline]);
 
     // 🔹 아무것도 수정 안 한 상태에서 Ctrl+Z 누르면 전체 삭제되는 것 + 초기 내용보다 더 뒤로 가는 것 방지
     useEffect(() => {
@@ -1451,6 +1536,12 @@ export default function MarkdownEditor({
                 <path d="M8.75 4.75H6.25C5.45 4.75 4.75 5.45 4.75 6.25V17.75C4.75 18.55 5.45 19.25 6.25 19.25H8.75" style="stroke-width: 1.6" />
                 <path d="M15.25 4.75H17.75C18.55 4.75 19.25 5.45 19.25 6.25V17.75C19.25 18.55 18.55 19.25 17.75 19.25H15.25" style="stroke-width: 1.6" />
                 <path d="M10 12H14" style="stroke-width: 1.6" />
+            </svg>
+        `;
+        const underlineIcon = `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7.25 5.25V11.5C7.25 14.25 9.1 16 12 16C14.9 16 16.75 14.25 16.75 11.5V5.25" />
+                <path d="M6.25 20H17.75" />
             </svg>
         `;
         const alignLeftIcon = `
@@ -1624,6 +1715,11 @@ export default function MarkdownEditor({
                 'italic',
                 'strike',
                 {
+                    name: 'underline',
+                    tooltip: '밑줄',
+                    el: makeButton(underlineIcon, '밑줄', 'pediary:underline'),
+                },
+                {
                     name: 'fontSize',
                     tooltip: '글자 크기',
                     el: makeFontSizeButton(),
@@ -1682,6 +1778,7 @@ export default function MarkdownEditor({
                 useCommandShortcut={true}
                 plugins={[
                     fontSizeSyntaxPlugin,
+                    underlineSyntaxPlugin,
                     paragraphAlignSyntaxPlugin,
                     lineHeightSyntaxPlugin,
                     [

@@ -59,3 +59,20 @@ export function sortAndFilterDocuments(docs, query, favoriteIds = new Set()) {
 
     return result;
 }
+
+export function getCategoryPath(categoryId, categories) {
+    if (!categoryId || !categories) return '미분류';
+
+    const byId = new Map((categories || []).map((category) => [String(category.id), category]));
+    const names = [];
+    const visited = new Set();
+    let current = byId.get(String(categoryId));
+
+    while (current && !visited.has(String(current.id))) {
+        visited.add(String(current.id));
+        names.unshift(current.name);
+        current = current.parent_id == null ? null : byId.get(String(current.parent_id));
+    }
+
+    return names.length > 0 ? names.join(' > ') : '미분류';
+}

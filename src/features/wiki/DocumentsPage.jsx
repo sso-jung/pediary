@@ -11,7 +11,7 @@ import SectionHeader from '../../components/ui/SectionHeader';
 import EmptyState from '../../components/ui/EmptyState';
 import DocumentFilterBar from './DocumentFilterBar';
 import { useDocumentFavorites, useToggleFavoriteDocument } from './hooks/useDocumentFavorites';
-import { sortAndFilterDocuments } from './utils/documentListUtils';
+import { getCategoryPath, sortAndFilterDocuments } from './utils/documentListUtils';
 
 export default function DocumentsPage() {
     const { data: docs, isLoading } = useVisibleDocuments();
@@ -44,12 +44,6 @@ export default function DocumentsPage() {
         [docs, query, favoriteIdSet],
     );
 
-    const getCategoryName = (categoryId) => {
-        if (!categoryId || !categories) return '미분류';
-        const found = categories.find((c) => c.id === categoryId);
-        return found ? found.name : '미분류';
-    };
-
     return (
         <div className="h-full overflow-y-auto rounded-2xl p-3 sm:p-4 shadow-soft ui-surface border border-border-subtle">
             <SectionHeader
@@ -73,7 +67,7 @@ export default function DocumentsPage() {
                 <ul className="space-y-2">
                     {sortedDocs.map((doc) => {
                         const isOwner = doc.user_id === user?.id;
-                        const categoryName = getCategoryName(doc.category_id);
+                        const categoryPath = getCategoryPath(doc.category_id, categories);
                         const isFavorite = favoriteIdSet.has(doc.id);
 
                         return (
@@ -121,7 +115,7 @@ export default function DocumentsPage() {
                                     <div className="flex flex-col flex-1">
                                         <div className="flex flex-wrap items-center gap-1 sm:gap-2">
                       <span className="text-[11px] sm:text-[12px] ui-doc-meta">
-                        {categoryName} |
+                        {categoryPath} |
                       </span>
 
                                             <Link to={`/wiki/${doc.slug}`} className="font-medium ui-doc-title">

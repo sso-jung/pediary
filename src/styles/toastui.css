@@ -30,6 +30,14 @@
     color: #1d4ed8;
 }
 
+.toastui-editor-contents .wiki-underline,
+.tui-editor-contents .wiki-underline,
+.toastui-editor-defaultUI .ProseMirror .wiki-underline,
+.ProseMirror .wiki-underline {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
 /* ✅ (요청대로 그대로 유지) */
 .wiki-heading-number {
     color: color-mix(in srgb, var(--wiki-heading-number-color) 72%, var(--color-text-muted));

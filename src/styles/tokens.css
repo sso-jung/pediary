@@ -5,6 +5,14 @@
 
 :root {
     --wiki-heading-number-color: #536ea8;
+    --color-bg-app: #f3f4f8;
+    --color-page-surface: #ffffff;
+    --color-border-subtle: rgba(220, 225, 234, 0.35);
+    --color-control-bg: rgba(255, 255, 255, 0.70);
+    --color-control-border: rgba(148, 163, 184, 0.35);
+    --color-text-main: #0f172a;
+    --color-text-muted: #6b7280;
+    --color-accent: #668de1;
     --color-btn-ring: rgba(132, 152, 196, 0.45);
 
     --color-btn-primary-bg: #8498c4;

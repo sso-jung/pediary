@@ -14,7 +14,7 @@ import SectionHeader from '../../components/ui/SectionHeader';
 import EmptyState from '../../components/ui/EmptyState';
 import DocumentFilterBar from './DocumentFilterBar';
 import { useDocumentFavorites, useToggleFavoriteDocument } from './hooks/useDocumentFavorites';
-import { sortAndFilterDocuments } from './utils/documentListUtils';
+import { getCategoryPath, sortAndFilterDocuments } from './utils/documentListUtils';
 
 export default function CategoryPage() {
     const navigate = useNavigate();
@@ -77,7 +77,7 @@ export default function CategoryPage() {
                     setNewDocTitle('');
                     setNewVisibility('private');
                     setIsCreateModalOpen(false);
-                    navigate(`/wiki/${newDoc.slug}`);
+                    navigate(`/wiki/${newDoc.slug}?mode=edit`);
                 },
             },
         );
@@ -143,6 +143,7 @@ export default function CategoryPage() {
                     {sortedDocs.map((doc) => {
                         const isOwner = doc.user_id === user?.id;
                         const isFavorite = favoriteIdSet.has(doc.id);
+                        const categoryPath = getCategoryPath(doc.category_id, categories);
 
                         return (
                             <li
@@ -189,6 +190,10 @@ export default function CategoryPage() {
 
                                     <div className="flex flex-col flex-1">
                                         <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                                            <span className="text-[11px] sm:text-[12px] ui-doc-meta">
+                                                {categoryPath} |
+                                            </span>
+
                                             <Link to={`/wiki/${doc.slug}`} className="font-medium ui-doc-title">
                                                 {doc.title}
                                             </Link>
