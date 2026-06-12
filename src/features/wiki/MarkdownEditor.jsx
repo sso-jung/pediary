@@ -38,6 +38,26 @@ function findLastTextColor(markdown = '') {
     return color;
 }
 
+const RECENT_TEXT_COLOR_STORAGE_KEY = 'pediary:wiki:recentTextColor';
+
+function getRecentTextColorFromSession() {
+    try {
+        return window.sessionStorage.getItem(RECENT_TEXT_COLOR_STORAGE_KEY) || '';
+    } catch {
+        return '';
+    }
+}
+
+function setRecentTextColorToSession(color) {
+    if (!color) return;
+
+    try {
+        window.sessionStorage.setItem(RECENT_TEXT_COLOR_STORAGE_KEY, color);
+    } catch {
+        // sessionStorage 접근 불가 환경에서는 무시
+    }
+}
+
 function escapeHtmlText(text = '') {
     return text
         .replace(/&/g, '&amp;')
@@ -759,7 +779,22 @@ export default function MarkdownEditor({
     const hasUserEditedRef = useRef(false); // 🔹 사용자 수정 여부 (Ctrl+Z 첫 단계 방지용)
     const initialMarkdownRef = useRef('');  // 🔹 최초 로딩된 마크다운 스냅샷
     const lastAppliedValueRef = useRef(null);
-    const recentTextColorRef = useRef('');
+    const recentTextColorRef = useRef(getRecentTextColorFromSession());
+
+    const updateRecentTextColor = useCallback((markdown = '', fallback = '') => {
+        const color =
+            findLastTextColor(markdown) ||
+            fallback ||
+            getRecentTextColorFromSession() ||
+            recentTextColorRef.current;
+
+        if (!color) return '';
+
+        recentTextColorRef.current = color;
+        setRecentTextColorToSession(color);
+
+        return color;
+    }, []);
 
     // ✅ 문서가 바뀌면(=docKey 변경) 내부 상태를 리셋
     useEffect(() => {
@@ -778,16 +813,16 @@ export default function MarkdownEditor({
         const current = instance.getMarkdown?.() ?? '';
         // 사용자가 이미 타이핑 시작했으면 외부 value로 덮지 않음
         if (hasUserEditedRef.current) {
-            recentTextColorRef.current = findLastTextColor(current) || recentTextColorRef.current;
+            updateRecentTextColor(current);
             return;
         }
         // 같은 값이면 스킵
         if (current === next) {
-            recentTextColorRef.current = findLastTextColor(next) || recentTextColorRef.current;
+            updateRecentTextColor(next);
             return;
         }
         if (lastAppliedValueRef.current === next) {
-            recentTextColorRef.current = findLastTextColor(next) || recentTextColorRef.current;
+            updateRecentTextColor(next);
             return;
         }
         instance.setMarkdown(next);
@@ -795,8 +830,8 @@ export default function MarkdownEditor({
 
         // 초기 undo 기준도 여기서 설정
         initialMarkdownRef.current = next;
-        recentTextColorRef.current = findLastTextColor(next) || recentTextColorRef.current;
-    }, [value, allDocs, categories]);
+        updateRecentTextColor(next);
+    }, [value, allDocs, categories, updateRecentTextColor]);
 
     useEffect(() => {
         const root = editorRef.current?.getRootElement?.();
@@ -910,7 +945,7 @@ export default function MarkdownEditor({
 
         const markdown = getMarkdownForSave(instance);
 
-        recentTextColorRef.current = findLastTextColor(markdown) || recentTextColorRef.current;
+        updateRecentTextColor(markdown);
         onChange(markdown);
     };
 
@@ -1423,7 +1458,11 @@ export default function MarkdownEditor({
 
     const applyRecentTextColor = useCallback(() => {
         const instance = editorRef.current?.getInstance();
-        const color = recentTextColorRef.current;
+
+        const color =
+            getRecentTextColorFromSession() ||
+            recentTextColorRef.current;
+
         if (!instance || !color) return;
 
         const selected = instance.getSelectedText?.() || '';
@@ -1433,10 +1472,10 @@ export default function MarkdownEditor({
 
         requestAnimationFrame(() => {
             const markdown = instance.getMarkdown?.() || '';
-            recentTextColorRef.current = findLastTextColor(markdown) || color;
+            updateRecentTextColor(markdown, color);
             onChange(markdown);
         });
-    }, [onChange]);
+    }, [onChange, updateRecentTextColor]);
 
     // 🔹 부분 폰트 크기 변경 커맨드 등록
     useEffect(() => {
@@ -1471,7 +1510,12 @@ export default function MarkdownEditor({
         const handleRecentColorShortcut = (e) => {
             const isMac = navigator.platform.toUpperCase().includes('MAC');
             const isCtrlOrMeta = isMac ? e.metaKey : e.ctrlKey;
-            const isColorKey = isCtrlOrMeta && e.altKey && (e.key === 'c' || e.key === 'C');
+
+            const isColorKey =
+                isCtrlOrMeta &&
+                !e.altKey &&
+                !e.shiftKey &&
+                e.code === 'Space';
 
             if (!isColorKey) return;
 
