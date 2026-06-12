@@ -10,8 +10,10 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import SectionHeader from '../../components/ui/SectionHeader';
 import EmptyState from '../../components/ui/EmptyState';
 import DocumentFilterBar from './DocumentFilterBar';
+import DocumentPagination from './DocumentPagination';
 import { useDocumentFavorites, useToggleFavoriteDocument } from './hooks/useDocumentFavorites';
 import { getCategoryPath, sortAndFilterDocuments } from './utils/documentListUtils';
+import { useDocumentListQuery } from './hooks/useDocumentListQuery';
 
 export default function DocumentsPage() {
     const { data: docs, isLoading } = useVisibleDocuments();
@@ -26,13 +28,7 @@ export default function DocumentsPage() {
     const { data: favorites } = useDocumentFavorites();
     const toggleFavoriteMutation = useToggleFavoriteDocument();
 
-    const [query, setQuery] = useState({
-        searchText: '',
-        sortBy: 'updated_at',
-        sortDir: 'desc',
-        onlyFavorites: false,
-        favoriteFirst: true,
-    });
+    const [query, setQuery] = useDocumentListQuery('all');
 
     const favoriteIdSet = useMemo(
         () => new Set((favorites || []).map((f) => f.document_id)),
@@ -44,14 +40,22 @@ export default function DocumentsPage() {
         [docs, query, favoriteIdSet],
     );
 
+    const pageSize = query.pageSize || 10;
+    const pageCount = Math.max(1, Math.ceil(sortedDocs.length / pageSize));
+    const currentPage = Math.min(Math.max(1, query.page || 1), pageCount);
+    const pagedDocs = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return sortedDocs.slice(start, start + pageSize);
+    }, [sortedDocs, currentPage, pageSize]);
+
     return (
-        <div className="h-full overflow-y-auto rounded-2xl p-3 sm:p-4 shadow-soft ui-surface border border-border-subtle">
+        <div className="h-full overflow-y-auto rounded-2xl p-3 sm:p-3.5 shadow-soft ui-surface border border-border-subtle">
             <SectionHeader
                 title="전체 문서"
                 subtitle=""
             />
 
-            <div className="mt-3 mb-3 sm:mt-4 sm:mb-4">
+            <div className="mt-2.5 mb-[18px] sm:mt-3.5 sm:mb-5">
                 <DocumentFilterBar value={query} onChange={setQuery} />
             </div>
 
@@ -64,8 +68,9 @@ export default function DocumentsPage() {
                     description={'왼쪽 사이드바에서 카테고리를 만들고\n그 안에 첫 문서를 추가해 볼까?'}
                 />
             ) : (
-                <ul className="space-y-2">
-                    {sortedDocs.map((doc) => {
+                <>
+                <ul className="space-y-[7px]">
+                    {pagedDocs.map((doc) => {
                         const isOwner = doc.user_id === user?.id;
                         const categoryPath = getCategoryPath(doc.category_id, categories);
                         const isFavorite = favoriteIdSet.has(doc.id);
@@ -76,7 +81,7 @@ export default function DocumentsPage() {
                                 className="
                                     ui-doc-item
                                     flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between
-                                    rounded-xl px-3 py-2 text-xs sm:text-sm
+                                    rounded-xl px-3 py-1.5 text-xs sm:text-sm
                                   "
                                 role="button"
                                 tabIndex={0}
@@ -173,6 +178,14 @@ export default function DocumentsPage() {
                         );
                     })}
                 </ul>
+
+                <DocumentPagination
+                    totalCount={sortedDocs.length}
+                    page={currentPage}
+                    pageSize={pageSize}
+                    onChange={setQuery}
+                />
+                </>
             )}
 
             {/* ConfirmDialog 그대로 */}

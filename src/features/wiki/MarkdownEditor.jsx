@@ -92,6 +92,77 @@ function stripHtmlTags(value = '') {
     return String(value).replace(/<[^>]*>/g, '');
 }
 
+function getFirstTextNode(node) {
+    if (!node) return null;
+    if (node.nodeType === Node.TEXT_NODE && node.nodeValue?.length > 0) return node;
+
+    for (const child of node.childNodes || []) {
+        const found = getFirstTextNode(child);
+        if (found) return found;
+    }
+
+    return null;
+}
+
+function getNextTextNode(root, node) {
+    if (!root || !node) return null;
+
+    const walker = document.createTreeWalker(
+        root,
+        NodeFilter.SHOW_TEXT,
+        {
+            acceptNode: (textNode) =>
+                textNode.nodeValue?.length > 0
+                    ? NodeFilter.FILTER_ACCEPT
+                    : NodeFilter.FILTER_REJECT,
+        }
+    );
+
+    let current = walker.nextNode();
+    while (current) {
+        if (current === node) {
+            return walker.nextNode();
+        }
+        current = walker.nextNode();
+    }
+
+    return null;
+}
+
+function getTextNodeAtOrAfter(root, container, offset) {
+    if (!root || !container) return null;
+
+    if (container.nodeType === Node.TEXT_NODE) {
+        if (offset < (container.nodeValue?.length || 0)) return container;
+        return getNextTextNode(root, container);
+    }
+
+    if (container.nodeType !== Node.ELEMENT_NODE) return null;
+
+    const child = container.childNodes?.[offset];
+    const firstInChild = getFirstTextNode(child);
+    if (firstInChild) return firstInChild;
+
+    const previousChild = container.childNodes?.[offset - 1];
+    const previousText = getFirstTextNode(previousChild);
+    if (previousText) return getNextTextNode(root, previousText);
+
+    const firstInContainer = getFirstTextNode(container);
+    return firstInContainer && root.contains(firstInContainer) ? firstInContainer : null;
+}
+
+function getSelectionReadElement(root) {
+    const sel = window.getSelection?.();
+    if (!sel || sel.rangeCount === 0) return null;
+
+    const range = sel.getRangeAt(0);
+    const textNode = getTextNodeAtOrAfter(root, range.startContainer, range.startOffset);
+    if (!textNode) return null;
+
+    const node = textNode.nodeType === Node.TEXT_NODE ? textNode.parentElement : textNode;
+    return node instanceof Element && root.contains(node) ? node : null;
+}
+
 function getAttrValue(attrs = '', name) {
     const re = new RegExp(`${name}=["']([^"']*)["']`, 'i');
     const match = attrs.match(re);
@@ -1222,21 +1293,8 @@ export default function MarkdownEditor({
         const root = editorRef.current?.getRootElement?.();
         if (!instance || !root) return;
 
-        const sel = window.getSelection?.();
-        if (!sel || sel.rangeCount === 0) {
-            setCurrentFontSize(14);
-            return;
-        }
-
-        let node = sel.focusNode || sel.anchorNode;
+        const node = getSelectionReadElement(root);
         if (!node) return;
-
-        if (node.nodeType === Node.TEXT_NODE) {
-            node = node.parentElement;
-        }
-
-        if (!(node instanceof Element)) return;
-        if (!root.contains(node)) return;
 
         const fontEl = node.closest('[style*="font-size"]');
         const fontSize = fontEl?.style?.fontSize || '';
@@ -1249,21 +1307,8 @@ export default function MarkdownEditor({
         const root = editorRef.current?.getRootElement?.();
         if (!root) return;
 
-        const sel = window.getSelection?.();
-        if (!sel || sel.rangeCount === 0) {
-            setCurrentLineHeight(1.6);
-            return;
-        }
-
-        let node = sel.focusNode || sel.anchorNode;
+        const node = getSelectionReadElement(root);
         if (!node) return;
-
-        if (node.nodeType === Node.TEXT_NODE) {
-            node = node.parentElement;
-        }
-
-        if (!(node instanceof Element)) return;
-        if (!root.contains(node)) return;
 
         const lineHeightEl = node.closest('[class*="wiki-line-height-"]');
         const className = lineHeightEl?.className || '';

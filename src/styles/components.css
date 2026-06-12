@@ -197,6 +197,12 @@
         color: var(--color-text-muted);
         opacity: 0.75;
     }
+    .doc-border-control {
+        border-color: var(--color-panel-border) !important;
+    }
+    .doc-border-control:focus {
+        border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-panel-border)) !important;
+    }
 
     /* Sidebar */
     .ui-side-item,

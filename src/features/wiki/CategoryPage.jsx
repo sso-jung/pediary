@@ -13,8 +13,10 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import SectionHeader from '../../components/ui/SectionHeader';
 import EmptyState from '../../components/ui/EmptyState';
 import DocumentFilterBar from './DocumentFilterBar';
+import DocumentPagination from './DocumentPagination';
 import { useDocumentFavorites, useToggleFavoriteDocument } from './hooks/useDocumentFavorites';
 import { getCategoryPath, sortAndFilterDocuments } from './utils/documentListUtils';
+import { useDocumentListQuery } from './hooks/useDocumentListQuery';
 
 export default function CategoryPage() {
     const navigate = useNavigate();
@@ -39,13 +41,7 @@ export default function CategoryPage() {
     const { data: favorites } = useDocumentFavorites();
     const toggleFavoriteMutation = useToggleFavoriteDocument();
 
-    const [query, setQuery] = useState({
-        searchText: '',
-        sortBy: 'updated_at',
-        sortDir: 'desc',
-        onlyFavorites: false,
-        favoriteFirst: true,
-    });
+    const [query, setQuery] = useDocumentListQuery(`category.${categoryId}`);
 
     const favoriteIdSet = useMemo(
         () => new Set((favorites || []).map((f) => f.document_id)),
@@ -56,6 +52,14 @@ export default function CategoryPage() {
         () => sortAndFilterDocuments(documents || [], query, favoriteIdSet),
         [documents, query, favoriteIdSet],
     );
+
+    const pageSize = query.pageSize || 10;
+    const pageCount = Math.max(1, Math.ceil(sortedDocs.length / pageSize));
+    const currentPage = Math.min(Math.max(1, query.page || 1), pageCount);
+    const pagedDocs = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return sortedDocs.slice(start, start + pageSize);
+    }, [sortedDocs, currentPage, pageSize]);
 
     const currentCategory =
         categoryId === 'all'
@@ -102,32 +106,29 @@ export default function CategoryPage() {
     };
 
     return (
-        <div className="h-full overflow-y-auto rounded-2xl p-3 sm:p-4 shadow-soft ui-surface border border-border-subtle">
+        <div className="h-full overflow-y-auto rounded-2xl p-3 sm:p-3.5 shadow-soft ui-surface border border-border-subtle">
             <SectionHeader
                 title={currentCategory ? currentCategory.name : '카테고리'}
                 // subtitle="이 카테고리 안의 문서를 관리해 보자."
                 subtitle=""
+                action={
+                    isMyCategory && (
+                        <Button
+                            type="button"
+                            className="h-[30px] rounded-full px-3.5 py-0 text-[13px] font-semibold shadow-none hover:shadow-none"
+                            style={{
+                                backgroundColor: 'color-mix(in srgb, var(--color-btn-primary-bg) 88%, transparent)',
+                            }}
+                            onClick={() => setIsCreateModalOpen(true)}
+                        >
+                            문서 추가
+                        </Button>
+                    )
+                }
             />
 
-            <div className="mt-3 mb-3 sm:mt-4 sm:mb-4">
+            <div className="mt-2.5 mb-[18px] sm:mt-3.5 sm:mb-5">
                 <DocumentFilterBar value={query} onChange={setQuery} />
-            </div>
-
-            {/* 상단: 개수 + 문서 추가 */}
-            <div className="mb-3 flex items-center justify-between">
-        <span className="text-[11px] ui-doc-meta">
-          총 {sortedDocs ? sortedDocs.length : 0}개 문서
-        </span>
-
-                {isMyCategory && (
-                    <Button
-                        type="button"
-                        className="h-8 px-4 text-sm"
-                        onClick={() => setIsCreateModalOpen(true)}
-                    >
-                        문서 추가
-                    </Button>
-                )}
             </div>
 
             {isLoading ? (
@@ -139,8 +140,9 @@ export default function CategoryPage() {
                     description={'오른쪽 위의 "문서 추가" 버튼을 눌러서\n첫 문서를 만들어 보자.'}
                 />
             ) : (
-                <ul className="space-y-2">
-                    {sortedDocs.map((doc) => {
+                <>
+                <ul className="space-y-[7px]">
+                    {pagedDocs.map((doc) => {
                         const isOwner = doc.user_id === user?.id;
                         const isFavorite = favoriteIdSet.has(doc.id);
                         const categoryPath = getCategoryPath(doc.category_id, categories);
@@ -151,7 +153,7 @@ export default function CategoryPage() {
                                 className="
                   ui-doc-item
                   flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between
-                  rounded-xl px-3 py-2 text-xs sm:text-sm
+                  rounded-xl px-3 py-1.5 text-xs sm:text-sm
                 "
                                 role="button"
                                 tabIndex={0}
@@ -252,6 +254,14 @@ export default function CategoryPage() {
                         );
                     })}
                 </ul>
+
+                <DocumentPagination
+                    totalCount={sortedDocs.length}
+                    page={currentPage}
+                    pageSize={pageSize}
+                    onChange={setQuery}
+                />
+                </>
             )}
 
             {/* 새 문서 추가 모달 */}

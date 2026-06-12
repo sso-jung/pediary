@@ -20,15 +20,21 @@
 .doc-filterbar input[type="text"],
 .doc-filterbar select {
     background-color: color-mix(in srgb, var(--color-page-surface) 70%, transparent);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-panel-border) !important;
+    border-color: var(--color-panel-border) !important;
+}
+
+.doc-filterbar input[type="text"] {
     color: var(--color-text-main);
-    border: 1px solid var(--color-border-subtle);
+    box-shadow: none !important;
 }
 
 /* focus 링: 네온 무드 유지 */
 .doc-filterbar input[type="text"]:focus,
 .doc-filterbar select:focus {
     outline: none;
-    border-color: color-mix(in srgb, var(--color-accent) 60%, var(--color-border-subtle));
+    border-color: color-mix(in srgb, var(--color-accent) 55%, var(--color-panel-border));
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent) 18%, transparent);
     background-color: var(--color-page-surface);
 }
@@ -36,7 +42,7 @@
 /* 즐겨찾기 필터 pill(label) */
 .doc-filterbar .df-pill {
     background-color: var(--color-page-surface-2);
-    border: 1px solid var(--color-border-subtle);
+    border: 1px solid var(--color-panel-border);
     color: var(--color-text-muted);
 }
 
@@ -58,7 +64,7 @@
 
 .app-shell[data-theme="midnight"] .doc-filterbar .df-pill {
     background-color: color-mix(in srgb, var(--color-accent) 8%, transparent);
-    border-color: color-mix(in srgb, var(--color-accent) 22%, var(--color-border-subtle));
+    border-color: var(--color-panel-border);
     color: rgba(229, 231, 235, 0.80);
 }
 

@@ -289,7 +289,7 @@ export default function Sidebar() {
             <form onSubmit={handleAddCategory} className="shrink-0 space-y-2">
                 <input
                     type="text"
-                    className="ui-input w-full px-3 py-2 text-xs"
+                    className="ui-input doc-border-control w-full px-3 py-2 text-xs"
                     placeholder="새 카테고리 이름"
                     value={newCategoryName}
                     onChange={(e) => setNewCategoryName(e.target.value)}

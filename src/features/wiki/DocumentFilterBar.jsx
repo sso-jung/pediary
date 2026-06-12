@@ -19,7 +19,7 @@ export default function DocumentFilterBar({
             className="
         doc-filterbar
         flex flex-col gap-2 rounded-2xl
-        p-2.5 sm:p-3
+        p-2 sm:p-2.5
         sm:flex-row sm:items-center sm:justify-between
       "
         >
@@ -53,8 +53,8 @@ export default function DocumentFilterBar({
                     value={sortBy}
                     onChange={(e) => handleChange({ sortBy: e.target.value })}
                 >
-                    <option value="updated_at">수정일시</option>
                     <option value="created_at">생성일시</option>
+                    <option value="updated_at">수정일시</option>
                     <option value="title">제목</option>
                 </select>
 
