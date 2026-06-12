@@ -1,5 +1,6 @@
 // Sidebar.jsx
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useCategories } from '../../features/wiki/hooks/useCategories';
 import { useCreateCategory } from '../../features/wiki/hooks/useCreateCategory';
@@ -12,7 +13,19 @@ import { useSnackbar } from '../ui/SnackbarContext';
 import EmptyState from '../ui/EmptyState.jsx';
 import { useUpdateCategoryName } from "../../features/wiki/hooks/useUpdateCategoryName.js";
 
-const CATEGORY_COLLAPSE_STORAGE_KEY = 'pediary.sidebar.categoryCollapsed';
+const CATEGORY_COLLAPSE_STORAGE_KEY_PREFIX = 'pediary.sidebar.categoryCollapsed';
+
+function getCategoryCollapseStorageKey(userId) {
+    return `${CATEGORY_COLLAPSE_STORAGE_KEY_PREFIX}:${userId || 'guest'}`;
+}
+
+function readCollapsedCategoryMap(storageKey) {
+    try {
+        return JSON.parse(localStorage.getItem(storageKey) || '{}');
+    } catch {
+        return {};
+    }
+}
 
 function FolderIcon({ className = '' }) {
     return (
@@ -27,6 +40,151 @@ function FolderIcon({ className = '' }) {
         >
             <path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4.3a1.5 1.5 0 0 1 1.06.44L11.8 8H19.5A1.5 1.5 0 0 1 21 9.5v8A1.5 1.5 0 0 1 19.5 19h-15A1.5 1.5 0 0 1 3 17.5v-10Z" />
         </svg>
+    );
+}
+
+function SidebarCategoryTooltip({ tooltip }) {
+    const tooltipRef = useRef(null);
+    const [position, setPosition] = useState({
+        left: 0,
+        top: 0,
+        arrowLeft: 0,
+    });
+
+    useLayoutEffect(() => {
+        if (!tooltip) return;
+
+        const el = tooltipRef.current;
+        if (!el) return;
+
+        const rect = el.getBoundingClientRect();
+        const margin = 8;
+
+        let left = tooltip.x - rect.width / 2;
+        left = Math.max(
+            margin,
+            Math.min(left, window.innerWidth - rect.width - margin)
+        );
+
+        let top = tooltip.y - rect.height - 12;
+        top = Math.max(margin, top);
+
+        const arrowLeft = Math.max(
+            10,
+            Math.min(tooltip.x - left, rect.width - 10)
+        );
+
+        setPosition({
+            left,
+            top,
+            arrowLeft,
+        });
+    }, [tooltip]);
+
+    if (!tooltip) return null;
+
+    return createPortal(
+        <div
+            ref={tooltipRef}
+            className="pointer-events-none fixed z-[9999] rounded-lg px-3 py-2 text-[11px] font-semibold leading-snug text-white shadow-xl"
+            style={{
+                left: position.left,
+                top: position.top,
+                backgroundColor: 'rgb(30 41 59)',
+                whiteSpace: 'nowrap',
+                maxWidth: 'calc(100vw - 24px)',
+            }}
+        >
+            {tooltip.text}
+
+            <span
+                aria-hidden
+                className="absolute h-2 w-2 rotate-45"
+                style={{
+                    left: position.arrowLeft,
+                    bottom: -4,
+                    marginLeft: -4,
+                    backgroundColor: 'rgb(30 41 59)',
+                }}
+            />
+        </div>,
+        document.body
+    );
+}
+
+function TruncatedCategoryName({
+    name,
+    className = '',
+    onDoubleClick,
+    onTooltipShow,
+    onTooltipMove,
+    onTooltipHide,
+}) {
+    const textRef = useRef(null);
+    const [isTruncated, setIsTruncated] = useState(false);
+
+    const checkTruncated = useCallback(() => {
+        const el = textRef.current;
+        if (!el) return false;
+
+        const next = el.scrollWidth > el.clientWidth + 1;
+        setIsTruncated(next);
+        return next;
+    }, []);
+
+    useEffect(() => {
+        checkTruncated();
+
+        const el = textRef.current;
+        if (!el) return;
+
+        let resizeObserver = null;
+
+        if (typeof ResizeObserver !== 'undefined') {
+            resizeObserver = new ResizeObserver(checkTruncated);
+            resizeObserver.observe(el);
+        }
+
+        window.addEventListener('resize', checkTruncated);
+
+        return () => {
+            resizeObserver?.disconnect();
+            window.removeEventListener('resize', checkTruncated);
+        };
+    }, [name, checkTruncated]);
+
+    const handleMouseEnter = (e) => {
+        if (!checkTruncated()) return;
+
+        onTooltipShow?.({
+            text: name,
+            x: e.clientX,
+            y: e.clientY,
+        });
+    };
+
+    const handleMouseMove = (e) => {
+        if (!isTruncated && !checkTruncated()) return;
+
+        onTooltipMove?.({
+            text: name,
+            x: e.clientX,
+            y: e.clientY,
+        });
+    };
+
+    return (
+        <span
+            ref={textRef}
+            className={['max-w-full truncate', className].join(' ')}
+            onMouseEnter={handleMouseEnter}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={onTooltipHide}
+            onFocus={checkTruncated}
+            onDoubleClick={onDoubleClick}
+        >
+            {name}
+        </span>
     );
 }
 
@@ -47,13 +205,16 @@ export default function Sidebar() {
 
     const [editingCategoryId, setEditingCategoryId] = useState(null);
     const [editingName, setEditingName] = useState('');
-    const [collapsedCategoryMap, setCollapsedCategoryMap] = useState(() => {
-        try {
-            return JSON.parse(sessionStorage.getItem(CATEGORY_COLLAPSE_STORAGE_KEY) || '{}');
-        } catch {
-            return {};
-        }
-    });
+    const collapseStorageKey = useMemo(
+        () => getCategoryCollapseStorageKey(user?.id),
+        [user?.id]
+    );
+
+    const [loadedCollapseKey, setLoadedCollapseKey] = useState(collapseStorageKey);
+
+    const [collapsedCategoryMap, setCollapsedCategoryMap] = useState(() =>
+        readCollapsedCategoryMap(collapseStorageKey)
+    );
 
     const navigate = useNavigate();
     const location = useLocation();
@@ -65,9 +226,34 @@ export default function Sidebar() {
     };
     const currentCategoryId = getCurrentCategoryId();
 
+    const [categoryTooltip, setCategoryTooltip] = useState(null);
+
+    const showCategoryTooltip = useCallback((tooltip) => {
+        setCategoryTooltip(tooltip);
+    }, []);
+
+    const moveCategoryTooltip = useCallback((tooltip) => {
+        setCategoryTooltip(tooltip);
+    }, []);
+
+    const hideCategoryTooltip = useCallback(() => {
+        setCategoryTooltip(null);
+    }, []);
+
     useEffect(() => {
-        sessionStorage.setItem(CATEGORY_COLLAPSE_STORAGE_KEY, JSON.stringify(collapsedCategoryMap));
-    }, [collapsedCategoryMap]);
+        setCollapsedCategoryMap(readCollapsedCategoryMap(collapseStorageKey));
+        setLoadedCollapseKey(collapseStorageKey);
+    }, [collapseStorageKey]);
+
+    useEffect(() => {
+        if (loadedCollapseKey !== collapseStorageKey) return;
+
+        try {
+            localStorage.setItem(collapseStorageKey, JSON.stringify(collapsedCategoryMap));
+        } catch {
+            // localStorage 접근 불가 환경에서는 무시
+        }
+    }, [collapsedCategoryMap, collapseStorageKey, loadedCollapseKey]);
 
     const toggleCategoryCollapsed = (categoryId) => {
         setCollapsedCategoryMap((prev) => ({
@@ -353,15 +539,6 @@ export default function Sidebar() {
 
     return (
         <div className="flex h-full min-h-0 flex-col gap-4 p-3">
-            {/* ✅ 헤더: ui-panel 토큰 사용 */}
-            {/*<div className="ui-panel shrink-0 rounded-2xl p-3 shadow-soft">*/}
-            {/*    <p className="font-semibold ui-page-title">목차</p>*/}
-            {/*    <p className="mt-1 text-xs ui-page-subtitle">*/}
-            {/*        카테고리를 트리 구조로 정리해서*/}
-            {/*        <br />*/}
-            {/*        문서를 더 깔끔하게 관리해 보자.*/}
-            {/*    </p>*/}
-            {/*</div>*/}
 
             {/* ✅ 입력: ui-input 토큰 사용 */}
             <form onSubmit={handleAddCategory} className="shrink-0 space-y-2">
@@ -516,16 +693,17 @@ export default function Sidebar() {
                                                                     className="ui-input max-w-[160px] px-2 py-1 text-[12.5px]"
                                                                 />
                                                             ) : (
-                                                                <span
-                                                                    className="max-w-full truncate text-[12.5px]"
-                                                                    title={root.name}
+                                                                <TruncatedCategoryName
+                                                                    name={root.name}
+                                                                    className="text-[12.5px]"
+                                                                    onTooltipShow={showCategoryTooltip}
+                                                                    onTooltipMove={moveCategoryTooltip}
+                                                                    onTooltipHide={hideCategoryTooltip}
                                                                     onDoubleClick={(e) => {
                                                                         e.stopPropagation();
                                                                         startEditingCategory(root);
                                                                     }}
-                                                                >
-                                  {root.name}
-                                </span>
+                                                                />
                                                             )}
                                                         </div>
 
@@ -618,16 +796,17 @@ export default function Sidebar() {
                                                                                         className="ui-input max-w-full px-2 py-1 text-[11.5px]"
                                                                                     />
                                                                                 ) : (
-                                                                                    <span
-                                                                                        className="max-w-full truncate text-[11.5px]"
-                                                                                        title={child.name}
+                                                                                    <TruncatedCategoryName
+                                                                                        name={child.name}
+                                                                                        className="text-[11.5px]"
+                                                                                        onTooltipShow={showCategoryTooltip}
+                                                                                        onTooltipMove={moveCategoryTooltip}
+                                                                                        onTooltipHide={hideCategoryTooltip}
                                                                                         onDoubleClick={(e) => {
                                                                                             e.stopPropagation();
                                                                                             startEditingCategory(child);
                                                                                         }}
-                                                                                    >
-                                            {child.name}
-                                          </span>
+                                                                                    />
                                                                                 )}
                                                                             </div>
 
@@ -721,9 +900,13 @@ export default function Sidebar() {
                                                         <span className="h-3.5 w-3.5 shrink-0" aria-hidden />
                                                     )}
                                                     <FolderIcon className={rootActive ? "ui-side-icon-active" : "ui-side-icon"} />
-                                                    <span className="max-w-full truncate text-[12.5px]" title={root.name}>
-                            {root.name}
-                          </span>
+                                                    <TruncatedCategoryName
+                                                        name={root.name}
+                                                        className="text-[12.5px]"
+                                                        onTooltipShow={showCategoryTooltip}
+                                                        onTooltipMove={moveCategoryTooltip}
+                                                        onTooltipHide={hideCategoryTooltip}
+                                                    />
                                                     <span className="ml-1 ui-badge-fixed px-2 py-[1px] text-[10px]">
                             공유받음
                           </span>
@@ -749,9 +932,12 @@ export default function Sidebar() {
                                                                     >
                                                                         <div className="relative flex min-w-0 flex-1 items-center gap-1">
                                                                             <span aria-hidden className="ui-tree-branch -left-[11px] w-[7px]" />
-                                                                            <span className="max-w-full truncate" title={child.name}>
-                                        {child.name}
-                                      </span>
+                                                                            <TruncatedCategoryName
+                                                                                name={child.name}
+                                                                                onTooltipShow={showCategoryTooltip}
+                                                                                onTooltipMove={moveCategoryTooltip}
+                                                                                onTooltipHide={hideCategoryTooltip}
+                                                                            />
                                                                         </div>
                                                                     </div>
                                                                 </li>
@@ -812,6 +998,8 @@ export default function Sidebar() {
                 }}
                 onConfirm={handleConfirmDeleteCategory}
             />
+
+            <SidebarCategoryTooltip tooltip={categoryTooltip} />
         </div>
     );
 }

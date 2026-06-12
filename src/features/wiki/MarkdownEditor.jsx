@@ -913,7 +913,7 @@ export default function MarkdownEditor({
     }, [onChange]);
 
     // 🔹 에디터 명령 실행 헬퍼
-    const execCommand = (cmd, payload) => {
+    const execCommand = useCallback((cmd, payload) => {
         const instance = editorRef.current?.getInstance();
         if (!instance) return;
 
@@ -928,13 +928,68 @@ export default function MarkdownEditor({
         };
 
         if (tryExec(cmd)) return;
-        // PascalCase 대소문자 차이 처리용
+
         const alt =
             cmd && cmd.length > 0 ? cmd[0].toUpperCase() + cmd.slice(1) : cmd;
+
         if (alt !== cmd) {
             tryExec(alt);
         }
-    };
+    }, []);
+
+    const applyHeadingShortcut = useCallback((level) => {
+        const instance = editorRef.current?.getInstance();
+        const root = editorRef.current?.getRootElement?.();
+        const active = document.activeElement;
+
+        if (!instance || !root || !active || !root.contains(active)) return;
+
+        execCommand('heading', { level });
+
+        hasUserEditedRef.current = true;
+
+        requestAnimationFrame(() => {
+            const nextMarkdown = getMarkdownForSave(instance);
+            onChange(nextMarkdown);
+        });
+    }, [execCommand, onChange]);
+
+    const commitImeAndApplyHeading = useCallback((level) => {
+        const instance = editorRef.current?.getInstance();
+        const root = editorRef.current?.getRootElement?.();
+
+        if (!instance || !root) return;
+
+        const active = document.activeElement;
+        if (!active || !root.contains(active)) return;
+
+        // 현재 에디터 선택 위치를 저장
+        const selection = instance.getSelection?.();
+
+        // 핵심:
+        // 한글 IME 조합 중인 마지막 글자를 강제로 확정시키기 위해
+        // contenteditable 포커스를 잠깐 뺐다가 다시 준다.
+        if (typeof active.blur === 'function') {
+            active.blur();
+        }
+
+        requestAnimationFrame(() => {
+            instance.focus?.();
+
+            // blur/focus 후에도 원래 줄 기준으로 헤딩이 먹도록 선택 복구
+            if (selection && instance.setSelection) {
+                try {
+                    instance.setSelection(selection[0], selection[1]);
+                } catch {
+                    // selection 형식이 맞지 않으면 무시
+                }
+            }
+
+            requestAnimationFrame(() => {
+                applyHeadingShortcut(level);
+            });
+        });
+    }, [applyHeadingShortcut]);
 
     // 🔹 에디터 내용 변경 시
     const handleChange = () => {
@@ -1237,7 +1292,7 @@ export default function MarkdownEditor({
     // 🔹 헤딩 단축키 (Alt+1~6 → H1~H6)
     useEffect(() => {
         const handleHeadingShortcut = (ev) => {
-            // Alt 만 눌렸을 때만 처리 (Ctrl / Cmd / Shift 같이 눌리면 무시)
+            // Alt 만 눌렸을 때만 처리
             if (!ev.altKey || ev.ctrlKey || ev.metaKey || ev.shiftKey) return;
 
             const key = ev.key;
@@ -1245,24 +1300,27 @@ export default function MarkdownEditor({
 
             const instance = editorRef.current?.getInstance();
             const root = editorRef.current?.getRootElement?.();
+
             if (!instance || !root) return;
 
             const active = document.activeElement;
-            if (active && !root.contains(active)) {
-                // 에디터에 포커스 없으면 무시
-                return;
-            }
+            if (!active || !root.contains(active)) return;
 
             ev.preventDefault();
             ev.stopPropagation();
+            ev.stopImmediatePropagation?.();
 
-            const level = Number(key); // 1~6
-            execCommand('heading', { level });
+            const level = Number(key);
+
+            commitImeAndApplyHeading(level);
         };
 
         window.addEventListener('keydown', handleHeadingShortcut, true);
-        return () => window.removeEventListener('keydown', handleHeadingShortcut, true);
-    }, []);
+
+        return () => {
+            window.removeEventListener('keydown', handleHeadingShortcut, true);
+        };
+    }, [commitImeAndApplyHeading]);
 
     // 🔹 하이라이트가 바뀔 때 리스트 스크롤도 같이 이동
     useEffect(() => {
