@@ -265,6 +265,9 @@ function renderInternalLinksForEditor(markdown = '', allDocs = [], categories = 
             return (
                 `<span ` +
                 `class="wiki-internal-link-token" ` +
+                `contenteditable="false" ` +
+                `spellcheck="false" ` +
+                `draggable="false" ` +
                 `data-wiki-link="${escapeAttr(data)}" ` +
                 `data-wiki-tooltip="${escapeAttr(tooltip)}"` +
                 `>${escapeHtmlText(displayLabel)}</span>`
@@ -291,7 +294,7 @@ function restoreInternalLinksFromEditor(markdown = '') {
             const editedLabel = decodeHtmlText(stripHtmlTags(inner)).trim();
             const fallbackLabel = pipeIndex >= 0 ? data.slice(pipeIndex + 1) : '';
 
-            const label = editedLabel || fallbackLabel;
+            const label = fallbackLabel || editedLabel;
 
             return `[[${target}|${label}]]`;
         }
@@ -311,7 +314,9 @@ function getMarkdownForSave(instance) {
         instance?.getMarkdown?.() || ''
     );
 
-    return restoreInternalLinksFromEditor(markdown);
+    return normalizeEditorSpacesForSave(
+        restoreInternalLinksFromEditor(markdown)
+    );
 }
 
 function fontSizeValueToPx(sizePt) {
@@ -390,6 +395,109 @@ function applyMergedSpanMarkToTextRange({
     });
 
     return applied;
+}
+
+function getInternalLinkMark(node, spanMarkType) {
+    if (!node?.marks || !spanMarkType) return null;
+
+    return node.marks.find((mark) => {
+        if (mark.type !== spanMarkType) return false;
+
+        const htmlAttrs = mark.attrs?.htmlAttrs || {};
+        const className = htmlAttrs.class || '';
+
+        return /\bwiki-internal-link-token\b/.test(className);
+    }) || null;
+}
+
+function getInternalLinkMarkData(mark) {
+    const htmlAttrs = mark?.attrs?.htmlAttrs || {};
+    return htmlAttrs['data-wiki-link'] || '';
+}
+
+function collectInternalLinkTokenRanges(doc, schema) {
+    const spanMarkType = schema.marks.span;
+    if (!spanMarkType) return [];
+
+    const ranges = [];
+
+    doc.descendants((node, pos) => {
+        if (!node.isText) return;
+
+        const mark = getInternalLinkMark(node, spanMarkType);
+        if (!mark) return;
+
+        const data = getInternalLinkMarkData(mark);
+        const from = pos;
+        const to = pos + node.nodeSize;
+
+        const last = ranges[ranges.length - 1];
+
+        // 같은 토큰이 여러 text node로 쪼개져도 하나의 범위로 합침
+        if (last && last.to === from && last.data === data) {
+            last.to = to;
+            return;
+        }
+
+        ranges.push({
+            from,
+            to,
+            data,
+        });
+    });
+
+    return ranges;
+}
+
+function findInternalLinkTokenRangeNearSelection(ranges, selection, direction) {
+    if (!ranges.length || !selection) return null;
+
+    const from = selection.from;
+    const to = selection.to;
+    const isEmpty = from === to;
+
+    // 드래그 선택 영역이 토큰과 겹치면 그 토큰 삭제
+    if (!isEmpty) {
+        return ranges.find((range) => {
+            return range.from < to && range.to > from;
+        }) || null;
+    }
+
+    // Backspace: 커서 바로 앞 토큰 삭제
+    if (direction === 'backward') {
+        return ranges.find((range) => {
+            return range.to === from || (range.from < from && from <= range.to);
+        }) || null;
+    }
+
+    // Delete: 커서 바로 뒤 토큰 삭제
+    return ranges.find((range) => {
+        return range.from === from || (range.from <= from && from < range.to);
+    }) || null;
+}
+
+function internalLinkTokenSyntaxPlugin() {
+    return {
+        wysiwygCommands: {
+            deleteInternalLinkToken({ direction, onDeleted } = {}, { tr, selection, schema }, dispatch) {
+                const ranges = collectInternalLinkTokenRanges(tr.doc, schema);
+                const targetRange = findInternalLinkTokenRangeNearSelection(
+                    ranges,
+                    selection,
+                    direction
+                );
+
+                if (!targetRange) return false;
+
+                tr.delete(targetRange.from, targetRange.to);
+                dispatch(tr);
+
+                onDeleted?.();
+
+                return true;
+            },
+        },
+    };
 }
 
 function fontSizeSyntaxPlugin(context) {
@@ -689,6 +797,52 @@ export default function MarkdownEditor({
         initialMarkdownRef.current = next;
         recentTextColorRef.current = findLastTextColor(next) || recentTextColorRef.current;
     }, [value, allDocs, categories]);
+
+    useEffect(() => {
+        const root = editorRef.current?.getRootElement?.();
+        if (!root) return;
+
+        const handleInternalLinkDeleteKey = (e) => {
+            if (e.key !== 'Backspace' && e.key !== 'Delete') return;
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+            const instance = editorRef.current?.getInstance?.();
+            const active = document.activeElement;
+
+            if (!instance || !active || !root.contains(active)) return;
+
+            let deleted = false;
+
+            try {
+                instance.exec('deleteInternalLinkToken', {
+                    direction: e.key === 'Backspace' ? 'backward' : 'forward',
+                    onDeleted: () => {
+                        deleted = true;
+                    },
+                });
+            } catch {
+                deleted = false;
+            }
+
+            if (!deleted) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            hasUserEditedRef.current = true;
+
+            requestAnimationFrame(() => {
+                const nextMarkdown = getMarkdownForSave(instance);
+                onChange(nextMarkdown);
+            });
+        };
+
+        root.addEventListener('keydown', handleInternalLinkDeleteKey, true);
+
+        return () => {
+            root.removeEventListener('keydown', handleInternalLinkDeleteKey, true);
+        };
+    }, [onChange]);
 
     useEffect(() => {
         const root = editorRef.current?.getRootElement?.();
@@ -1940,6 +2094,7 @@ export default function MarkdownEditor({
                 hideModeSwitch={true}
                 useCommandShortcut={true}
                 plugins={[
+                    internalLinkTokenSyntaxPlugin,
                     fontSizeSyntaxPlugin,
                     underlineSyntaxPlugin,
                     paragraphAlignSyntaxPlugin,
