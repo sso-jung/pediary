@@ -10,33 +10,31 @@ import { useUpdateDocument } from './hooks/useUpdateDocument';
 import { useAllDocuments } from './hooks/useAllDocuments';
 import { useCategories } from './hooks/useCategories';
 
-import Button from '../../components/ui/Button';
 import { useSnackbar } from '../../components/ui/SnackbarContext';
 import { parseInternalLinks } from '../../lib/internalLinkParser';
 import { useAuthStore } from '../../store/authStore';
 import { logDocumentActivity, updateSectionLinksForDocument } from '../../lib/wikiApi';
 import MarkdownEditor from './MarkdownEditor';
-import { parseInternalLinkInner } from '../../lib/internalLinkFormat';
+import {
+    parseInternalLinkInner,
+    normalizeEscapedInternalLinks,
+} from '../../lib/internalLinkFormat';
 import ListIcon from '../../components/icons/ListIcon.jsx'
 import { downloadDocumentExcel } from '../../lib/exportMyDocumentsExcel';
 import { normalizeFontSizeTokensToSpans, renderFontWidgetsInMarkdown } from './wikiFontRender';
+import { stripHeadingText } from '../../lib/wikiSectionUtils';
 
 import { useQuery } from '@tanstack/react-query';
 import { fetchMyProfile } from '../../lib/wikiApi';
 
+import {
+    useWikiLinkTooltip,
+    WikiLinkTooltip,
+} from './WikiLinkTooltip';
+
 // =========================
 // 유틸 함수들
 // =========================
-function stripHeadingText(rawText = '') {
-    let s = rawText;
-    s = s.replace(/<[^>]*>/g, '');
-    s = s.replace(/\[([^\]]+)\]\((?:[^)]+)\)/g, '$1');
-    s = s.replace(/\\([\\`*_[\]{}()#+\-.!|~>])/g, '$1');
-    s = s.replace(/[*_`]/g, '');
-    s = s.replace(/\s+/g, ' ');
-    return s.trim();
-}
-
 function startsWithPlainText(markdown = '') {
     const firstLine = markdown
         .split('\n')
@@ -128,12 +126,7 @@ function useBacklinks(doc, allDocs) {
             const raw = other.content_markdown || '';
             if (!raw) continue;
 
-            const normalized = raw
-                .replace(/\\\[/g, '[')
-                .replace(/\\\]/g, ']')
-                .replace(/\\#/g, '#')
-                .replace(/\\\|/g, '|')
-                .replace(/\\\./g, '.');
+            const normalized = normalizeEscapedInternalLinks(raw);
 
             if (!normalized.includes('[[')) continue;
 
@@ -718,6 +711,12 @@ export default function DocumentPage() {
     const viewLoggedRef = useRef(false);
     const viewerContainerRef = useRef(null);
 
+    const getViewerRoot = useCallback(() => {
+        return viewerContainerRef.current;
+    }, []);
+
+    const wikiLinkTooltip = useWikiLinkTooltip(getViewerRoot, !isEditing);
+
     const handleGoList = () => {
         if (doc?.category_id) {
             navigate(`/category/${doc.category_id}`);
@@ -785,7 +784,7 @@ export default function DocumentPage() {
     }, [doc, user]);
 
     // 내부 링크 파싱
-    let parsedMarkdown = parseInternalLinks(content || '', allDocs);
+    let parsedMarkdown = parseInternalLinks(content || '', allDocs, categories || []);
 
     // 🔹 보기 모드용 폰트 위젯 렌더링 (widget 토큰 제거 + span으로 변환)
     const renderedForView = renderFontWidgetsInMarkdown(parsedMarkdown);
@@ -1118,6 +1117,7 @@ export default function DocumentPage() {
                                     value={content}
                                     onChange={setContent}
                                     allDocs={allDocs || []}
+                                    categories={categories || []}
                                     fullHeight
                                     activeHeading={activeHeading}
                                 />
@@ -1152,6 +1152,8 @@ export default function DocumentPage() {
                     setShowBacklinks={setShowBacklinks}
                 />
             )}
+
+            <WikiLinkTooltip tooltip={wikiLinkTooltip} />
         </div>
     );
 }

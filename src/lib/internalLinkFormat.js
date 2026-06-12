@@ -75,3 +75,23 @@ export function buildInternalLink({ docId, section, label }) {
 
     return `[[${inner}]]`;
 }
+
+export function normalizeEscapedInternalLinks(markdown = '') {
+    return String(markdown).replace(
+        /\\?\[\\?\[([\s\S]*?)\\?\]\\?\]/g,
+        (full, inner) => {
+            const normalizedInner = inner
+                .replace(/\\#/g, '#')
+                .replace(/\\\|/g, '|')
+                .replace(/\\\./g, '.')
+                .replace(/\\\[/g, '[')
+                .replace(/\\\]/g, ']');
+
+            if (!parseInternalLinkInner(normalizedInner)) {
+                return full;
+            }
+
+            return `[[${normalizedInner}]]`;
+        }
+    );
+}

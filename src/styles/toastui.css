@@ -737,5 +737,46 @@
     color: #0ea5e9 !important;
     font-weight: 700 !important;
     text-decoration: none !important;
-    cursor: text !important;
+    cursor: pointer !important;
+    border-radius: 3px;
+}
+
+.toastui-editor-contents .wiki-internal-link-token:hover,
+.toastui-editor-defaultUI .ProseMirror .wiki-internal-link-token:hover,
+.ProseMirror .wiki-internal-link-token:hover {
+    background-color: color-mix(in srgb, #0ea5e9 12%, transparent);
+}
+
+/** 툴팁 **/
+.wiki-link-tooltip {
+    position: fixed;
+    z-index: 9999;
+    max-width: min(360px, calc(100vw - 24px));
+    transform: translate(-50%, -100%);
+    pointer-events: none;
+
+    padding: 7px 10px;
+    border-radius: 10px;
+
+    background: color-mix(in srgb, var(--color-text-main) 92%, transparent);
+    color: var(--color-page-surface);
+
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.45;
+    white-space: normal;
+    word-break: keep-all;
+
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+}
+
+.wiki-link-tooltip::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -5px;
+    width: 9px;
+    height: 9px;
+    transform: translateX(-50%) rotate(45deg);
+    background: color-mix(in srgb, var(--color-text-main) 92%, transparent);
 }

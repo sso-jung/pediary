@@ -5,55 +5,26 @@ import '@toast-ui/editor/dist/toastui-editor.css';
 import 'tui-color-picker/dist/tui-color-picker.css';
 import '@toast-ui/editor-plugin-color-syntax/dist/toastui-editor-plugin-color-syntax.css';
 import colorSyntax from '@toast-ui/editor-plugin-color-syntax';
-import { buildInternalLink } from '../../lib/internalLinkFormat';
+import {
+    buildInternalLink,
+    parseInternalLinkInner,
+    normalizeEscapedInternalLinks,
+} from '../../lib/internalLinkFormat';
+import {
+    getDocumentById,
+    getInternalLinkDisplayLabel,
+    getInternalLinkTarget,
+    getInternalLinkTooltip,
+} from '../../lib/internalLinkMeta';
+import {
+    extractSectionsFromMarkdown,
+} from '../../lib/wikiSectionUtils';
+
 import { normalizeFontSizeTokensToSpans } from './wikiFontRender';
-
-function stripHeadingText(rawText = '') {
-    let s = rawText;
-    s = s.replace(/<[^>]*>/g, '');
-    s = s.replace(/\[([^\]]+)\]\((?:[^)]+)\)/g, '$1');
-    s = s.replace(/\\([\\`*_[\]{}()#+\-.!|~>])/g, '$1');
-    s = s.replace(/[*_`]/g, '');
-    s = s.replace(/\s+/g, ' ');
-    return s.trim();
-}
-
-// 🔹 한 문서의 마크다운에서 헤딩(섹션) 정보 뽑기
-function extractSectionsFromMarkdown(markdown) {
-    if (!markdown) return [];
-
-    const lines = markdown.split('\n');
-    const counters = [0, 0, 0, 0, 0, 0, 0]; // 1~6 레벨 카운터
-    const sections = [];
-
-    for (const line of lines) {
-        const match = line.match(/^(#{1,6})\s+(.*)$/); // "# 제목" ~ "###### 제목"
-        if (!match) continue;
-
-        const hashes = match[1];
-        const level = hashes.length;
-        const rawText = match[2].trim();
-        const plainText = stripHeadingText(rawText);
-
-        // 1) 내용이 없는 헤딩은 무시
-        if (!plainText) continue;
-
-        counters[level] += 1;
-        for (let i = level + 1; i < counters.length; i++) {
-            counters[i] = 0;
-        }
-        const nums = counters.slice(1, level + 1).filter((n) => n > 0);
-        const number = nums.join('.'); // "1", "1.1", "1.1.1" ...
-
-        sections.push({
-            level,
-            number, // "1.1"
-            text: plainText, // "고기"
-        });
-    }
-
-    return sections;
-}
+import {
+    useWikiLinkTooltip,
+    WikiLinkTooltip,
+} from './WikiLinkTooltip';
 
 function findLastTextColor(markdown = '') {
     const colorRe = /<span\b[^>]*style=["'][^"']*color\s*:\s*([^;"']+)/gi;
@@ -169,15 +140,135 @@ function getAttrValue(attrs = '', name) {
     return match ? decodeHtmlText(match[1]) : '';
 }
 
-// 저장용 내부링크 문법 -> 편집용 span
-function renderInternalLinksForEditor(markdown = '') {
-    return String(markdown).replace(
-        /\[\[doc:(\d+)(#[^\]|\s]+)?\|([^\]]+)\]\]/g,
-        (_, docId, section = '', label = '') => {
-            const target = `doc:${docId}${section}`;
-            const data = `${target}|${label}`;
+function getInternalLinkDataFromItem(item) {
+    if (!item) return '';
 
-            return `<span class="wiki-internal-link-token" data-wiki-link="${escapeAttr(data)}">${escapeHtmlText(label)}</span>`;
+    if (item.type === 'doc') {
+        const target = `doc:${item.docId}`;
+        return `${target}|${item.docTitle}`;
+    }
+
+    if (item.type === 'section') {
+        const target = `doc:${item.docId}#${item.sectionNumber}`;
+        return `${target}|${item.headingText}`;
+    }
+
+    return '';
+}
+
+function setCaretAfterElement(element) {
+    if (!element) return false;
+
+    const editorRoot =
+        element.closest('.ProseMirror') ||
+        element.closest('.toastui-editor-contents');
+
+    if (editorRoot && editorRoot.focus) {
+        editorRoot.focus();
+    }
+
+    const range = document.createRange();
+    const selection = window.getSelection?.();
+
+    if (!selection) return false;
+
+    range.setStartAfter(element);
+    range.collapse(true);
+
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    return true;
+}
+
+function isSelectionCollapsedAfterInternalLinkToken(root) {
+    const selection = window.getSelection?.();
+    if (!root || !selection || selection.rangeCount === 0 || !selection.isCollapsed) {
+        return false;
+    }
+
+    const range = selection.getRangeAt(0);
+    const container = range.startContainer;
+    const offset = range.startOffset;
+
+    // 케이스 1: 부모 element의 childNodes 사이에 커서가 있음
+    if (container.nodeType === Node.ELEMENT_NODE) {
+        const previous = container.childNodes?.[offset - 1];
+        return previous instanceof Element &&
+            previous.classList.contains('wiki-internal-link-token');
+    }
+
+    // 케이스 2: 텍스트 노드 맨 앞에 커서가 있고, 바로 앞 형제가 토큰
+    if (container.nodeType === Node.TEXT_NODE && offset === 0) {
+        const previous = container.previousSibling;
+        return previous instanceof Element &&
+            previous.classList.contains('wiki-internal-link-token');
+    }
+
+    return false;
+}
+
+function normalizeEditorSpacesForSave(markdown = '') {
+    return String(markdown).replace(/\u00A0/g, ' ');
+}
+
+function focusAfterInternalLinkToken(root, dataWikiLink) {
+    if (!root || !dataWikiLink) return;
+
+    requestAnimationFrame(() => {
+        const selector = `.wiki-internal-link-token[data-wiki-link="${CSS.escape(dataWikiLink)}"]`;
+        const tokens = root.querySelectorAll(selector);
+
+        if (!tokens.length) return;
+
+        // 같은 링크가 여러 개 있으면 우선 마지막 동일 토큰 뒤로 이동
+        // 완전한 중복 위치 추적은 ProseMirror transaction/atom node 단계에서 처리하는 게 맞음
+        const targetToken = tokens[tokens.length - 1];
+
+        setCaretAfterElement(targetToken);
+    });
+}
+
+function getExplicitLabelFromInternalLinkInner(inner = '') {
+    const pipeIndex = String(inner).indexOf('|');
+    if (pipeIndex < 0) return '';
+
+    return decodeHtmlText(String(inner).slice(pipeIndex + 1).trim());
+}
+
+// 저장용 내부링크 문법 -> 편집용 span
+function renderInternalLinksForEditor(markdown = '', allDocs = [], categories = []) {
+    const normalized = normalizeEscapedInternalLinks(markdown);
+
+    return String(normalized).replace(
+        /\[\[([^[\]]+)\]\]/g,
+        (full, inner) => {
+            const parsed = parseInternalLinkInner(inner);
+            if (!parsed) return full;
+
+            const doc = getDocumentById(allDocs, parsed.docId);
+            const target = getInternalLinkTarget(parsed);
+
+            // 저장된 [[doc:7#2.2|수정한텍스트]] 라벨을 우선 사용
+            const explicitLabel = getExplicitLabelFromInternalLinkInner(inner);
+            const fallbackLabel = getInternalLinkDisplayLabel(parsed, doc);
+            const displayLabel = explicitLabel || fallbackLabel;
+
+            const tooltip = getInternalLinkTooltip({
+                parsed,
+                doc,
+                categories,
+            });
+
+            const data = `${target}|${displayLabel}`;
+
+            return (
+                `<span ` +
+                `class="wiki-internal-link-token" ` +
+                `data-wiki-link="${escapeAttr(data)}" ` +
+                `data-wiki-tooltip="${escapeAttr(tooltip)}"` +
+                `>${escapeHtmlText(displayLabel)}</span>`
+            );
         }
     );
 }
@@ -197,7 +288,6 @@ function restoreInternalLinksFromEditor(markdown = '') {
             const pipeIndex = data.indexOf('|');
             const target = pipeIndex >= 0 ? data.slice(0, pipeIndex) : data;
 
-            // 사용자가 편집모드에서 표시 텍스트를 수정했을 수도 있으니 inner를 우선 사용
             const editedLabel = decodeHtmlText(stripHtmlTags(inner)).trim();
             const fallbackLabel = pipeIndex >= 0 ? data.slice(pipeIndex + 1) : '';
 
@@ -208,9 +298,11 @@ function restoreInternalLinksFromEditor(markdown = '') {
     );
 }
 
-function prepareMarkdownForEditor(markdown = '') {
+function prepareMarkdownForEditor(markdown = '', allDocs = [], categories = []) {
     return renderInternalLinksForEditor(
-        normalizeFontSizeTokensToSpans(markdown)
+        normalizeFontSizeTokensToSpans(markdown),
+        allDocs,
+        categories
     );
 }
 
@@ -529,7 +621,8 @@ export default function MarkdownEditor({
                                            value,
                                            onChange,
                                            allDocs = [],
-                                           fullHeight = false, // 카드 전체 높이 쓸지 여부
+                                           categories = [],
+                                           fullHeight = false,
                                            onManualSave = () => {},
                                            activeHeading,
                                            docKey,
@@ -562,32 +655,18 @@ export default function MarkdownEditor({
 
     // ✅ 문서가 바뀌면(=docKey 변경) 내부 상태를 리셋
     useEffect(() => {
-          hasUserEditedRef.current = false;
-          initialMarkdownRef.current = '';
-          lastAppliedValueRef.current = null;
-          linkInsertSelectionRef.current = null;
-          linkBracketRef.current = { active: false, timer: null };
+        hasUserEditedRef.current = false;
+        initialMarkdownRef.current = '';
+        lastAppliedValueRef.current = null;
+        linkInsertSelectionRef.current = null;
+        linkBracketRef.current = { active: false, timer: null };
     }, [docKey]);
-
-    // useEffect(() => {
-    //     const instance = editorRef.current?.getInstance?.();
-    //     if (!instance) return;
-    //
-    //     // 이미 한 번 초기화했으면 더 이상 건드리지 않음
-    //     if (hasInitializedFromValueRef.current) return;
-    //
-    //     const initial = value || '';
-    //     instance.setMarkdown(initial);
-    //     hasInitializedFromValueRef.current = true;
-    //     // 실제 에디터 내부 상태 기준으로 초기 마크다운 저장
-    //     initialMarkdownRef.current = instance.getMarkdown() || initial;
-    // }, [value]);
 
     // ✅ value -> editor 동기화 (사용자 편집 전까지만)
     useEffect(() => {
         const instance = editorRef.current?.getInstance?.();
         if (!instance) return;
-        const next = prepareMarkdownForEditor(value ?? '');
+        const next = prepareMarkdownForEditor(value ?? '', allDocs, categories);
         const current = instance.getMarkdown?.() ?? '';
         // 사용자가 이미 타이핑 시작했으면 외부 value로 덮지 않음
         if (hasUserEditedRef.current) {
@@ -609,7 +688,40 @@ export default function MarkdownEditor({
         // 초기 undo 기준도 여기서 설정
         initialMarkdownRef.current = next;
         recentTextColorRef.current = findLastTextColor(next) || recentTextColorRef.current;
-    }, [value]);
+    }, [value, allDocs, categories]);
+
+    useEffect(() => {
+        const root = editorRef.current?.getRootElement?.();
+        if (!root) return;
+
+        const handleBeforeInput = (e) => {
+            if (e.inputType !== 'insertText') return;
+            if (e.data !== ' ') return;
+
+            if (!isSelectionCollapsedAfterInternalLinkToken(root)) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const instance = editorRef.current?.getInstance?.();
+            if (!instance) return;
+
+            // 화면에서는 보존 가능한 공백으로 넣고,
+            // 저장 시 normalizeEditorSpacesForSave에서 일반 공백으로 바꿈
+            instance.replaceSelection('\u00A0');
+
+            requestAnimationFrame(() => {
+                const nextMarkdown = getMarkdownForSave(instance);
+                onChange(nextMarkdown);
+            });
+        };
+
+        root.addEventListener('beforeinput', handleBeforeInput, true);
+
+        return () => {
+            root.removeEventListener('beforeinput', handleBeforeInput, true);
+        };
+    }, [onChange]);
 
     // 🔹 에디터 명령 실행 헬퍼
     const execCommand = (cmd, payload) => {
@@ -640,9 +752,10 @@ export default function MarkdownEditor({
         const instance = editorRef.current?.getInstance();
         if (!instance) return;
 
-        hasUserEditedRef.current = true; // 사용자 수정 발생
+        hasUserEditedRef.current = true;
 
         const markdown = getMarkdownForSave(instance);
+
         recentTextColorRef.current = findLastTextColor(markdown) || recentTextColorRef.current;
         onChange(markdown);
     };
@@ -772,9 +885,6 @@ export default function MarkdownEditor({
         const instance = editorRef.current?.getInstance();
         if (!instance) return;
 
-        // 🔹 새 포맷으로 삽입할 문자열 결정
-        //   - 문서 전체: [[doc:123|제목]]
-        //   - 섹션:     [[doc:123#1.1|섹션제목]]
         let insertion = '';
 
         if (item.type === 'doc') {
@@ -798,9 +908,11 @@ export default function MarkdownEditor({
 
         instance.replaceSelection(insertion);
 
-        // raw 문법으로 삽입한 뒤, 편집기 안에서는 span 형태로 다시 보여주기
         const rawMarkdown = instance.getMarkdown() || '';
-        const editorMarkdown = prepareMarkdownForEditor(rawMarkdown);
+        const editorMarkdown = prepareMarkdownForEditor(rawMarkdown, allDocs, categories);
+
+        hasUserEditedRef.current = true;
+        lastAppliedValueRef.current = editorMarkdown;
 
         instance.setMarkdown(editorMarkdown);
         onChange(rawMarkdown);
@@ -813,7 +925,7 @@ export default function MarkdownEditor({
         requestAnimationFrame(() => {
             editorRef.current?.getInstance?.()?.focus?.();
         });
-    }, [onChange]);
+    }, [onChange, allDocs, categories]);
 
     // 🔹 keydown: 팝업 열려 있는 동안 ↑↓ / Enter / Esc 처리
     useEffect(() => {
@@ -1274,6 +1386,12 @@ export default function MarkdownEditor({
 
     const fontSizes = [11, 12, 13, 14, 15, 16, 17, 18, 20, 22, 24, 28];
     const lineHeights = [1.2, 1.4, 1.5, 1.6, 1.8, 2.0, 2.2];
+
+    const getEditorRoot = useCallback(() => {
+        return editorRef.current?.getRootElement?.() || null;
+    }, []);
+
+    const wikiLinkTooltip = useWikiLinkTooltip(getEditorRoot, true);
 
     const applyParagraphAlign = useCallback((align) => {
         const instance = editorRef.current?.getInstance();
@@ -1813,7 +1931,7 @@ export default function MarkdownEditor({
         <div className={fullHeight ? 'h-full' : ''}>
             <Editor
                 ref={editorRef}
-                initialValue={prepareMarkdownForEditor(value || '')}
+                initialValue={prepareMarkdownForEditor(value || '', allDocs, categories)}
                 previewStyle="vertical"
                 // 🔹 fullHeight일 땐 부모 div 높이 100% 채우고, 그 안에서 스크롤
                 height={fullHeight ? '100%' : 'auto'}
@@ -2011,6 +2129,7 @@ export default function MarkdownEditor({
                     </div>
                 </div>
             )}
+            <WikiLinkTooltip tooltip={wikiLinkTooltip}/>
         </div>
     );
 }

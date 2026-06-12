@@ -14,18 +14,36 @@
  *  - [보쌈 & 무김치](/wiki/slug#sec-1-1)
  */
 
-import { parseInternalLinkInner } from './internalLinkFormat';
+import {
+    normalizeEscapedInternalLinks,
+    parseInternalLinkInner,
+} from './internalLinkFormat';
 
-export function parseInternalLinks(markdownText, documents) {
+import {
+    getInternalLinkDisplayLabel,
+    getInternalLinkTooltip,
+} from './internalLinkMeta';
+
+function escapeHtmlText(text = '') {
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function escapeHtmlAttr(value = '') {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+export function parseInternalLinks(markdownText, documents, categories = []) {
     if (!markdownText || !Array.isArray(documents)) return markdownText;
 
     // 0. sanitizer 때문에 \[\[... 이런 식으로 저장된 걸 풀어준다.
-    markdownText = markdownText
-        .replace(/\\\[/g, '[')
-        .replace(/\\\]/g, ']')
-        .replace(/\\#/g, '#')
-        .replace(/\\\|/g, '|')
-        .replace(/\\\./g, '.');
+    markdownText = normalizeEscapedInternalLinks(markdownText);
 
     // id → 문서 매핑
     const docMap = new Map();
@@ -84,18 +102,20 @@ export function parseInternalLinks(markdownText, documents) {
             }
 
             // 2) 화면에 보일 텍스트
-            let displayText = '';
+            const displayText = getInternalLinkDisplayLabel(parsed, doc);
+            const tooltip = getInternalLinkTooltip({
+                parsed,
+                doc,
+                categories,
+            });
 
-            if (label) {
-                displayText = label;
-            } else if (section) {
-                displayText = `${doc.title}#${section}`;
-            } else {
-                displayText = doc.title;
-            }
-
-            // 3) Markdown 링크로 치환
-            result += `[${displayText}](${href})`;
+            result += (
+                `<a ` +
+                `class="wiki-internal-link" ` +
+                `href="${escapeHtmlAttr(href)}" ` +
+                `data-wiki-tooltip="${escapeHtmlAttr(tooltip)}"` +
+                `>${escapeHtmlText(displayText)}</a>`
+            );
             i = end + 2;
         } else {
             // 그냥 일반 문자
