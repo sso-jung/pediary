@@ -43,6 +43,7 @@ export default function Sidebar() {
     const [newCategoryName, setNewCategoryName] = useState('');
     const [categoryToDelete, setCategoryToDelete] = useState(null);
     const [draggingCategoryId, setDraggingCategoryId] = useState(null);
+    const [dropIndicator, setDropIndicator] = useState(null);
 
     const [editingCategoryId, setEditingCategoryId] = useState(null);
     const [editingName, setEditingName] = useState('');
@@ -156,7 +157,57 @@ export default function Sidebar() {
     const isRootActive = (rootId) => isCategoryActive(rootId);
 
     const handleDragStart = (categoryId) => setDraggingCategoryId(categoryId);
-    const handleDragEnd = () => setDraggingCategoryId(null);
+    const handleDragEnd = () => {
+        setDraggingCategoryId(null);
+        setDropIndicator(null);
+    };
+    const getDropPosition = (event, allowInside = true) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const offsetY = event.clientY - rect.top;
+        const ratio = offsetY / rect.height;
+
+        if (ratio < 0.3) return 'before';
+        if (ratio > 0.7) return 'after';
+
+        return allowInside ? 'inside' : 'after';
+    };
+
+    const getNextSiblingId = (parentId, targetId, draggingId) => {
+        if (!categories) return null;
+
+        const siblings = categories.filter((c) => {
+            const cParentId = c.parent_id ?? c.parentId ?? null;
+            return cParentId === parentId && c.id !== draggingId;
+        });
+
+        const targetIndex = siblings.findIndex((c) => c.id === targetId);
+
+        if (targetIndex < 0) return null;
+
+        return siblings[targetIndex + 1]?.id ?? null;
+    };
+
+    const handleDragOverCategory = (targetCategory, event, allowInside = true) => {
+        if (!draggingCategoryId || !targetCategory || !user) return;
+        if (draggingCategoryId === targetCategory.id) return;
+
+        const dragged = categories?.find((c) => c.id === draggingCategoryId);
+        if (!dragged) return;
+
+        // 내 카테고리만 이동 가능
+        if (dragged.user_id !== user.id) return;
+        if (targetCategory.user_id !== user.id) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const position = getDropPosition(event, allowInside);
+
+        setDropIndicator({
+            targetId: targetCategory.id,
+            position,
+        });
+    };
 
     const handleDropOnRootLevel = () => {
         if (!draggingCategoryId || !categories || !user) return;
@@ -172,65 +223,92 @@ export default function Sidebar() {
         });
 
         setDraggingCategoryId(null);
+        setDropIndicator(null);
     };
 
-    const handleDropOnRootCategory = (targetRootId, event) => {
-        if (!draggingCategoryId || !categories || !user) return;
+    const handleDropOnCategory = (targetCategory, event, allowInside = true) => {
+        if (!draggingCategoryId || !categories || !user || !targetCategory) return;
+
+        event.preventDefault();
+        event.stopPropagation();
 
         const dragged = categories.find((c) => c.id === draggingCategoryId);
-        const target = categories.find((c) => c.id === targetRootId);
-        if (!dragged || !target) return;
+        const target = targetCategory;
 
-        if (dragged.user_id !== user.id) {
+        if (!dragged || !target) {
             setDraggingCategoryId(null);
+            setDropIndicator(null);
             return;
         }
-        if (target.parent_id != null) {
+
+        if (dragged.user_id !== user.id || target.user_id !== user.id) {
             setDraggingCategoryId(null);
+            setDropIndicator(null);
             return;
         }
+
         if (dragged.id === target.id) {
             setDraggingCategoryId(null);
+            setDropIndicator(null);
             return;
         }
 
-        const draggedParent = dragged.parent_id ?? null;
-        const targetParent = target.parent_id ?? null;
-        const sameParent = draggedParent === targetParent;
+        const draggedParentId = dragged.parent_id ?? dragged.parentId ?? null;
+        const targetParentId = target.parent_id ?? target.parentId ?? null;
 
-        const rect = event.currentTarget.getBoundingClientRect();
-        const offsetY = event.clientY - rect.top;
-        const ratio = offsetY / rect.height;
+        const position =
+            dropIndicator?.targetId === target.id
+                ? dropIndicator.position
+                : getDropPosition(event, allowInside);
 
-        if (sameParent && ratio < 0.35) {
-            moveCategoryMutation.mutate({
-                categoryId: dragged.id,
-                parentId: draggedParent,
-                beforeCategoryId: target.id,
-            });
-            setDraggingCategoryId(null);
-            return;
+        let nextParentId = targetParentId;
+        let beforeCategoryId = null;
+
+        if (position === 'inside') {
+            // root 안으로 넣기
+            nextParentId = target.id;
+            beforeCategoryId = null;
+        } else if (position === 'before') {
+            // target 바로 위
+            nextParentId = targetParentId;
+            beforeCategoryId = target.id;
+        } else if (position === 'after') {
+            // target 바로 아래
+            nextParentId = targetParentId;
+            beforeCategoryId = getNextSiblingId(targetParentId, target.id, dragged.id);
         }
 
-        const hasChildren = categories.some((c) => c.parent_id === dragged.id);
-        if (hasChildren && targetRootId !== null) {
+        // 2depth로 들어가는 경우: 하위 카테고리가 있는 애는 막기
+        const hasChildren = categories.some((c) => {
+            const parentId = c.parent_id ?? c.parentId ?? null;
+            return parentId === dragged.id;
+        });
+
+        if (hasChildren && nextParentId !== null) {
             showSnackbar('하위 카테고리가 있는 카테고리는 2depth로 옮길 수 없어.');
             setDraggingCategoryId(null);
+            setDropIndicator(null);
             return;
         }
 
-        if (dragged.parent_id === targetRootId) {
+        // 같은 위치면 무시
+        if (
+            draggedParentId === nextParentId &&
+            beforeCategoryId === dragged.id
+        ) {
             setDraggingCategoryId(null);
+            setDropIndicator(null);
             return;
         }
 
         moveCategoryMutation.mutate({
             categoryId: dragged.id,
-            parentId: targetRootId,
-            beforeCategoryId: null,
+            parentId: nextParentId,
+            beforeCategoryId,
         });
 
         setDraggingCategoryId(null);
+        setDropIndicator(null);
     };
 
     const startEditingCategory = (category) => {
@@ -319,15 +397,13 @@ export default function Sidebar() {
                             {/* ✅ 전체 */}
                             <li
                                 onClick={() => navigate('/docs')}
-                                onDragOver={(e) => {
-                                    if (!draggingCategoryId) return;
-                                    e.preventDefault();
+                                onDragOver={(e) => handleDragOverCategory(root, e, true)}
+                                onDragLeave={() => {
+                                    setDropIndicator((prev) =>
+                                        prev?.targetId === root.id ? null : prev
+                                    );
                                 }}
-                                onDrop={(e) => {
-                                    if (!draggingCategoryId) return;
-                                    e.preventDefault();
-                                    handleDropOnRootLevel();
-                                }}
+                                onDrop={(e) => handleDropOnCategory(root, e, true)}
                                 className={[
                                     "ui-side-item",
                                     isAllActive ? "ui-side-item-active" : "",
@@ -359,7 +435,16 @@ export default function Sidebar() {
                                                             isLastRoot ? "top-0 h-[14px]" : "top-0 bottom-0",
                                                         ].join(" ")}
                                                     />
-
+                                                    {dropIndicator?.targetId === root.id && dropIndicator.position === 'before' && (
+                                                        <span
+                                                                aria-hidden
+                                                                className="pointer-events-none absolute left-3 right-2 top-0 z-10 border-t border-dashed"
+                                                                style={{
+                                                                    borderTopWidth: '1px',
+                                                                    borderTopColor: 'rgba(124, 140, 167, 0.55)',
+                                                                }}
+                                                            />
+                                                    )}
                                                     <div
                                                         onClick={() => handleClickCategory(root.id)}
                                                         draggable={isMineRoot}
@@ -378,6 +463,9 @@ export default function Sidebar() {
                                                             "ui-side-item group",
                                                             rootActive ? "ui-side-item-active" : "",
                                                             draggingCategoryId === root.id ? "opacity-60" : "",
+                                                            dropIndicator?.targetId === root.id && dropIndicator.position === 'inside'
+                                                                    ? "ui-side-drop"
+                                                                    : "",
                                                         ].join(" ")}
                                                     >
                                                         <div className="relative flex min-w-0 flex-1 items-center gap-1">
@@ -456,6 +544,17 @@ export default function Sidebar() {
                                                         )}
                                                     </div>
 
+                                                    {dropIndicator?.targetId === root.id && dropIndicator.position === 'after' && (
+                                                        <span
+                                                                aria-hidden
+                                                                className="pointer-events-none absolute left-3 right-2 bottom-0 z-10 border-t border-dashed"
+                                                                style={{
+                                                                    borderTopWidth: '1px',
+                                                                    borderTopColor: 'rgba(124, 140, 167, 0.55)',
+                                                                }}
+                                                            />
+                                                    )}
+
                                                     {/* 2depth */}
                                                     {children.length > 0 && !isCollapsed && (
                                                         <ul className="mt-[2px] space-y-[2px]">
@@ -474,12 +573,28 @@ export default function Sidebar() {
                                                                                 isLastChild ? "top-0 bottom-1/2" : "top-0 bottom-0",
                                                                             ].join(" ")}
                                                                         />
-
+                                                                        {dropIndicator?.targetId === child.id && dropIndicator.position === 'before' && (
+                                                                            <span
+                                                                                    aria-hidden
+                                                                                    className="pointer-events-none absolute left-4 right-2 top-0 z-10 border-t border-dashed"
+                                                                                    style={{
+                                                                                        borderTopWidth: '1px',
+                                                                                        borderTopColor: 'rgba(124, 140, 167, 0.55)',
+                                                                                    }}
+                                                                                />
+                                                                        )}
                                                                         <div
                                                                             onClick={() => handleClickCategory(child.id)}
                                                                             draggable={isMineChild}
                                                                             onDragStart={() => isMineChild && handleDragStart(child.id)}
                                                                             onDragEnd={handleDragEnd}
+                                                                            onDragOver={(e) => handleDragOverCategory(child, e, false)}
+                                                                            onDragLeave={() => {
+                                                                                setDropIndicator((prev) =>
+                                                                                    prev?.targetId === child.id ? null : prev
+                                                                                );
+                                                                            }}
+                                                                            onDrop={(e) => handleDropOnCategory(child, e, false)}
                                                                             className={[
                                                                                 "ui-side-subitem group",
                                                                                 childActive ? "ui-side-item-active" : "",
@@ -530,6 +645,17 @@ export default function Sidebar() {
                                                                                 </button>
                                                                             )}
                                                                         </div>
+
+                                                                        {dropIndicator?.targetId === child.id && dropIndicator.position === 'after' && (
+                                                                            <span
+                                                                                    aria-hidden
+                                                                                    className="pointer-events-none absolute left-4 right-2 bottom-0 z-10 border-t border-dashed"
+                                                                                    style={{
+                                                                                        borderTopWidth: '1px',
+                                                                                        borderTopColor: 'rgba(124, 140, 167, 0.55)',
+                                                                                    }}
+                                                                                />
+                                                                        )}
                                                                     </li>
                                                                 );
                                                             })}

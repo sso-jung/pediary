@@ -20,13 +20,34 @@ export async function fetchCategories(userId) {
 }
 
 export async function createCategory({ userId, name, parentId = null }) {
+    const targetParentId = parentId ?? null;
+
+    let orderQuery = supabase
+        .from('categories')
+        .select('sort_order')
+        .eq('user_id', userId)
+        .is('deleted_at', null)
+        .order('sort_order', { ascending: false })
+        .limit(1);
+
+    if (targetParentId == null) {
+        orderQuery = orderQuery.is('parent_id', null);
+    } else {
+        orderQuery = orderQuery.eq('parent_id', targetParentId);
+    }
+
+    const { data: lastRows, error: orderError } = await orderQuery;
+    if (orderError) throw orderError;
+
+    const nextSortOrder = (lastRows?.[0]?.sort_order ?? -1) + 1;
+
     const { data, error } = await supabase
         .from('categories')
         .insert({
             user_id: userId,
             name,
-            parent_id: parentId,
-            sort_order: 0,
+            parent_id: targetParentId,
+            sort_order: nextSortOrder,
         })
         .select('*')
         .single();
