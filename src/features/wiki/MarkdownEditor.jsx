@@ -65,14 +65,6 @@ function escapeHtmlText(text = '') {
         .replace(/>/g, '&gt;');
 }
 
-function escapeAttr(value = '') {
-    return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/"/g, '&quot;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-}
-
 function decodeHtmlText(value = '') {
     const textarea = document.createElement('textarea');
     textarea.innerHTML = value;
@@ -160,31 +152,19 @@ function getAttrValue(attrs = '', name) {
     return match ? decodeHtmlText(match[1]) : '';
 }
 
-function getInternalLinkDataFromItem(item) {
-    if (!item) return '';
-
-    if (item.type === 'doc') {
-        const target = `doc:${item.docId}`;
-        return `${target}|${item.docTitle}`;
-    }
-
-    if (item.type === 'section') {
-        const target = `doc:${item.docId}#${item.sectionNumber}`;
-        return `${target}|${item.headingText}`;
-    }
-
-    return '';
-}
-
 function setCaretAfterElement(element) {
     if (!element) return false;
 
+    const targetElement =
+        element.closest?.('.tui-widget') ||
+        element;
+
     const editorRoot =
-        element.closest('.ProseMirror') ||
-        element.closest('.toastui-editor-contents');
+        targetElement.closest('.ProseMirror') ||
+        targetElement.closest('.toastui-editor-contents');
 
     if (editorRoot && editorRoot.focus) {
-        editorRoot.focus();
+        editorRoot.focus({ preventScroll: true });
     }
 
     const range = document.createRange();
@@ -192,7 +172,7 @@ function setCaretAfterElement(element) {
 
     if (!selection) return false;
 
-    range.setStartAfter(element);
+    range.setStartAfter(targetElement);
     range.collapse(true);
 
     selection.removeAllRanges();
@@ -232,20 +212,181 @@ function normalizeEditorSpacesForSave(markdown = '') {
     return String(markdown).replace(/\u00A0/g, ' ');
 }
 
-function focusAfterInternalLinkToken(root, dataWikiLink) {
+const INTERNAL_LINK_WIDGET_RULE = /\[\[doc:\d+(?:#[^\]|\s]+)?(?:\|[^\]\n]*)?\]\]/;
+
+function unwrapToastWidgetMarkdown(markdown = '') {
+    return String(markdown).replace(/\$\$widget\d+\s*([\s\S]*?)\$\$/g, '$1');
+}
+
+function normalizeMarkdownInternalLinks(markdown = '') {
+    return normalizeEscapedInternalLinks(
+        unwrapToastWidgetMarkdown(markdown)
+    );
+}
+
+function getInternalLinkInnerFromRaw(raw = '') {
+    const normalized = normalizeEscapedInternalLinks(raw);
+    const match = String(normalized).match(/^\[\[([^[\]]+)\]\]$/);
+    return match ? match[1] : '';
+}
+
+function getInternalLinkInfoFromRaw(raw = '', allDocs = [], categories = []) {
+    const inner = getInternalLinkInnerFromRaw(raw);
+    const parsed = parseInternalLinkInner(inner);
+    if (!parsed) return null;
+
+    const doc = getDocumentById(allDocs, parsed.docId);
+    const target = getInternalLinkTarget(parsed);
+
+    // 저장된 [[doc:7#2.2|수정한텍스트]] 라벨을 우선 사용
+    const explicitLabel = getExplicitLabelFromInternalLinkInner(inner);
+    const fallbackLabel = getInternalLinkDisplayLabel(parsed, doc);
+    const displayLabel = explicitLabel || fallbackLabel;
+
+    const tooltip = getInternalLinkTooltip({
+        parsed,
+        doc,
+        categories,
+    });
+
+    return {
+        parsed,
+        doc,
+        target,
+        displayLabel,
+        tooltip,
+        raw: `[[${inner}]]`,
+    };
+}
+
+function createInternalLinkTokenElement(raw = '', allDocs = [], categories = []) {
+    const info = getInternalLinkInfoFromRaw(raw, allDocs, categories);
+    const span = document.createElement('span');
+
+    if (!info) {
+        span.textContent = raw;
+        return span;
+    }
+
+    const data = `${info.target}|${info.displayLabel}`;
+
+    span.className = 'wiki-internal-link-token';
+    span.setAttribute('spellcheck', 'false');
+    span.setAttribute('draggable', 'false');
+    span.setAttribute('data-wiki-link', data);
+    span.setAttribute('data-wiki-tooltip', info.tooltip);
+    span.setAttribute('data-wiki-raw', info.raw);
+    span.textContent = info.displayLabel;
+
+    return span;
+}
+
+function createToastWidgetText(raw = '') {
+    return `$$widget0 ${raw}$$`;
+}
+
+function getScrollSnapshots(element) {
+    const snapshots = [];
+    let current = element;
+
+    while (current && current !== document.body && current !== document.documentElement) {
+        const canScroll =
+            current.scrollHeight > current.clientHeight ||
+            current.scrollWidth > current.clientWidth;
+
+        if (canScroll) {
+            snapshots.push({
+                element: current,
+                top: current.scrollTop,
+                left: current.scrollLeft,
+            });
+        }
+
+        current = current.parentElement;
+    }
+
+    snapshots.push({
+        element: window,
+        top: window.scrollY,
+        left: window.scrollX,
+    });
+
+    return snapshots;
+}
+
+function restoreScrollSnapshots(snapshots = []) {
+    snapshots.forEach((snapshot) => {
+        if (snapshot.element === window) {
+            window.scrollTo(snapshot.left, snapshot.top);
+            return;
+        }
+
+        snapshot.element.scrollTop = snapshot.top;
+        snapshot.element.scrollLeft = snapshot.left;
+    });
+}
+
+function replaceInternalLinkWidgetNode(instance, widgetElement, nextRaw) {
+    const view = instance?.wwEditor?.view;
+    const schema = view?.state?.schema;
+    const widgetType = schema?.nodes?.widget;
+
+    if (!view || !schema || !widgetType || !widgetElement) return false;
+
+    let pos;
+    try {
+        pos = view.posAtDOM(widgetElement, 0);
+    } catch {
+        return false;
+    }
+
+    let node = null;
+    let nodePos = pos;
+
+    for (const candidatePos of [pos, pos - 1, pos + 1]) {
+        if (candidatePos < 0) continue;
+
+        const candidateNode = view.state.doc.nodeAt(candidatePos);
+        if (candidateNode?.type === widgetType) {
+            node = candidateNode;
+            nodePos = candidatePos;
+            break;
+        }
+    }
+
+    if (!node) return false;
+
+    const nextNode = widgetType.create(
+        { info: node.attrs?.info || 'widget0' },
+        schema.text(createToastWidgetText(nextRaw))
+    );
+
+    view.dispatch(
+        view.state.tr
+            .replaceWith(nodePos, nodePos + node.nodeSize, nextNode)
+    );
+
+    return true;
+}
+
+function focusAfterInternalLinkToken(root, dataWikiLink, afterFocus) {
     if (!root || !dataWikiLink) return;
 
     requestAnimationFrame(() => {
         const selector = `.wiki-internal-link-token[data-wiki-link="${CSS.escape(dataWikiLink)}"]`;
         const tokens = root.querySelectorAll(selector);
 
-        if (!tokens.length) return;
+        if (!tokens.length) {
+            afterFocus?.(false);
+            return;
+        }
 
         // 같은 링크가 여러 개 있으면 우선 마지막 동일 토큰 뒤로 이동
         // 완전한 중복 위치 추적은 ProseMirror transaction/atom node 단계에서 처리하는 게 맞음
         const targetToken = tokens[tokens.length - 1];
 
-        setCaretAfterElement(targetToken);
+        const focused = setCaretAfterElement(targetToken);
+        afterFocus?.(focused);
     });
 }
 
@@ -254,46 +395,6 @@ function getExplicitLabelFromInternalLinkInner(inner = '') {
     if (pipeIndex < 0) return '';
 
     return decodeHtmlText(String(inner).slice(pipeIndex + 1).trim());
-}
-
-// 저장용 내부링크 문법 -> 편집용 span
-function renderInternalLinksForEditor(markdown = '', allDocs = [], categories = []) {
-    const normalized = normalizeEscapedInternalLinks(markdown);
-
-    return String(normalized).replace(
-        /\[\[([^[\]]+)\]\]/g,
-        (full, inner) => {
-            const parsed = parseInternalLinkInner(inner);
-            if (!parsed) return full;
-
-            const doc = getDocumentById(allDocs, parsed.docId);
-            const target = getInternalLinkTarget(parsed);
-
-            // 저장된 [[doc:7#2.2|수정한텍스트]] 라벨을 우선 사용
-            const explicitLabel = getExplicitLabelFromInternalLinkInner(inner);
-            const fallbackLabel = getInternalLinkDisplayLabel(parsed, doc);
-            const displayLabel = explicitLabel || fallbackLabel;
-
-            const tooltip = getInternalLinkTooltip({
-                parsed,
-                doc,
-                categories,
-            });
-
-            const data = `${target}|${displayLabel}`;
-
-            return (
-                `<span ` +
-                `class="wiki-internal-link-token" ` +
-                `contenteditable="false" ` +
-                `spellcheck="false" ` +
-                `draggable="false" ` +
-                `data-wiki-link="${escapeAttr(data)}" ` +
-                `data-wiki-tooltip="${escapeAttr(tooltip)}"` +
-                `>${escapeHtmlText(displayLabel)}</span>`
-            );
-        }
-    );
 }
 
 // 편집용 span -> 저장용 내부링크 문법
@@ -321,21 +422,21 @@ function restoreInternalLinksFromEditor(markdown = '') {
     );
 }
 
-function prepareMarkdownForEditor(markdown = '', allDocs = [], categories = []) {
-    return renderInternalLinksForEditor(
-        normalizeFontSizeTokensToSpans(markdown),
-        allDocs,
-        categories
+function prepareMarkdownForEditor(markdown = '') {
+    return normalizeEscapedInternalLinks(
+        normalizeFontSizeTokensToSpans(markdown)
     );
 }
 
 function getMarkdownForSave(instance) {
     const markdown = normalizeFontSizeTokensToSpans(
-        instance?.getMarkdown?.() || ''
+        normalizeMarkdownInternalLinks(instance?.getMarkdown?.() || '')
     );
 
     return normalizeEditorSpacesForSave(
-        restoreInternalLinksFromEditor(markdown)
+        normalizeEscapedInternalLinks(
+            restoreInternalLinksFromEditor(markdown)
+        )
     );
 }
 
@@ -753,14 +854,23 @@ export default function MarkdownEditor({
                                            fullHeight = false,
                                            onManualSave = () => {},
                                            activeHeading,
-                                           docKey,
-                                       }) {
+                                       docKey,
+                                   }) {
     const editorRef = useRef(null);
+    const allDocsRef = useRef(allDocs);
+    const categoriesRef = useRef(categories);
+
+    useEffect(() => {
+        allDocsRef.current = allDocs;
+        categoriesRef.current = categories;
+    }, [allDocs, categories]);
 
     // 🔹 내부 링크 자동완성 팝업 상태
     const [isLinkPaletteOpen, setIsLinkPaletteOpen] = useState(false);
     const [linkQuery, setLinkQuery] = useState('');
     const [highlightIndex, setHighlightIndex] = useState(0);
+    const [editingInternalLink, setEditingInternalLink] = useState(null);
+    const [editingInternalLinkLabel, setEditingInternalLinkLabel] = useState('');
 
     // 🔹 팝업 리스트 컨테이너 ref (스크롤 따라가기용)
     const paletteListRef = useRef(null);
@@ -779,7 +889,24 @@ export default function MarkdownEditor({
     const hasUserEditedRef = useRef(false); // 🔹 사용자 수정 여부 (Ctrl+Z 첫 단계 방지용)
     const initialMarkdownRef = useRef('');  // 🔹 최초 로딩된 마크다운 스냅샷
     const lastAppliedValueRef = useRef(null);
+    const lastAppliedLinkContextRef = useRef(null);
     const recentTextColorRef = useRef(getRecentTextColorFromSession());
+
+    const internalLinkContextKey = useMemo(() => JSON.stringify({
+        docs: (allDocs || []).map((doc) => ({
+            id: doc?.id,
+            title: doc?.title,
+            slug: doc?.slug,
+            category_id: doc?.category_id,
+            content_markdown: doc?.content_markdown,
+        })),
+        categories: (categories || []).map((category) => ({
+            id: category?.id,
+            name: category?.name,
+            parent_id: category?.parent_id,
+            deleted_at: category?.deleted_at,
+        })),
+    }), [allDocs, categories]);
 
     const updateRecentTextColor = useCallback((markdown = '', fallback = '') => {
         const color =
@@ -801,8 +928,11 @@ export default function MarkdownEditor({
         hasUserEditedRef.current = false;
         initialMarkdownRef.current = '';
         lastAppliedValueRef.current = null;
+        lastAppliedLinkContextRef.current = null;
         linkInsertSelectionRef.current = null;
         linkBracketRef.current = { active: false, timer: null };
+        setEditingInternalLink(null);
+        setEditingInternalLinkLabel('');
     }, [docKey]);
 
     // ✅ value -> editor 동기화 (사용자 편집 전까지만)
@@ -810,7 +940,7 @@ export default function MarkdownEditor({
         const instance = editorRef.current?.getInstance?.();
         if (!instance) return;
         const next = prepareMarkdownForEditor(value ?? '', allDocs, categories);
-        const current = instance.getMarkdown?.() ?? '';
+        const current = getMarkdownForSave(instance);
         // 사용자가 이미 타이핑 시작했으면 외부 value로 덮지 않음
         if (hasUserEditedRef.current) {
             updateRecentTextColor(current);
@@ -818,20 +948,34 @@ export default function MarkdownEditor({
         }
         // 같은 값이면 스킵
         if (current === next) {
+            if (
+                lastAppliedValueRef.current === next &&
+                lastAppliedLinkContextRef.current === internalLinkContextKey
+            ) {
+                updateRecentTextColor(next);
+                return;
+            }
+            instance.setMarkdown(next);
+            lastAppliedValueRef.current = next;
+            lastAppliedLinkContextRef.current = internalLinkContextKey;
             updateRecentTextColor(next);
             return;
         }
-        if (lastAppliedValueRef.current === next) {
+        if (
+            lastAppliedValueRef.current === next &&
+            lastAppliedLinkContextRef.current === internalLinkContextKey
+        ) {
             updateRecentTextColor(next);
             return;
         }
         instance.setMarkdown(next);
         lastAppliedValueRef.current = next;
+        lastAppliedLinkContextRef.current = internalLinkContextKey;
 
         // 초기 undo 기준도 여기서 설정
         initialMarkdownRef.current = next;
         updateRecentTextColor(next);
-    }, [value, allDocs, categories, updateRecentTextColor]);
+    }, [value, allDocs, categories, internalLinkContextKey, updateRecentTextColor]);
 
     useEffect(() => {
         const root = editorRef.current?.getRootElement?.();
@@ -911,6 +1055,40 @@ export default function MarkdownEditor({
             root.removeEventListener('beforeinput', handleBeforeInput, true);
         };
     }, [onChange]);
+
+    useEffect(() => {
+        const root = editorRef.current?.getRootElement?.();
+        if (!root) return;
+
+        const handleInternalLinkDoubleClick = (e) => {
+            const token = e.target?.closest?.('.wiki-internal-link-token');
+            if (!token || !root.contains(token)) return;
+
+            const raw = token.getAttribute('data-wiki-raw') || '';
+            const info = getInternalLinkInfoFromRaw(raw, allDocs, categories);
+            if (!info) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            const widgetElement = token.closest('.tui-widget');
+            if (!widgetElement) return;
+
+            setIsLinkPaletteOpen(false);
+            setEditingInternalLink({
+                raw,
+                widgetElement,
+                parsed: info.parsed,
+            });
+            setEditingInternalLinkLabel(info.displayLabel);
+        };
+
+        root.addEventListener('dblclick', handleInternalLinkDoubleClick, true);
+
+        return () => {
+            root.removeEventListener('dblclick', handleInternalLinkDoubleClick, true);
+        };
+    }, [allDocs, categories]);
 
     // 🔹 에디터 명령 실행 헬퍼
     const execCommand = useCallback((cmd, payload) => {
@@ -1058,6 +1236,17 @@ export default function MarkdownEditor({
         });
     }, [linkCandidates, linkQuery]);
 
+    const internalLinkWidgetRules = useMemo(() => [
+        {
+            rule: INTERNAL_LINK_WIDGET_RULE,
+            toDOM: (text) => createInternalLinkTokenElement(
+                text,
+                allDocsRef.current,
+                categoriesRef.current
+            ),
+        },
+    ], []);
+
     const closeInternalLinkPalette = useCallback(() => {
         setIsLinkPaletteOpen(false);
         setLinkQuery('');
@@ -1152,11 +1341,13 @@ export default function MarkdownEditor({
 
         instance.replaceSelection(insertion);
 
-        const rawMarkdown = instance.getMarkdown() || '';
+        const rawMarkdown = getMarkdownForSave(instance);
         const editorMarkdown = prepareMarkdownForEditor(rawMarkdown, allDocs, categories);
+        const linkInfo = getInternalLinkInfoFromRaw(insertion, allDocs, categories);
 
         hasUserEditedRef.current = true;
         lastAppliedValueRef.current = editorMarkdown;
+        lastAppliedLinkContextRef.current = internalLinkContextKey;
 
         instance.setMarkdown(editorMarkdown);
         onChange(rawMarkdown);
@@ -1167,9 +1358,83 @@ export default function MarkdownEditor({
         linkInsertSelectionRef.current = null;
 
         requestAnimationFrame(() => {
+            const root = editorRef.current?.getRootElement?.();
+            if (linkInfo?.target) {
+                focusAfterInternalLinkToken(root, `${linkInfo.target}|${linkInfo.displayLabel}`);
+                return;
+            }
+
             editorRef.current?.getInstance?.()?.focus?.();
         });
-    }, [onChange, allDocs, categories]);
+    }, [onChange, allDocs, categories, internalLinkContextKey]);
+
+    const closeInternalLinkEditPopup = useCallback(() => {
+        setEditingInternalLink(null);
+        setEditingInternalLinkLabel('');
+
+        requestAnimationFrame(() => {
+            editorRef.current?.getInstance?.()?.focus?.();
+        });
+    }, []);
+
+    const applyInternalLinkLabelEdit = useCallback(() => {
+        if (!editingInternalLink) return;
+
+        const instance = editorRef.current?.getInstance();
+        if (!instance) return;
+
+        const label = editingInternalLinkLabel.trim();
+        if (!label) return;
+
+        const nextRaw = buildInternalLink({
+            docId: editingInternalLink.parsed.docId,
+            section: editingInternalLink.parsed.section,
+            label,
+        });
+        const scrollSnapshots = getScrollSnapshots(editingInternalLink.widgetElement);
+
+        const replaced = replaceInternalLinkWidgetNode(
+            instance,
+            editingInternalLink.widgetElement,
+            nextRaw
+        );
+
+        if (!replaced) return;
+
+        const nextMarkdown = getMarkdownForSave(instance);
+
+        hasUserEditedRef.current = true;
+        lastAppliedValueRef.current = prepareMarkdownForEditor(nextMarkdown);
+        lastAppliedLinkContextRef.current = internalLinkContextKey;
+
+        onChange(nextMarkdown);
+
+        setEditingInternalLink(null);
+        setEditingInternalLinkLabel('');
+
+        requestAnimationFrame(() => {
+            const root = editorRef.current?.getRootElement?.();
+            const info = getInternalLinkInfoFromRaw(nextRaw, allDocs, categories);
+
+            if (info?.target) {
+                focusAfterInternalLinkToken(
+                    root,
+                    `${info.target}|${info.displayLabel}`,
+                    () => restoreScrollSnapshots(scrollSnapshots)
+                );
+                return;
+            }
+
+            restoreScrollSnapshots(scrollSnapshots);
+        });
+    }, [
+        editingInternalLink,
+        editingInternalLinkLabel,
+        onChange,
+        allDocs,
+        categories,
+        internalLinkContextKey,
+    ]);
 
     // 🔹 keydown: 팝업 열려 있는 동안 ↑↓ / Enter / Esc 처리
     useEffect(() => {
@@ -1918,7 +2183,7 @@ export default function MarkdownEditor({
 
             if (!instance || !root || !active || !root.contains(active)) return;
 
-            const currentMd = instance.getMarkdown() || '';
+            const currentMd = getMarkdownForSave(instance);
 
             // 아직 사용자가 수정한 적이 없으면 undo 막기
             if (!hasUserEditedRef.current) {
@@ -2225,6 +2490,7 @@ export default function MarkdownEditor({
                         },
                     ],
                 ]}
+                widgetRules={internalLinkWidgetRules}
                 toolbarItems={toolbarItems}
                 onChange={handleChange}
             />
@@ -2383,6 +2649,64 @@ export default function MarkdownEditor({
                                 ))}
                             </ul>
                         )}
+                    </div>
+                </div>
+            )}
+            {editingInternalLink && (
+                <div
+                    className="fixed left-1/2 top-1/2 z-40 w-[20rem] max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-slate-200 bg-white shadow-lg"
+                    onMouseDown={(e) => {
+                        e.stopPropagation();
+                    }}
+                >
+                    <div className="border-b border-slate-100 px-3 py-2 text-[11px] text-slate-500">
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-slate-700">내부 링크 수정</span>
+                            <span className="rounded-full bg-slate-100 px-2 py-[2px] text-[10px] text-slate-500">
+                                label
+                            </span>
+                        </div>
+                    </div>
+                    <div className="px-3 py-2">
+                        <div className="mb-3 flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50 px-2 py-1.5">
+                            <span className="text-[10px] text-slate-400">표시</span>
+                            <input
+                                type="text"
+                                value={editingInternalLinkLabel}
+                                onChange={(e) => setEditingInternalLinkLabel(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        applyInternalLinkLabelEdit();
+                                    }
+                                    if (e.key === 'Escape') {
+                                        e.preventDefault();
+                                        closeInternalLinkEditPopup();
+                                    }
+                                }}
+                                className="min-w-0 flex-1 bg-transparent text-[11px] text-slate-700 outline-none placeholder:text-slate-400"
+                                autoFocus
+                            />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <button
+                                type="button"
+                                className="ui-control h-7 rounded-md px-2.5 text-[11px]"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={closeInternalLinkEditPopup}
+                            >
+                                취소
+                            </button>
+                            <button
+                                type="button"
+                                className="ui-btn-success h-7 rounded-md px-2.5 text-[11px]"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={applyInternalLinkLabelEdit}
+                                disabled={!editingInternalLinkLabel.trim()}
+                            >
+                                적용
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

@@ -741,6 +741,12 @@
     border-radius: 3px;
 }
 
+.toastui-editor-defaultUI .ProseMirror .tui-widget:has(.wiki-internal-link-token),
+.ProseMirror .tui-widget:has(.wiki-internal-link-token) {
+    display: inline;
+    cursor: pointer;
+}
+
 .toastui-editor-contents .wiki-internal-link-token:hover,
 .toastui-editor-defaultUI .ProseMirror .wiki-internal-link-token:hover,
 .ProseMirror .wiki-internal-link-token:hover {
