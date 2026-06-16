@@ -742,6 +742,7 @@ export async function fetchDiariesByDateRange({ userId, startDate, endDate }) {
                 value,
                 diary_properties (
                     type,
+                    section_id,
                     sort_order
                 )
             )
@@ -762,6 +763,7 @@ export async function fetchDiaryProperties(userId) {
         .from('diary_properties')
         .select('*')
         .eq('user_id', userId)
+        .order('section_id', { ascending: true, nullsFirst: true })
         .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true });
 
@@ -774,6 +776,7 @@ export async function createDiaryProperty({
     name,
     type,
     icon,
+    sectionId = null,
     config = {},
     defaultValue = null,
 }) {
@@ -782,12 +785,18 @@ export async function createDiaryProperty({
         throw new Error('속성 정보를 확인할 수 없어.');
     }
 
-    const { data: lastRows, error: sortError } = await supabase
+    let sortQuery = supabase
         .from('diary_properties')
         .select('sort_order')
         .eq('user_id', userId)
         .order('sort_order', { ascending: false })
         .limit(1);
+
+    sortQuery = sectionId == null
+        ? sortQuery.is('section_id', null)
+        : sortQuery.eq('section_id', sectionId);
+
+    const { data: lastRows, error: sortError } = await sortQuery;
 
     if (sortError) throw sortError;
 
@@ -800,6 +809,7 @@ export async function createDiaryProperty({
             name: trimmed,
             type,
             icon: (icon || '').trim() || null,
+            section_id: sectionId,
             sort_order: nextSortOrder,
             config,
             default_value: defaultValue,
@@ -817,20 +827,27 @@ export async function updateDiaryProperty({
     name,
     type,
     icon,
+    sectionId,
 }) {
     const trimmed = (name || '').trim();
     if (!userId || !propertyId || !trimmed || !type) {
         throw new Error('속성 정보를 확인할 수 없어.');
     }
 
+    const updatePayload = {
+        name: trimmed,
+        type,
+        icon: (icon || '').trim() || null,
+        updated_at: new Date().toISOString(),
+    };
+
+    if (sectionId !== undefined) {
+        updatePayload.section_id = sectionId;
+    }
+
     const { data, error } = await supabase
         .from('diary_properties')
-        .update({
-            name: trimmed,
-            type,
-            icon: (icon || '').trim() || null,
-            updated_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq('id', propertyId)
         .eq('user_id', userId)
         .select('*')
@@ -838,6 +855,134 @@ export async function updateDiaryProperty({
 
     if (error) throw error;
     return data;
+}
+
+export async function fetchDiaryPropertySections(userId) {
+    if (!userId) return [];
+
+    const { data, error } = await supabase
+        .from('diary_property_sections')
+        .select('*')
+        .eq('user_id', userId)
+        .order('parent_section_id', { ascending: true, nullsFirst: true })
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return data ?? [];
+}
+
+export async function createDiaryPropertySection({ userId, name, parentSectionId = null }) {
+    const trimmed = (name || '').trim();
+    if (!userId || !trimmed) {
+        throw new Error('섹션 정보를 확인할 수 없어.');
+    }
+
+    let sortQuery = supabase
+        .from('diary_property_sections')
+        .select('sort_order')
+        .eq('user_id', userId)
+        .order('sort_order', { ascending: false })
+        .limit(1);
+
+    sortQuery = parentSectionId == null
+        ? sortQuery.is('parent_section_id', null)
+        : sortQuery.eq('parent_section_id', parentSectionId);
+
+    const { data: lastRows, error: sortError } = await sortQuery;
+
+    if (sortError) throw sortError;
+
+    const nextSortOrder = (lastRows?.[0]?.sort_order ?? -1) + 1;
+
+    const { data, error } = await supabase
+        .from('diary_property_sections')
+        .insert({
+            user_id: userId,
+            parent_section_id: parentSectionId,
+            name: trimmed,
+            sort_order: nextSortOrder,
+        })
+        .select('*')
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
+export async function updateDiaryPropertySection({
+    userId,
+    sectionId,
+    name,
+    parentSectionId,
+    collapsed,
+}) {
+    if (!userId || !sectionId) {
+        throw new Error('섹션 정보를 확인할 수 없어.');
+    }
+
+    const updatePayload = {
+        updated_at: new Date().toISOString(),
+    };
+
+    if (name !== undefined) {
+        const trimmed = (name || '').trim();
+        if (!trimmed) return null;
+        updatePayload.name = trimmed;
+    }
+
+    if (parentSectionId !== undefined) {
+        updatePayload.parent_section_id = parentSectionId;
+    }
+
+    if (collapsed !== undefined) {
+        updatePayload.collapsed = collapsed;
+    }
+
+    const { data, error } = await supabase
+        .from('diary_property_sections')
+        .update(updatePayload)
+        .eq('id', sectionId)
+        .eq('user_id', userId)
+        .select('*')
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
+export async function deleteDiaryPropertySection({ userId, sectionId }) {
+    if (!userId || !sectionId) return;
+
+    const { error } = await supabase
+        .from('diary_property_sections')
+        .delete()
+        .eq('id', sectionId)
+        .eq('user_id', userId);
+
+    if (error) throw error;
+}
+
+export async function updateDiaryPropertySectionOrder({ userId, sections }) {
+    if (!userId || !Array.isArray(sections)) return [];
+
+    const updates = sections.map((section) =>
+        supabase
+            .from('diary_property_sections')
+            .update({
+                parent_section_id: section.parentSectionId ?? null,
+                sort_order: section.sortOrder ?? 0,
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', section.sectionId)
+            .eq('user_id', userId),
+    );
+
+    const results = await Promise.all(updates);
+    const errorResult = results.find((result) => result.error);
+    if (errorResult?.error) throw errorResult.error;
+
+    return [];
 }
 
 export async function deleteDiaryProperty({ userId, propertyId }) {
@@ -850,6 +995,62 @@ export async function deleteDiaryProperty({ userId, propertyId }) {
         .eq('user_id', userId);
 
     if (error) throw error;
+}
+
+export async function fetchDiaryLayout(userId) {
+    if (!userId) return [];
+
+    const { data, error } = await supabase
+        .from('diary_layouts')
+        .select('*')
+        .eq('user_id', userId)
+        .order('sort_order', { ascending: true });
+
+    if (error) throw error;
+    return data ?? [];
+}
+
+export async function updateDiaryLayout({ userId, items }) {
+    if (!userId || !Array.isArray(items)) return [];
+
+    const rows = items.map((item, index) => ({
+        user_id: userId,
+        property_id: item.propertyId,
+        sort_order: index,
+        visibility: item.visibility || 'always',
+        updated_at: new Date().toISOString(),
+    }));
+
+    if (rows.length === 0) return [];
+
+    const { data, error } = await supabase
+        .from('diary_layouts')
+        .upsert(rows, {
+            onConflict: 'user_id,property_id',
+        })
+        .select('*');
+
+    if (error) throw error;
+
+    const propertyUpdates = items
+        .filter((item) => item.propertyId)
+        .map((item, index) =>
+            supabase
+                .from('diary_properties')
+                .update({
+                    section_id: item.sectionId ?? null,
+                    sort_order: index,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', item.propertyId)
+                .eq('user_id', userId),
+        );
+
+    const propertyResults = await Promise.all(propertyUpdates);
+    const propertyErrorResult = propertyResults.find((result) => result.error);
+    if (propertyErrorResult?.error) throw propertyErrorResult.error;
+
+    return data ?? [];
 }
 
 export async function fetchDiaryPropertyValues({ userId, diaryDate }) {

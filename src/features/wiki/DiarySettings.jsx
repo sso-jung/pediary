@@ -1,14 +1,25 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { PROPERTY_TYPES, PropertyIcon } from './DiaryPropertyUtils';
 import {
     useCreateDiaryProperty,
+    useCreateDiaryPropertySection,
     useDeleteDiaryProperty,
+    useDeleteDiaryPropertySection,
     useDiaryProperties,
+    useDiaryPropertySections,
+    useUpdateDiaryPropertySection,
+    useUpdateDiaryPropertySectionOrder,
     useUpdateDiaryProperty,
 } from './hooks/useDiaryProperties';
+import { useDiaryLayout, useUpdateDiaryLayout } from './hooks/useDiaryLayout';
 
 const AUTO_SAVE_DELAY = 500;
+const VISIBILITY_OPTIONS = [
+    { value: 'always', label: '항상 표시' },
+    { value: 'when_filled', label: '값 있을 때' },
+    { value: 'hidden', label: '숨김' },
+];
 
 function getDraftFromProperty(property) {
     return {
@@ -18,15 +29,343 @@ function getDraftFromProperty(property) {
     };
 }
 
+function getDraftFromSection(section) {
+    return {
+        name: section?.name || '',
+    };
+}
+
+function buildLayoutItems(properties = [], layout = []) {
+    const layoutMap = new Map(
+        layout.map((item) => [
+            item.property_id,
+            {
+                sortOrder: item.sort_order ?? 0,
+                visibility: item.visibility || 'always',
+            },
+        ]),
+    );
+
+    return properties
+        .map((property, index) => {
+            const layoutItem = layoutMap.get(property.id);
+
+            return {
+                propertyId: property.id,
+                property,
+                sectionId: property.section_id ?? null,
+                visibility: layoutItem?.visibility || 'always',
+                sortOrder: layoutItem ? layoutItem.sortOrder : 10000 + (property.sort_order ?? index),
+            };
+        })
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+function sortSections(sections = []) {
+    return [...sections].sort(
+        (a, b) =>
+            (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
+            (a.created_at || '').localeCompare(b.created_at || ''),
+    );
+}
+
+function moveSectionItem(sections, sourceSectionId, targetSectionId, position = 'before') {
+    if (!sourceSectionId || !targetSectionId || sourceSectionId === targetSectionId) {
+        return sections;
+    }
+
+    const sourceSection = sections.find((section) => section.id === sourceSectionId);
+    const targetSection = sections.find((section) => section.id === targetSectionId);
+
+    if (!sourceSection || !targetSection) return sections;
+    if ((sourceSection.parent_section_id ?? null) !== (targetSection.parent_section_id ?? null)) {
+        return sections;
+    }
+
+    const parentSectionId = sourceSection.parent_section_id ?? null;
+    const siblings = sortSections(
+        sections.filter(
+            (section) => (section.parent_section_id ?? null) === parentSectionId,
+        ),
+    );
+    const nextSiblings = siblings.filter((section) => section.id !== sourceSectionId);
+    const targetIndex = nextSiblings.findIndex((section) => section.id === targetSectionId);
+
+    if (targetIndex < 0) return sections;
+
+    const insertIndex = position === 'after' ? targetIndex + 1 : targetIndex;
+    nextSiblings.splice(insertIndex, 0, sourceSection);
+
+    const orderMap = new Map(
+        nextSiblings.map((section, index) => [section.id, index]),
+    );
+
+    return sections.map((section) =>
+        orderMap.has(section.id)
+            ? {
+                ...section,
+                sort_order: orderMap.get(section.id),
+            }
+            : section,
+    );
+}
+
+function getDropPosition(event) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const offsetY = event.clientY - rect.top;
+
+    return offsetY < rect.height / 2 ? 'before' : 'after';
+}
+
+function moveLayoutItem(items, sourcePropertyId, targetPropertyId, position = 'before') {
+    if (!sourcePropertyId || !targetPropertyId || sourcePropertyId === targetPropertyId) {
+        return items;
+    }
+
+    const sourceIndex = items.findIndex((item) => item.propertyId === sourcePropertyId);
+
+    if (sourceIndex < 0) return items;
+
+    const sourceItem = items[sourceIndex];
+    const next = items.filter((item) => item.propertyId !== sourcePropertyId);
+    const targetIndex = next.findIndex((item) => item.propertyId === targetPropertyId);
+
+    if (targetIndex < 0) return items;
+
+    const targetItem = next[targetIndex];
+    const insertIndex = position === 'after' ? targetIndex + 1 : targetIndex;
+    next.splice(insertIndex, 0, {
+        ...sourceItem,
+        sectionId: targetItem.sectionId ?? null,
+    });
+
+    return next;
+}
+
+function SettingsDropdown({ value, options, onChange }) {
+    const dropdownId = useId();
+    const [isOpen, setIsOpen] = useState(false);
+    const buttonRef = useRef(null);
+    const menuRef = useRef(null);
+    const [menuRect, setMenuRect] = useState(null);
+    const selected = options.find((option) => option.value === value);
+
+    const updateMenuRect = () => {
+        const rect = buttonRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
+        setMenuRect({
+            left: rect.left,
+            top: rect.bottom + 4,
+            width: rect.width,
+        });
+    };
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleClickOutside = (e) => {
+            const isButtonClick = buttonRef.current?.contains(e.target);
+            const isMenuClick = menuRef.current?.contains(e.target);
+
+            if (!isButtonClick && !isMenuClick) {
+                setIsOpen(false);
+            }
+        };
+
+        const handleWindowChange = () => updateMenuRect();
+
+        document.addEventListener('mousedown', handleClickOutside, true);
+        window.addEventListener('scroll', handleWindowChange, true);
+        window.addEventListener('resize', handleWindowChange);
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside, true);
+            window.removeEventListener('scroll', handleWindowChange, true);
+            window.removeEventListener('resize', handleWindowChange);
+        };
+    }, [isOpen]);
+
+    useEffect(() => {
+        const handleOpenDropdown = (e) => {
+            if (e.detail !== dropdownId) {
+                setIsOpen(false);
+            }
+        };
+
+        window.addEventListener('diary-settings-dropdown-open', handleOpenDropdown);
+        return () =>
+            window.removeEventListener('diary-settings-dropdown-open', handleOpenDropdown);
+    }, [dropdownId]);
+
+    return (
+        <div className="relative w-[calc(100%-16px)]">
+            <button
+                ref={buttonRef}
+                type="button"
+                className="ui-input flex h-[30px] w-full items-center justify-between gap-2 !rounded-md !px-2.5 !py-0 !text-left !text-[12px]"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    updateMenuRect();
+                    setIsOpen((prev) => {
+                        const next = !prev;
+
+                        if (next) {
+                            window.dispatchEvent(
+                                new CustomEvent('diary-settings-dropdown-open', {
+                                    detail: dropdownId,
+                                }),
+                            );
+                        }
+
+                        return next;
+                    });
+                }}
+            >
+                <span className="min-w-0 truncate">{selected?.label || ''}</span>
+                <svg
+                    viewBox="0 0 20 20"
+                    className="h-3.5 w-3.5 shrink-0 page-text-muted"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                >
+                    <path d="M5.5 7.5L10 12l4.5-4.5" />
+                </svg>
+            </button>
+
+            {isOpen && menuRect && createPortal(
+                <div
+                    ref={menuRef}
+                    className="fixed z-50 max-h-72 overflow-y-auto rounded-md border py-1 text-[12px] shadow-lg"
+                    style={{
+                        left: menuRect.left,
+                        top: menuRect.top,
+                        width: menuRect.width,
+                        borderColor: 'var(--color-border-subtle)',
+                        backgroundColor: 'var(--color-page-surface)',
+                        color: 'var(--color-text-main)',
+                    }}
+                >
+                    {options.map((option) => (
+                        <button
+                            key={option.value}
+                            type="button"
+                            className={
+                                'block w-full whitespace-normal break-keep px-2 py-1.5 text-left leading-snug ui-side-subitem ' +
+                                (option.value === value ? 'ui-side-subitem-active' : '')
+                            }
+                            onClick={() => {
+                                onChange(option.value);
+                                setIsOpen(false);
+                            }}
+                        >
+                            {option.label}
+                        </button>
+                    ))}
+                </div>,
+                document.body,
+            )}
+        </div>
+    );
+}
+
+function DiarySettingsTooltip({ tooltip }) {
+    const tooltipRef = useRef(null);
+    const [position, setPosition] = useState({
+        left: 0,
+        top: 0,
+        arrowLeft: 0,
+    });
+
+    useLayoutEffect(() => {
+        if (!tooltip) return;
+
+        const el = tooltipRef.current;
+        if (!el) return;
+
+        const rect = el.getBoundingClientRect();
+        const margin = 8;
+
+        let left = tooltip.x - rect.width / 2;
+        left = Math.max(
+            margin,
+            Math.min(left, window.innerWidth - rect.width - margin),
+        );
+
+        let top = tooltip.y - rect.height - 12;
+        top = Math.max(margin, top);
+
+        const arrowLeft = Math.max(
+            10,
+            Math.min(tooltip.x - left, rect.width - 10),
+        );
+
+        setPosition({
+            left,
+            top,
+            arrowLeft,
+        });
+    }, [tooltip]);
+
+    if (!tooltip) return null;
+
+    return createPortal(
+        <div
+            ref={tooltipRef}
+            className="pointer-events-none fixed z-[9999] rounded-lg px-3 py-2 text-[11px] font-semibold leading-snug text-white shadow-xl"
+            style={{
+                left: position.left,
+                top: position.top,
+                backgroundColor: 'rgb(30 41 59)',
+                whiteSpace: 'nowrap',
+                maxWidth: 'calc(100vw - 24px)',
+            }}
+        >
+            {tooltip.text}
+
+            <span
+                aria-hidden
+                className="absolute h-2 w-2 rotate-45"
+                style={{
+                    left: position.arrowLeft,
+                    bottom: -4,
+                    marginLeft: -4,
+                    backgroundColor: 'rgb(30 41 59)',
+                }}
+            />
+        </div>,
+        document.body,
+    );
+}
+
 export default function DiarySettings({ open, onClose }) {
     const { data: properties } = useDiaryProperties();
+    const { data: sections } = useDiaryPropertySections();
+    const { data: layout } = useDiaryLayout();
     const createProperty = useCreateDiaryProperty();
     const updateProperty = useUpdateDiaryProperty();
     const deleteProperty = useDeleteDiaryProperty();
+    const createSection = useCreateDiaryPropertySection();
+    const updateSection = useUpdateDiaryPropertySection();
+    const deleteSection = useDeleteDiaryPropertySection();
+    const updateSectionOrder = useUpdateDiaryPropertySectionOrder();
+    const updateLayout = useUpdateDiaryLayout();
 
     const [propertyDrafts, setPropertyDrafts] = useState({});
+    const [sectionDrafts, setSectionDrafts] = useState({});
+    const [layoutItems, setLayoutItems] = useState([]);
+    const [draggingPropertyId, setDraggingPropertyId] = useState(null);
+    const [draggingSectionId, setDraggingSectionId] = useState(null);
+    const [dropIndicator, setDropIndicator] = useState(null);
+    const [sectionDropIndicator, setSectionDropIndicator] = useState(null);
+    const [titleTooltip, setTitleTooltip] = useState(null);
     const saveTimersRef = useRef({});
     const latestDraftsRef = useRef({});
+    const tooltipTargetRef = useRef(null);
 
     useEffect(() => {
         if (!open || !properties) return;
@@ -44,6 +383,25 @@ export default function DiarySettings({ open, onClose }) {
     }, [open, properties]);
 
     useEffect(() => {
+        if (!open || !properties) return;
+        setLayoutItems(buildLayoutItems(properties, layout || []));
+    }, [open, properties, layout]);
+
+    useEffect(() => {
+        if (!open || !sections) return;
+
+        setSectionDrafts((prev) => {
+            const next = {};
+
+            sections.forEach((section) => {
+                next[section.id] = prev[section.id] || getDraftFromSection(section);
+            });
+
+            return next;
+        });
+    }, [open, sections]);
+
+    useEffect(() => {
         latestDraftsRef.current = propertyDrafts;
     }, [propertyDrafts]);
 
@@ -57,7 +415,15 @@ export default function DiarySettings({ open, onClose }) {
 
     if (!open) return null;
 
-    const busy = createProperty.isPending || updateProperty.isPending || deleteProperty.isPending;
+    const busy =
+        createProperty.isPending ||
+        updateProperty.isPending ||
+        deleteProperty.isPending ||
+        createSection.isPending ||
+        updateSection.isPending ||
+        deleteSection.isPending ||
+        updateSectionOrder.isPending ||
+        updateLayout.isPending;
 
     const getOriginalProperty = (propertyId) =>
         (properties || []).find((property) => property.id === propertyId);
@@ -133,8 +499,20 @@ export default function DiarySettings({ open, onClose }) {
         schedulePropertySave(propertyId, nextDraft, delay);
     };
 
-    const handleUploadSvgIcon = async (file, onChange) => {
+    const handleUploadIcon = async (file, onChange) => {
         if (!file) return;
+
+        if (file.type === 'image/webp') {
+            const reader = new FileReader();
+            reader.onload = () => {
+                if (typeof reader.result === 'string') {
+                    onChange(reader.result);
+                }
+            };
+            reader.readAsDataURL(file);
+            return;
+        }
+
         if (file.type && file.type !== 'image/svg+xml') return;
 
         const text = await file.text();
@@ -144,12 +522,207 @@ export default function DiarySettings({ open, onClose }) {
         onChange(trimmed);
     };
 
-    const handleCreateProperty = async () => {
+    const handleCreateProperty = async (sectionId = null) => {
         await createProperty.mutateAsync({
             name: '새 속성',
             type: 'text',
             icon: '',
+            sectionId,
         });
+    };
+
+    const handleCreateSection = async (parentSectionId = null) => {
+        await createSection.mutateAsync({
+            name: parentSectionId ? '하위 섹션' : '새 섹션',
+            parentSectionId,
+        });
+    };
+
+    const handleChangeSectionDraft = (sectionId, name) => {
+        setSectionDrafts((prev) => ({
+            ...prev,
+            [sectionId]: {
+                ...(prev[sectionId] || {}),
+                name,
+            },
+        }));
+    };
+
+    const flushSectionSave = (sectionId) => {
+        const original = (sections || []).find((section) => section.id === sectionId);
+        const draft = sectionDrafts[sectionId] || getDraftFromSection(original);
+        const name = String(draft?.name || '').trim();
+
+        if (!original || !name || original.name === name) return;
+
+        updateSection.mutate({
+            sectionId,
+            name,
+        });
+    };
+
+    const handleDeleteSection = async (sectionId) => {
+        if (!window.confirm('이 섹션과 하위 섹션을 삭제할까? \n섹션에 포함된 속성은 미분류로 돌아가.')) return;
+
+        await deleteSection.mutateAsync({ sectionId });
+    };
+
+    const saveLayoutItems = (nextItems) => {
+        updateLayout.mutate({
+            items: nextItems.map((item) => ({
+                propertyId: item.propertyId,
+                sectionId: item.sectionId ?? null,
+                visibility: item.visibility,
+            })),
+        });
+    };
+
+    const handleChangeVisibility = (propertyId, visibility) => {
+        setLayoutItems((prev) => {
+            const next = prev.map((item) =>
+                item.propertyId === propertyId
+                    ? {
+                        ...item,
+                        visibility,
+                    }
+                    : item,
+            );
+
+            saveLayoutItems(next);
+            return next;
+        });
+    };
+
+    const handleDragStart = (e, propertyId) => {
+        setDraggingPropertyId(propertyId);
+        setDraggingSectionId(null);
+        setDropIndicator(null);
+        setSectionDropIndicator(null);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', propertyId);
+    };
+
+    const handleDragOverProperty = (e, targetPropertyId) => {
+        if (!draggingPropertyId || draggingPropertyId === targetPropertyId) return;
+
+        e.preventDefault();
+
+        setDropIndicator({
+            targetId: targetPropertyId,
+            position: getDropPosition(e),
+        });
+    };
+
+    const handleDropProperty = (e, targetPropertyId) => {
+        e.preventDefault();
+
+        const sourcePropertyId = draggingPropertyId || e.dataTransfer.getData('text/plain');
+        const position =
+            dropIndicator?.targetId === targetPropertyId
+                ? dropIndicator.position
+                : getDropPosition(e);
+
+        setLayoutItems((prev) => {
+            const next = moveLayoutItem(prev, sourcePropertyId, targetPropertyId, position);
+            if (next === prev) return prev;
+
+            saveLayoutItems(next);
+            return next;
+        });
+
+        setDraggingPropertyId(null);
+        setDropIndicator(null);
+    };
+
+    const handleDropPropertyOnSection = (e, sectionId) => {
+        if (!draggingPropertyId) return;
+
+        e.preventDefault();
+
+        setLayoutItems((prev) => {
+            const targetItems = prev.filter((item) => (item.sectionId ?? null) === sectionId);
+            const sourceItem = prev.find((item) => item.propertyId === draggingPropertyId);
+
+            if (!sourceItem) return prev;
+
+            const next = prev
+                .filter((item) => item.propertyId !== draggingPropertyId)
+                .map((item) => ({ ...item }));
+
+            const lastTargetIndex = next.findLastIndex(
+                (item) => (item.sectionId ?? null) === sectionId,
+            );
+            const nextSourceItem = {
+                ...sourceItem,
+                sectionId,
+            };
+
+            if (targetItems.length === 0 || lastTargetIndex < 0) {
+                next.push(nextSourceItem);
+            } else {
+                next.splice(lastTargetIndex + 1, 0, nextSourceItem);
+            }
+
+            saveLayoutItems(next);
+            return next;
+        });
+
+        setDraggingPropertyId(null);
+        setDropIndicator(null);
+    };
+
+    const handleSectionDragStart = (e, sectionId) => {
+        setDraggingSectionId(sectionId);
+        setDraggingPropertyId(null);
+        setDropIndicator(null);
+        setSectionDropIndicator(null);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', String(sectionId));
+    };
+
+    const handleDragOverSection = (e, sectionId) => {
+        if (!draggingSectionId || draggingSectionId === sectionId) return;
+
+        e.preventDefault();
+
+        setSectionDropIndicator({
+            targetId: sectionId,
+            position: getDropPosition(e),
+        });
+    };
+
+    const saveSectionOrder = (nextSections) => {
+        updateSectionOrder.mutate({
+            sections: nextSections.map((section) => ({
+                sectionId: section.id,
+                parentSectionId: section.parent_section_id ?? null,
+                sortOrder: section.sort_order ?? 0,
+            })),
+        });
+    };
+
+    const handleDropSection = (e, sectionId) => {
+        if (!draggingSectionId) return;
+
+        e.preventDefault();
+
+        const position =
+            sectionDropIndicator?.targetId === sectionId
+                ? sectionDropIndicator.position
+                : getDropPosition(e);
+        const nextSections = moveSectionItem(
+            sections || [],
+            draggingSectionId,
+            sectionId,
+            position,
+        );
+
+        if (nextSections !== sections) {
+            saveSectionOrder(nextSections);
+        }
+
+        setDraggingSectionId(null);
+        setSectionDropIndicator(null);
     };
 
     const handleDeleteProperty = async (propertyId) => {
@@ -168,6 +741,351 @@ export default function DiarySettings({ open, onClose }) {
         onClose();
     };
 
+    const getTooltipTarget = (target) => target?.closest?.('[title], [data-diary-title-tooltip]');
+
+    const handleTooltipMouseMove = (e) => {
+        const target = getTooltipTarget(e.target);
+        if (!target) {
+            setTitleTooltip(null);
+            tooltipTargetRef.current = null;
+            return;
+        }
+
+        const title = target.getAttribute('title');
+        const tooltipText = title || target.getAttribute('data-diary-title-tooltip');
+
+        if (!tooltipText) return;
+
+        if (title) {
+            target.setAttribute('data-diary-title-tooltip', title);
+            target.removeAttribute('title');
+        }
+
+        tooltipTargetRef.current = target;
+        setTitleTooltip({
+            text: tooltipText,
+            x: e.clientX,
+            y: e.clientY,
+        });
+    };
+
+    const handleTooltipMouseLeave = (e) => {
+        const target = tooltipTargetRef.current;
+        if (!target) return;
+        if (target.contains(e.relatedTarget)) return;
+
+        setTitleTooltip(null);
+        tooltipTargetRef.current = null;
+    };
+
+    const rootSections = sortSections(
+        (sections || []).filter((section) => !section.parent_section_id),
+    );
+    const childSectionMap = new Map();
+
+    (sections || []).forEach((section) => {
+        const parentSectionId = section.parent_section_id ?? null;
+        if (!parentSectionId) return;
+
+        childSectionMap.set(parentSectionId, [
+            ...(childSectionMap.get(parentSectionId) || []),
+            section,
+        ]);
+    });
+
+    const getItemsBySection = (sectionId) =>
+        layoutItems.filter((item) => (item.sectionId ?? null) === sectionId);
+    const unclassifiedItems = getItemsBySection(null);
+
+    const renderPropertyRow = (layoutItem) => {
+        const property = layoutItem.property;
+        const draft = propertyDrafts[property.id] || getDraftFromProperty(property);
+
+        return (
+            <div
+                key={property.id}
+                className={[
+                    "relative grid grid-cols-[28px_108px_repeat(3,minmax(0,1fr))_32px] items-center border-b border-border-subtle px-2 py-1 text-xs hover:bg-[rgba(127,127,127,0.06)]",
+                    draggingPropertyId === property.id ? "opacity-60" : "",
+                ].join(" ")}
+                onDragOver={(e) => handleDragOverProperty(e, property.id)}
+                onDragLeave={() => {
+                    setDropIndicator((prev) =>
+                        prev?.targetId === property.id ? null : prev
+                    );
+                }}
+                onDrop={(e) => handleDropProperty(e, property.id)}
+            >
+                {dropIndicator?.targetId === property.id && dropIndicator.position === 'before' && (
+                    <span
+                        aria-hidden
+                        className="pointer-events-none absolute left-2 right-2 top-0 z-10 border-t border-dashed"
+                        style={{
+                            borderTopWidth: '1px',
+                            borderTopColor: 'rgba(124, 140, 167, 0.55)',
+                        }}
+                    />
+                )}
+
+                <button
+                    type="button"
+                    className="flex h-7 w-7 cursor-grab items-center justify-center rounded-md text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] active:cursor-grabbing"
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, property.id)}
+                    onDragEnd={() => {
+                        setDraggingPropertyId(null);
+                        setDropIndicator(null);
+                    }}
+                    aria-label="순서 변경"
+                    title="속성 순서 변경"
+                >
+                    <svg
+                        viewBox="0 0 20 20"
+                        className="h-4 w-4"
+                        fill="currentColor"
+                        aria-hidden="true"
+                    >
+                        <circle cx="7" cy="5" r="1.2" />
+                        <circle cx="13" cy="5" r="1.2" />
+                        <circle cx="7" cy="10" r="1.2" />
+                        <circle cx="13" cy="10" r="1.2" />
+                        <circle cx="7" cy="15" r="1.2" />
+                        <circle cx="13" cy="15" r="1.2" />
+                    </svg>
+                </button>
+
+                <div className="flex min-w-0 items-center">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md">
+                        <PropertyIcon icon={draft.icon}/>
+                    </span>
+
+                    <label
+                        className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] hover:text-[var(--color-text-primary)]"
+                        title="아이콘 추가"
+                    >
+                        <svg
+                            viewBox="0 0 20 20"
+                            className="h-3.5 w-3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                        >
+                            <path d="M10 13V4"/>
+                            <path d="M6.5 7.5 10 4l3.5 3.5"/>
+                            <path d="M4 13.5V15a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1.5"/>
+                        </svg>
+
+                        <input
+                            type="file"
+                            accept="image/svg+xml,image/webp,.svg,.webp"
+                            className="hidden"
+                            onChange={(e) =>
+                                handleUploadIcon(
+                                    e.target.files?.[0],
+                                    (icon) =>
+                                        handleChangePropertyDraft(
+                                            property.id,
+                                            'icon',
+                                            icon,
+                                            0,
+                                        ),
+                                )
+                            }
+                        />
+                    </label>
+                </div>
+
+                <input
+                    className="h-8 w-[calc(100%-16px)] min-w-0 rounded-md bg-transparent px-2 outline-none hover:bg-[rgba(127,127,127,0.08)] focus:bg-[rgba(127,127,127,0.10)]"
+                    value={draft.name}
+                    onChange={(e) =>
+                        handleChangePropertyDraft(
+                            property.id,
+                            'name',
+                            e.target.value,
+                        )
+                    }
+                    onBlur={() => flushPropertySave(property.id)}
+                    placeholder="속성명"
+                />
+
+                <SettingsDropdown
+                    value={draft.type}
+                    options={PROPERTY_TYPES}
+                    onChange={(value) =>
+                        handleChangePropertyDraft(
+                            property.id,
+                            'type',
+                            value,
+                            0,
+                        )
+                    }
+                />
+
+                <SettingsDropdown
+                    value={layoutItem.visibility}
+                    options={VISIBILITY_OPTIONS}
+                    onChange={(value) =>
+                        handleChangeVisibility(property.id, value)
+                    }
+                />
+
+                <button
+                    type="button"
+                    className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] hover:text-red-500 disabled:opacity-30"
+                    onClick={() => handleDeleteProperty(property.id)}
+                    disabled={deleteProperty.isPending}
+                    aria-label="속성 삭제"
+                    title="속성 삭제"
+                >
+                    <svg
+                        viewBox="0 0 20 20"
+                        className="h-3.5 w-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        aria-hidden="true"
+                    >
+                        <path d="M5 5l10 10M15 5L5 15"/>
+                    </svg>
+                </button>
+
+                {dropIndicator?.targetId === property.id && dropIndicator.position === 'after' && (
+                    <span
+                        aria-hidden
+                        className="pointer-events-none absolute bottom-0 left-2 right-2 z-10 border-t border-dashed"
+                        style={{
+                            borderTopWidth: '1px',
+                            borderTopColor: 'rgba(124, 140, 167, 0.55)',
+                        }}
+                    />
+                )}
+            </div>
+        );
+    };
+
+    const renderSection = (section, depth = 0) => {
+        const sectionItems = getItemsBySection(section.id);
+        const childSections = sortSections(childSectionMap.get(section.id) || []);
+        const draft = sectionDrafts[section.id] || getDraftFromSection(section);
+
+        return (
+            <div key={section.id} className={depth > 0 ? "ml-6" : ""}>
+                <div
+                    className={[
+                        "relative mt-0 flex items-center gap-1 border-b border-border-subtle px-2 py-1.5 text-xs",
+                        draggingSectionId === section.id ? "opacity-60" : "",
+                    ].join(" ")}
+                    onDragOver={(e) => {
+                        handleDragOverSection(e, section.id);
+                        if (draggingPropertyId) {
+                            e.preventDefault();
+                        }
+                    }}
+                    onDragLeave={() => {
+                        setSectionDropIndicator((prev) =>
+                            prev?.targetId === section.id ? null : prev
+                        );
+                    }}
+                    onDrop={(e) => {
+                        if (draggingSectionId) {
+                            handleDropSection(e, section.id);
+                            return;
+                        }
+                        handleDropPropertyOnSection(e, section.id);
+                    }}
+                >
+                    {sectionDropIndicator?.targetId === section.id && sectionDropIndicator.position === 'before' && (
+                        <span
+                            aria-hidden
+                            className="pointer-events-none absolute left-2 right-2 top-0 z-10 border-t border-dashed"
+                            style={{
+                                borderTopWidth: '1px',
+                                borderTopColor: 'rgba(124, 140, 167, 0.55)',
+                            }}
+                        />
+                    )}
+
+                    <button
+                        type="button"
+                        className="flex h-7 w-7 cursor-grab items-center justify-center rounded-md text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] active:cursor-grabbing"
+                        draggable
+                        onDragStart={(e) => handleSectionDragStart(e, section.id)}
+                        onDragEnd={() => {
+                            setDraggingSectionId(null);
+                            setSectionDropIndicator(null);
+                        }}
+                        aria-label="섹션 순서 변경"
+                        title="섹션 순서 변경"
+                    >
+                        <svg
+                            viewBox="0 0 20 20"
+                            className="h-4 w-4"
+                            fill="currentColor"
+                            aria-hidden="true"
+                        >
+                            <circle cx="7" cy="5" r="1.2" />
+                            <circle cx="13" cy="5" r="1.2" />
+                            <circle cx="7" cy="10" r="1.2" />
+                            <circle cx="13" cy="10" r="1.2" />
+                            <circle cx="7" cy="15" r="1.2" />
+                            <circle cx="13" cy="15" r="1.2" />
+                        </svg>
+                    </button>
+
+                    <input
+                        className="h-8 min-w-0 flex-1 rounded-md bg-transparent px-2 font-semibold outline-none hover:bg-[rgba(127,127,127,0.08)] focus:bg-[rgba(127,127,127,0.10)]"
+                        value={draft.name}
+                        onChange={(e) => handleChangeSectionDraft(section.id, e.target.value)}
+                        onBlur={() => flushSectionSave(section.id)}
+                        placeholder="섹션명"
+                    />
+
+                    {/*{depth === 0 && (*/}
+                    {/*    <button*/}
+                    {/*        type="button"*/}
+                    {/*        className="rounded-md px-2 py-1 text-[11px] font-medium text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] hover:text-[var(--color-text-primary)] disabled:opacity-40"*/}
+                    {/*        onClick={() => handleCreateSection(section.id)}*/}
+                    {/*        disabled={createSection.isPending}*/}
+                    {/*        aria-label="하위 섹션 추가"*/}
+                    {/*        title="하위 섹션 추가"*/}
+                    {/*    >*/}
+                    {/*        하위섹션추가*/}
+                    {/*    </button>*/}
+                    {/*)}*/}
+
+                    <button
+                        type="button"
+                        className="rounded-md px-2 py-1 text-[11px] font-medium text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] hover:text-red-500 disabled:opacity-30"
+                        onClick={() => handleDeleteSection(section.id)}
+                        disabled={deleteSection.isPending}
+                        aria-label="섹션 삭제"
+                    >
+                        섹션삭제
+                    </button>
+
+                    {sectionDropIndicator?.targetId === section.id && sectionDropIndicator.position === 'after' && (
+                        <span
+                            aria-hidden
+                            className="pointer-events-none absolute bottom-0 left-2 right-2 z-10 border-t border-dashed"
+                            style={{
+                                borderTopWidth: '1px',
+                                borderTopColor: 'rgba(124, 140, 167, 0.55)',
+                            }}
+                        />
+                    )}
+                </div>
+
+                {sectionItems.map(renderPropertyRow)}
+                {childSections.map((childSection) => renderSection(childSection, depth + 1))}
+            </div>
+        );
+    };
+
     const dialog = (
         <div
             className="fixed inset-0 z-40 flex items-center justify-center px-4 py-6 ui-dialog-backdrop"
@@ -176,159 +1094,64 @@ export default function DiarySettings({ open, onClose }) {
             <div
                 className="ui-dialog flex max-h-[86vh] w-[min(760px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl p-0"
                 onMouseDown={(e) => e.stopPropagation()}
+                onMouseMove={handleTooltipMouseMove}
+                onMouseLeave={() => setTitleTooltip(null)}
+                onMouseOut={handleTooltipMouseLeave}
             >
-                <div className="flex items-center justify-between border-b border-border-subtle px-5 py-4">
+                <div className="flex items-center justify-between border-b border-border-subtle px-5 py-3">
                     <div>
                         <h2 className="text-sm font-semibold ui-dialog-title">속성 편집</h2>
                     </div>
-
-                    <button
-                        type="button"
-                        className="flex h-8 w-8 items-center justify-center rounded-md text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] hover:text-[var(--color-text-primary)] disabled:opacity-40"
-                        onClick={handleCreateProperty}
-                        disabled={createProperty.isPending}
-                        aria-label="속성 추가"
-                        title="속성 추가"
-                    >
-                        <svg
-                            viewBox="0 0 20 20"
-                            className="h-4 w-4"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                            aria-hidden="true"
-                        >
-                            <path d="M10 4v12M4 10h12"/>
-                        </svg>
-                    </button>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
+                <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-2 pb-4">
                     <div
-                        className="grid grid-cols-[108px_minmax(0,1fr)_minmax(0,1fr)_32px] items-center border-b border-border-subtle px-2 py-2 text-[11px] text-[var(--color-text-muted)]">
-                        <div>아이콘</div>
-                        <div className="mx-2">이름</div>
-                        <div className="mx-2">유형</div>
-                        <div></div>
-                    </div>
-
-                    {(properties || []).map((property) => {
-                        const draft = propertyDrafts[property.id] || getDraftFromProperty(property);
-
-                        return (
-                            <div
-                                key={property.id}
-                                className="grid grid-cols-[108px_minmax(0,1fr)_minmax(0,1fr)_32px] items-center border-b border-border-subtle px-2 py-1.5 text-xs hover:bg-[rgba(127,127,127,0.06)]"
-                            >
-                                <div className="flex min-w-0 items-center gap-2">
-                                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md">
-                                        <PropertyIcon icon={draft.icon}/>
-                                    </span>
-
-                                    <label
-                                        className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] hover:text-[var(--color-text-primary)]"
-                                        title="SVG 업로드"
-                                    >
-                                        <svg
-                                            viewBox="0 0 20 20"
-                                            className="h-3.5 w-3.5"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            strokeWidth="1.8"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            aria-hidden="true"
-                                        >
-                                            <path d="M10 13V4"/>
-                                            <path d="M6.5 7.5 10 4l3.5 3.5"/>
-                                            <path d="M4 13.5V15a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1.5"/>
-                                        </svg>
-
-                                        <input
-                                            type="file"
-                                            accept="image/svg+xml,.svg"
-                                            className="hidden"
-                                            onChange={(e) =>
-                                                handleUploadSvgIcon(
-                                                    e.target.files?.[0],
-                                                    (icon) =>
-                                                        handleChangePropertyDraft(
-                                                            property.id,
-                                                            'icon',
-                                                            icon,
-                                                            0,
-                                                        ),
-                                                )
-                                            }
-                                        />
-                                    </label>
-                                </div>
-
-                                <input
-                                    className="h-8 w-[calc(100%-16px)] min-w-0 rounded-md bg-transparent px-2 outline-none hover:bg-[rgba(127,127,127,0.08)] focus:bg-[rgba(127,127,127,0.10)]"
-                                    value={draft.name}
-                                    onChange={(e) =>
-                                        handleChangePropertyDraft(
-                                            property.id,
-                                            'name',
-                                            e.target.value,
-                                        )
-                                    }
-                                    onBlur={() => flushPropertySave(property.id)}
-                                    placeholder="속성명"
-                                />
-
-                                <select
-                                    className="h-8 w-[calc(100%-16px)] rounded-md bg-transparent px-2 outline-none hover:bg-[rgba(127,127,127,0.08)] focus:bg-[rgba(127,127,127,0.10)]"
-                                    value={draft.type}
-                                    onChange={(e) =>
-                                        handleChangePropertyDraft(
-                                            property.id,
-                                            'type',
-                                            e.target.value,
-                                            0,
-                                        )
-                                    }
-                                >
-                                    {PROPERTY_TYPES.map((type) => (
-                                        <option key={type.value} value={type.value}>
-                                            {type.label}
-                                        </option>
-                                    ))}
-                                </select>
-
+                        className="mt-1 rounded-md border border-dashed border-border-subtle"
+                        onDragOver={(e) => {
+                            if (!draggingPropertyId) return;
+                            e.preventDefault();
+                        }}
+                        onDrop={(e) => handleDropPropertyOnSection(e, null)}
+                    >
+                        <div
+                            className={[
+                                "flex items-center justify-between border-border-subtle px-2 py-1.5 text-xs font-semibold text-[var(--color-text-muted)]",
+                                unclassifiedItems.length > 0 ? "border-b" : "",
+                            ].join(" ")}
+                        >
+                            <span>미분류</span>
+                            <div className="flex items-center gap-1">
                                 <button
                                     type="button"
-                                    className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] hover:text-red-500 disabled:opacity-30"
-                                    onClick={() => handleDeleteProperty(property.id)}
-                                    disabled={deleteProperty.isPending}
-                                    aria-label="속성 삭제"
-                                    title="속성 삭제"
+                                    className="rounded-md px-2 py-1 text-[11px] font-medium transition hover:bg-[rgba(127,127,127,0.08)] hover:text-[var(--color-text-primary)] disabled:opacity-40"
+                                    onClick={() => handleCreateSection(null)}
+                                    disabled={createSection.isPending}
                                 >
-                                    <svg
-                                        viewBox="0 0 20 20"
-                                        className="h-3.5 w-3.5"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="1.8"
-                                        strokeLinecap="round"
-                                        aria-hidden="true"
-                                    >
-                                        <path d="M5 5l10 10M15 5L5 15"/>
-                                    </svg>
+                                    섹션추가
+                                </button>
+                                <button
+                                    type="button"
+                                    className="rounded-md px-2 py-1 text-[11px] font-medium transition hover:bg-[rgba(127,127,127,0.08)] hover:text-[var(--color-text-primary)] disabled:opacity-40"
+                                    onClick={() => handleCreateProperty(null)}
+                                    disabled={createProperty.isPending}
+                                >
+                                    속성추가
                                 </button>
                             </div>
-                        );
-                    })}
+                        </div>
+                        {unclassifiedItems.map(renderPropertyRow)}
+                    </div>
+
+                    {rootSections.map((section) => renderSection(section))}
 
                     {(properties || []).length === 0 && (
                         <p className="px-2 py-5 text-xs ui-dialog-message">
-                            아직 설정한 속성이 없어.
+                            아직 추가된 속성이 없어.
                         </p>
                     )}
                 </div>
             </div>
+            <DiarySettingsTooltip tooltip={titleTooltip} />
         </div>
     );
 

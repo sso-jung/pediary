@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="duskLogoBg" x1="160" y1="120" x2="860" y2="920" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#e4a09a"/>
+      <stop offset="0.56" stop-color="#ca96ad"/>
+      <stop offset="1" stop-color="#a98dc4"/>
+    </linearGradient>
+    <linearGradient id="duskLogoBook" x1="260" y1="360" x2="760" y2="740" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fffaf0"/>
+      <stop offset="1" stop-color="#fff4df"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#duskLogoBg)"/>
+  <path
+    d="M245 386c0-19 17-33 36-29 95 19 190 49 260 104 44 35 70 85 70 143v135c0 21-22 36-41 27-54-27-109-45-168-55l-92-16c-38-7-65-41-65-80V386Z"
+    fill="url(#duskLogoBook)"
+  />
+  <path
+    d="M779 386c0-19-17-33-36-29-95 19-190 49-260 104-44 35-70 85-70 143v135c0 21 22 36 41 27 54-27 109-45 168-55l92-16c38-7 65-41 65-80V386Z"
+    fill="url(#duskLogoBook)"
+  />
+  <path
+    d="M512 598v168"
+    fill="none"
+    stroke="#f4dcc4"
+    stroke-width="18"
+    stroke-linecap="round"
+  />
+</svg>
