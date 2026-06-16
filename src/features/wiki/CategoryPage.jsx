@@ -17,6 +17,7 @@ import DocumentPagination from './DocumentPagination';
 import { useDocumentFavorites, useToggleFavoriteDocument } from './hooks/useDocumentFavorites';
 import { getCategoryPath, sortAndFilterDocuments } from './utils/documentListUtils';
 import { useDocumentListQuery } from './hooks/useDocumentListQuery';
+import { useDocumentListScroll } from './hooks/useDocumentListScroll';
 
 export default function CategoryPage() {
     const navigate = useNavigate();
@@ -60,6 +61,7 @@ export default function CategoryPage() {
         const start = (currentPage - 1) * pageSize;
         return sortedDocs.slice(start, start + pageSize);
     }, [sortedDocs, currentPage, pageSize]);
+    const scrollRef = useDocumentListScroll(`category.${categoryId}`, !isLoading, `${currentPage}.${pagedDocs.length}`);
 
     const currentCategory =
         categoryId === 'all'
@@ -106,7 +108,7 @@ export default function CategoryPage() {
     };
 
     return (
-        <div className="h-full overflow-y-auto rounded-2xl p-3 sm:p-3.5 shadow-soft ui-surface border border-border-subtle">
+        <div ref={scrollRef} className="h-full overflow-y-auto rounded-2xl p-3 sm:p-3.5 shadow-soft ui-surface border border-border-subtle">
             <SectionHeader
                 title={currentCategory ? currentCategory.name : '카테고리'}
                 // subtitle="이 카테고리 안의 문서를 관리해 보자."
@@ -116,9 +118,6 @@ export default function CategoryPage() {
                         <Button
                             type="button"
                             className="h-[30px] rounded-full px-3.5 py-0 text-[13px] font-semibold shadow-none hover:shadow-none"
-                            style={{
-                                backgroundColor: 'color-mix(in srgb, var(--color-btn-primary-bg) 88%, transparent)',
-                            }}
                             onClick={() => setIsCreateModalOpen(true)}
                         >
                             문서 추가

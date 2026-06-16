@@ -4,6 +4,7 @@ import { useAuthStore } from '../../store/authStore';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import pediaryMark from '../../assets/logo.png';
 import pediaryMarkDark from '../../assets/logo-dark.png';
+import pediaryMarkDusk from '../../assets/logo-dusk.svg';
 
 export default function Header({
                                    onToggleFriends,
@@ -22,7 +23,12 @@ export default function Header({
 
     const path = location.pathname;
 
-    const logoSrc = (theme === 'midnight' || theme === 'dusk') ? pediaryMarkDark : pediaryMark;
+    const logoSrc =
+        theme === 'dusk'
+            ? pediaryMarkDusk
+            : theme === 'midnight'
+                ? pediaryMarkDark
+                : pediaryMark;
 
     const isMaterials = path.startsWith('/materials');
 

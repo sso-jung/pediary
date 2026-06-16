@@ -44,6 +44,12 @@
     font-weight: 600;
 }
 
+.toastui-editor-defaultUI .ProseMirror .wiki-editor-heading-numbered::before {
+    content: attr(data-wiki-heading-number) " ";
+    color: color-mix(in srgb, var(--wiki-heading-number-color) 72%, var(--color-text-muted));
+    font-weight: 600;
+}
+
 /* ===========================
    Wiki Align
    - 정렬 class는 span에 저장됨

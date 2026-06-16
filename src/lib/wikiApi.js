@@ -689,6 +689,229 @@ export async function fetchMonthlyActivity(userId, year, month) {
     return all;
 }
 
+export async function fetchHolidaysByYear(year) {
+    if (!year) return [];
+
+    const start = `${year}-01-01`;
+    const end = `${year + 1}-01-01`;
+
+    const { data, error } = await supabase
+        .from('holidays')
+        .select('holiday_date, name, is_holiday')
+        .eq('is_holiday', true)
+        .gte('holiday_date', start)
+        .lt('holiday_date', end)
+        .order('holiday_date', { ascending: true });
+
+    if (error) throw error;
+    return data ?? [];
+}
+
+export async function syncHolidaysByYear(year) {
+    const { data, error } = await supabase.functions.invoke(
+        'sync-holidays',
+        { body: { year } },
+    );
+
+    if (error) throw error;
+    return data;
+}
+
+export async function fetchDiaryByDate({ userId, diaryDate }) {
+    if (!userId || !diaryDate) return null;
+
+    const { data, error } = await supabase
+        .from('diaries')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('diary_date', diaryDate)
+        .maybeSingle();
+
+    if (error) throw error;
+    return data;
+}
+
+export async function fetchDiariesByDateRange({ userId, startDate, endDate }) {
+    if (!userId || !startDate || !endDate) return [];
+
+    const { data, error } = await supabase
+        .from('diaries')
+        .select(`
+            *,
+            diary_property_values (
+                value,
+                diary_properties (
+                    type,
+                    sort_order
+                )
+            )
+        `)
+        .eq('user_id', userId)
+        .gte('diary_date', startDate)
+        .lt('diary_date', endDate)
+        .order('diary_date', { ascending: true });
+
+    if (error) throw error;
+    return data ?? [];
+}
+
+export async function fetchDiaryProperties(userId) {
+    if (!userId) return [];
+
+    const { data, error } = await supabase
+        .from('diary_properties')
+        .select('*')
+        .eq('user_id', userId)
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return data ?? [];
+}
+
+export async function createDiaryProperty({
+    userId,
+    name,
+    type,
+    icon,
+    config = {},
+    defaultValue = null,
+}) {
+    const trimmed = (name || '').trim();
+    if (!userId || !trimmed || !type) {
+        throw new Error('속성 정보를 확인할 수 없어.');
+    }
+
+    const { data: lastRows, error: sortError } = await supabase
+        .from('diary_properties')
+        .select('sort_order')
+        .eq('user_id', userId)
+        .order('sort_order', { ascending: false })
+        .limit(1);
+
+    if (sortError) throw sortError;
+
+    const nextSortOrder = (lastRows?.[0]?.sort_order ?? -1) + 1;
+
+    const { data, error } = await supabase
+        .from('diary_properties')
+        .insert({
+            user_id: userId,
+            name: trimmed,
+            type,
+            icon: (icon || '').trim() || null,
+            sort_order: nextSortOrder,
+            config,
+            default_value: defaultValue,
+        })
+        .select('*')
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
+export async function updateDiaryProperty({
+    userId,
+    propertyId,
+    name,
+    type,
+    icon,
+}) {
+    const trimmed = (name || '').trim();
+    if (!userId || !propertyId || !trimmed || !type) {
+        throw new Error('속성 정보를 확인할 수 없어.');
+    }
+
+    const { data, error } = await supabase
+        .from('diary_properties')
+        .update({
+            name: trimmed,
+            type,
+            icon: (icon || '').trim() || null,
+            updated_at: new Date().toISOString(),
+        })
+        .eq('id', propertyId)
+        .eq('user_id', userId)
+        .select('*')
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
+export async function deleteDiaryProperty({ userId, propertyId }) {
+    if (!userId || !propertyId) return;
+
+    const { error } = await supabase
+        .from('diary_properties')
+        .delete()
+        .eq('id', propertyId)
+        .eq('user_id', userId);
+
+    if (error) throw error;
+}
+
+export async function fetchDiaryPropertyValues({ userId, diaryDate }) {
+    if (!userId || !diaryDate) return [];
+
+    const { data, error } = await supabase
+        .from('diary_property_values')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('diary_date', diaryDate);
+
+    if (error) throw error;
+    return data ?? [];
+}
+
+export async function upsertDiary({ userId, diaryDate, title, contentMarkdown, propertyValues = [] }) {
+    if (!userId || !diaryDate) {
+        throw new Error('다이어리 날짜를 확인할 수 없어.');
+    }
+
+    const safeTitle = String(title ?? '').trim() || '다이어리';
+
+    const { data, error } = await supabase
+        .from('diaries')
+        .upsert(
+            {
+                user_id: userId,
+                diary_date: diaryDate,
+                title: safeTitle,
+                content_markdown: contentMarkdown || '',
+                updated_at: new Date().toISOString(),
+            },
+            {
+                onConflict: 'user_id,diary_date',
+            },
+        )
+        .select('*')
+        .single();
+
+    if (error) throw error;
+
+    if (propertyValues.length > 0) {
+        const rows = propertyValues.map((item) => ({
+            user_id: userId,
+            diary_date: diaryDate,
+            property_id: item.propertyId,
+            value: item.value,
+            updated_at: new Date().toISOString(),
+        }));
+
+        const { error: valueError } = await supabase
+            .from('diary_property_values')
+            .upsert(rows, {
+                onConflict: 'user_id,diary_date,property_id',
+            });
+
+        if (valueError) throw valueError;
+    }
+
+    return data;
+}
+
 // ─────────────────────────────
 // 친구 기능
 // ─────────────────────────────

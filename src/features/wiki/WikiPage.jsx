@@ -89,13 +89,13 @@ export default function WikiPage() {
         <section className="shrink-0">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h1 className="pediary-heading ui-page-title flex items-center gap-[7px] text-2xl font-semibold">
-                <span>환영해, Pediary</span>
-                <SparkleIcon className="h-6 w-6"/>
-              </h1>
-              <p className="ui-page-subtitle mt-1 text-sm">
-                오늘 내가 어떤 문서를 작성·수정·조회했는지 한눈에 볼 수 있어.
-              </p>
+              {/*<h1 className="pediary-heading ui-page-title flex items-center gap-[7px] text-2xl font-semibold">*/}
+              {/*  <span>환영해, Pediary</span>*/}
+              {/*  <SparkleIcon className="h-6 w-6"/>*/}
+              {/*</h1>*/}
+              {/*<p className="ui-page-subtitle mt-1 text-sm">*/}
+              {/*  오늘 내가 어떤 문서를 작성·수정·조회했는지 한눈에 볼 수 있어.*/}
+              {/*</p>*/}
             </div>
 
             <div className="flex items-center gap-2">
@@ -145,7 +145,7 @@ export default function WikiPage() {
                   <path d="M8 2v4M16 2v4M3 10h18" />
                 </svg>
                 <span>
-                {viewMode === 'today' ? '다이어리 달력' : '내 활동 요약'}
+                {viewMode === 'today' ? '다이어리' : '내 활동 요약'}
               </span>
               </button>
             </div>
@@ -153,7 +153,13 @@ export default function WikiPage() {
         </section>
 
         {/* 메인 영역 */}
-        <section className="ui-surface mt-3 flex-1 min-h-0 rounded-2xl px-4 py-1 overflow-y-auto">
+        <section
+          className={
+            viewMode === 'diary'
+              ? 'ui-surface mt-3 flex-1 min-h-0 rounded-2xl px-4 py-3 overflow-y-auto'
+              : 'ui-surface mt-3 flex-1 min-h-0 rounded-2xl px-4 py-1 overflow-y-auto'
+          }
+        >
           {viewMode === 'diary' ? (
               <ActivityCalendar/>
           ) : (

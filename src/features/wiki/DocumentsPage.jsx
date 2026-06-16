@@ -14,6 +14,7 @@ import DocumentPagination from './DocumentPagination';
 import { useDocumentFavorites, useToggleFavoriteDocument } from './hooks/useDocumentFavorites';
 import { getCategoryPath, sortAndFilterDocuments } from './utils/documentListUtils';
 import { useDocumentListQuery } from './hooks/useDocumentListQuery';
+import { useDocumentListScroll } from './hooks/useDocumentListScroll';
 
 export default function DocumentsPage() {
     const { data: docs, isLoading } = useVisibleDocuments();
@@ -47,9 +48,10 @@ export default function DocumentsPage() {
         const start = (currentPage - 1) * pageSize;
         return sortedDocs.slice(start, start + pageSize);
     }, [sortedDocs, currentPage, pageSize]);
+    const scrollRef = useDocumentListScroll('all', !isLoading, `${currentPage}.${pagedDocs.length}`);
 
     return (
-        <div className="h-full overflow-y-auto rounded-2xl p-3 sm:p-3.5 shadow-soft ui-surface border border-border-subtle">
+        <div ref={scrollRef} className="h-full overflow-y-auto rounded-2xl p-3 sm:p-3.5 shadow-soft ui-surface border border-border-subtle">
             <SectionHeader
                 title="전체 문서"
                 subtitle=""

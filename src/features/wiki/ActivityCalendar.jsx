@@ -1,129 +1,129 @@
 // src/features/wiki/ActivityCalendar.jsx
-import { useMemo, useState, useLayoutEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import { useMonthlyActivity } from './hooks/useMonthlyActivity';
-import { getLocalDateKey } from '../../lib/dateUtils';
+import { useEffect, useRef, useState } from 'react';
+import DiaryEditor from './DiaryEditor';
+import DiarySettings from './DiarySettings';
+import { useDiariesByDateRange } from './hooks/useDiariesByDateRange';
+import { useHolidays } from './hooks/useHolidays';
 
-// 색상: 열람=노랑, 수정=파랑, 작성=보라
-const ACTION_STYLES = {
-    viewed:  'ui-badge ui-badge-viewed',
-    updated: 'ui-badge ui-badge-updated',
-    created: 'ui-badge ui-badge-created',
+const VIEW_LABEL = {
+    weekly: 'WEEKLY',
+    monthly: 'MONTHLY',
+    timeline: 'TIMELINE',
 };
 
-const ACTION_STYLE_OFF = 'ui-badge-off';
+function addDays(date, amount) {
+    const next = new Date(date);
+    next.setDate(next.getDate() + amount);
+    return next;
+}
 
-const ACTION_LABEL = {
-    created: '작성',
-    updated: '수정',
-    viewed: '열람',
-};
+function getWeekStart(date) {
+    const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    start.setDate(start.getDate() - start.getDay());
+    return start;
+}
 
-// 같은 날 같은 문서가 여러 번 있을 때 우선순위
-const ACTION_PRIORITY = {
-    viewed: 1,
-    updated: 2,
-    created: 3,
-};
+function getDateKey(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
 
-function BadgeSummary({ items, maxLines = 2 }) {
-    const wrapRef = useRef(null);
-    const [visibleCount, setVisibleCount] = useState(null); // null = 아직 측정 전
+function getNextDateKey(dateKey) {
+    const [year, month, day] = dateKey.split('-').map(Number);
+    return getDateKey(new Date(year, month - 1, day + 1));
+}
 
-    const measure = () => {
-        const el = wrapRef.current;
-        if (!el) return;
+function getDiaryPreview(content = '') {
+    return content.replace(/\s+/g, ' ').trim();
+}
 
-        const badges = Array.from(el.querySelectorAll("[data-badge='1']"));
-        if (badges.length === 0) {
-            setVisibleCount(0);
-            return;
-        }
+function getDiaryPreviewText(diary) {
+    const textareaValue = (diary?.diary_property_values || [])
+        .filter((item) => item.diary_properties?.type === 'textarea')
+        .sort(
+            (a, b) =>
+                (a.diary_properties?.sort_order ?? 0) -
+                (b.diary_properties?.sort_order ?? 0),
+        )
+        .map((item) => item.value?.text || '')
+        .find((text) => text.trim());
 
-        // maxLines까지 허용되는 마지막 줄 top 계산
-        const tops = [];
-        for (const b of badges) {
-            const t = b.offsetTop;
-            if (!tops.includes(t)) tops.push(t);
-        }
-        tops.sort((a, b) => a - b);
-        const allowedTops = tops.slice(0, maxLines);
+    return getDiaryPreview(textareaValue || diary?.content_markdown || '');
+}
 
-        const countInLines = badges.filter((b) => allowedTops.includes(b.offsetTop)).length;
+function getDayTextColor(dayIndex, isHoliday = false) {
+    if (isHoliday) return '#ef4444';
+    if (dayIndex === 0) return '#ef4444';
+    if (dayIndex === 6) return '#3b82f6';
+    return 'var(--color-text-main)';
+}
 
-        setVisibleCount((prev) => (prev === countInLines ? prev : countInLines));
-    };
+function CalendarDropdown({ value, label, options, onChange, className = '' }) {
+    const [isOpen, setIsOpen] = useState(false);
+    const menuRef = useRef(null);
 
-    useLayoutEffect(() => {
-        // items 내용(제목 길이)까지 바뀌어도 측정되도록
-        measure();
-        const el = wrapRef.current;
-        if (!el) return;
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (!menuRef.current) return;
+            if (!menuRef.current.contains(e.target)) {
+                setIsOpen(false);
+            }
+        };
 
-        const ro = new ResizeObserver(() => measure());
-        ro.observe(el);
-        return () => ro.disconnect();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [items, maxLines]);
-
-    // 1) 측정 전에는 "측정용"으로 전체 렌더링 (하지만 +N은 렌더링하지 않음)
-    if (visibleCount === null) {
-        return (
-            <div ref={wrapRef} className="flex flex-wrap gap-0.5">
-                {items.map((item) => {
-                    const action = item.action;
-                    const style = ACTION_STYLES[action] || ACTION_STYLES.viewed;
-                    const title = item.documents?.title ?? "(삭제됨)";
-
-                    return (
-                        <span
-                            key={item.id}
-                            data-badge="1"
-                            className={
-                                "inline-flex items-center rounded-full px-1.5 py-[2px] text-[10px] max-w-full min-w-0 " +
-                                style
-                            }
-                        >
-              <span className="max-w-[80px] truncate">{title}</span>
-            </span>
-                    );
-                })}
-            </div>
-        );
-    }
-
-    // 2) 측정 후에는 "표시용" 렌더링 (visibleCount만큼 + 필요하면 +N 하나)
-    const safeVisible = Math.min(visibleCount, items.length);
-    const shown = items.slice(0, safeVisible);
-    const hidden = items.length - safeVisible;
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     return (
-        <div ref={wrapRef} className="flex flex-wrap gap-0.5">
-            {shown.map((item) => {
-                const action = item.action;
-                const style = ACTION_STYLES[action] || ACTION_STYLES.viewed;
-                const title = item.documents?.title ?? "(삭제됨)";
-
-                return (
-                    <span
-                        key={item.id}
-                        data-badge="1"
-                        className={
-                            "inline-flex items-center rounded-full px-1.5 py-[2px] text-[10px] max-w-full min-w-0 " +
-                            style
-                        }
-                    >
-            <span className="max-w-[80px] truncate">{title}</span>
-          </span>
-                );
-            })}
-
-            {hidden > 0 && (
-                <span
-                    className="ui-badge-off inline-flex items-center rounded-full px-1.5 py-[2px] text-[10px]"
+        <div className={'relative ' + className} ref={menuRef}>
+            <button
+                type="button"
+                className="ui-input flex h-[30px] w-full items-center justify-between gap-2 !rounded-md !px-2.5 !py-0 !text-left !text-[12px]"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setIsOpen((prev) => !prev);
+                }}
+            >
+                <span className="min-w-0 truncate">{label}</span>
+                <svg
+                    viewBox="0 0 20 20"
+                    className="h-3.5 w-3.5 shrink-0 page-text-muted"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
                 >
-          +{hidden}
-        </span>
+                    <path d="M5.5 7.5L10 12l4.5-4.5" />
+                </svg>
+            </button>
+
+            {isOpen && (
+                <div
+                    className="absolute right-0 top-[34px] z-30 max-h-72 w-full overflow-y-auto rounded-md border py-1 text-[12px] shadow-lg"
+                    style={{
+                        borderColor: 'var(--color-border-subtle)',
+                        backgroundColor: 'var(--color-page-surface)',
+                        color: 'var(--color-text-main)',
+                    }}
+                >
+                    {options.map((option) => (
+                        <button
+                            key={option.value}
+                            type="button"
+                            className={
+                                'block w-full whitespace-normal break-keep px-2 py-1.5 text-left leading-snug ui-side-subitem ' +
+                                (option.value === value ? 'ui-side-subitem-active' : '')
+                            }
+                            onClick={() => {
+                                onChange(option.value);
+                                setIsOpen(false);
+                            }}
+                        >
+                            {option.label}
+                        </button>
+                    ))}
+                </div>
             )}
         </div>
     );
@@ -133,81 +133,33 @@ export default function ActivityCalendar() {
     const today = new Date();
     const [year, setYear] = useState(today.getFullYear());
     const [month, setMonth] = useState(today.getMonth() + 1); // 1~12
+    const [calendarView, setCalendarView] = useState('monthly');
+    const [editorDate, setEditorDate] = useState(null);
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [weekDate, setWeekDate] = useState(
+        () => new Date(today.getFullYear(), today.getMonth(), today.getDate()),
+    );
+    const { data: holidays } = useHolidays(year);
+    const holidayDateSet = new Set((holidays || []).map((holiday) => holiday.holiday_date));
 
-    const { data, isLoading } = useMonthlyActivity(year, month);
-
-    // 액션 필터 상태: true = ON, false = OFF
-    const [actionFilter, setActionFilter] = useState({
-        created: true,
-        updated: true,
-        viewed: true,
-    });
-
-    const toggleAction = (action) => {
-        setActionFilter((prev) => ({
-            ...prev,
-            [action]: !prev[action],
-        }));
-    };
-
-    // 날짜별 + 문서별로 묶고, 같은 날 같은 문서 여러 번이면
-    // 작성 > 수정 > 열람 중 하나만 남기기
-    // actionFilter 에 따라 걸러진 결과로 계산
-    const activityByDate = useMemo(() => {
-        if (!data) return {};
-
-        const temp = {}; // { 'YYYY-MM-DD': { docId: item } }
-
-        for (const item of data) {
-            const action = item.action;
-
-            // OFF 된 액션은 완전히 제외
-            if (!actionFilter[action]) continue;
-
-            const key = getLocalDateKey(item.created_at);
-            const doc = item.documents;
-            const docId = doc?.id;
-            if (!docId) continue;
-
-            if (!temp[key]) temp[key] = {};
-
-            const prev = temp[key][docId];
-            const currentPriority = ACTION_PRIORITY[action] ?? 0;
-            const prevPriority = prev ? ACTION_PRIORITY[prev.action] ?? 0 : 0;
-
-            // 우선순위가 더 높다면 교체
-            if (!prev || currentPriority > prevPriority) {
-                temp[key][docId] = item;
-            }
+    const handleChangeCalendarView = (nextView) => {
+        if (nextView === 'weekly' && calendarView !== 'weekly') {
+            const isThisMonth =
+                year === today.getFullYear() &&
+                month === today.getMonth() + 1;
+            const day = isThisMonth ? today.getDate() : 1;
+            setWeekDate(new Date(year, month - 1, day));
         }
 
-        // { dateKey: [item, item, ...] } 형태로 변환
-        const result = {};
-        Object.keys(temp).forEach((dateKey) => {
-            result[dateKey] = Object.values(temp[dateKey]);
-        });
-
-        return result;
-    }, [data, actionFilter]);
-
-    const [selectedDateKey, setSelectedDateKey] = useState(null);
-
-    const handleSelectDate = (key) => {
-        const items = activityByDate[key] || [];
-        if (!items.length) {
-            setSelectedDateKey(null);
-            return;
-        }
-        setSelectedDateKey(key);
+        setCalendarView(nextView);
     };
 
-    // 달력용 날짜 계산
     const firstDay = new Date(year, month - 1, 1);
     const startWeekday = firstDay.getDay(); // 0(일)~6(토)
     const daysInMonth = new Date(year, month, 0).getDate();
 
     const weeks = [];
-    let day = 1 - startWeekday; // 그리드 시작 offset
+    let day = 1 - startWeekday;
 
     for (let w = 0; w < 6; w++) {
         const week = [];
@@ -217,6 +169,7 @@ export default function ActivityCalendar() {
         }
         weeks.push(week);
     }
+    const visibleWeeks = weeks.filter((week) => week.some((d) => d));
 
     const handlePrevMonth = () => {
         setMonth((m) => {
@@ -238,264 +191,379 @@ export default function ActivityCalendar() {
         });
     };
 
-    // 연/월 선택 셀렉트용 배열
+    const handleMoveWeek = (amount) => {
+        const next = addDays(weekDate, amount);
+        setWeekDate(next);
+        setYear(next.getFullYear());
+        setMonth(next.getMonth() + 1);
+    };
+
+    const handlePrev = () => {
+        if (calendarView === 'weekly') {
+            handleMoveWeek(-7);
+            return;
+        }
+        if (calendarView === 'timeline') {
+            setYear((y) => y - 1);
+            return;
+        }
+        handlePrevMonth();
+    };
+
+    const handleNext = () => {
+        if (calendarView === 'weekly') {
+            handleMoveWeek(7);
+            return;
+        }
+        if (calendarView === 'timeline') {
+            setYear((y) => y + 1);
+            return;
+        }
+        handleNextMonth();
+    };
+
+    const handleToday = () => {
+        const next = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        setYear(next.getFullYear());
+        setMonth(next.getMonth() + 1);
+        setWeekDate(next);
+    };
+
+    const handleOpenDiary = (dateKey) => {
+        setEditorDate(dateKey);
+    };
+
+    const weekStart = getWeekStart(weekDate);
+    const weekDays = Array.from({ length: 7 }).map((_, index) => addDays(weekStart, index));
+    const todayKey = getDateKey(today);
+    const monthStartKey = `${year}-${String(month).padStart(2, '0')}-01`;
+    const monthEndKey = getDateKey(new Date(year, month, 1));
+    const weekStartKey = getDateKey(weekStart);
+    const weekEndKey = getNextDateKey(getDateKey(weekDays[6]));
+    const rangeStartKey = calendarView === 'weekly' ? weekStartKey : monthStartKey;
+    const rangeEndKey = calendarView === 'weekly' ? weekEndKey : monthEndKey;
+    const { data: diaries } = useDiariesByDateRange(
+        rangeStartKey,
+        rangeEndKey,
+        calendarView === 'weekly' || calendarView === 'monthly',
+    );
+    const diaryMap = new Map((diaries || []).map((diary) => [diary.diary_date, diary]));
+
     const yearOptions = [];
     const baseYear = today.getFullYear();
     for (let y = baseYear - 3; y <= baseYear + 1; y += 1) {
         yearOptions.push(y);
     }
+    const monthOptions = Array.from({ length: 12 }).map((_, i) => i + 1);
 
     return (
-        <div className="mt-3 space-y-3 text-xs">
-            {/* 상단 컨트롤바: 년/월 선택 + 이전/다음 */}
-            <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                    <select
-                        className="ui-control rounded-lg px-2 py-1 text-xs"
-                        value={year}
-                        onChange={(e) => setYear(Number(e.target.value))}
-                    >
-                        {yearOptions.map((y) => (
-                            <option key={y} value={y}>
-                                {y}년
-                            </option>
-                        ))}
-                    </select>
-                    <select
-                        className="ui-control rounded-lg px-2 py-1 text-xs"
-                        value={month}
-                        onChange={(e) => setMonth(Number(e.target.value))}
-                    >
-                        {Array.from({ length: 12 }).map((_, i) => (
-                            <option key={i + 1} value={i + 1}>
-                                {i + 1}월
-                            </option>
-                        ))}
-                    </select>
+        <div className="h-full min-h-0 text-xs">
+            <div className="flex h-full min-h-0 flex-col">
+                <div className="shrink-0 border-b border-border-subtle pb-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                            {['weekly', 'monthly', 'timeline'].map((view) => (
+                                <button
+                                    key={view}
+                                    type="button"
+                                    onClick={() => handleChangeCalendarView(view)}
+                                    className={
+                                        'rounded-full border px-3.5 py-1 text-[13px] font-semibold tracking-[0.02em] transition ' +
+                                        (calendarView === view
+                                            ? 'text-[var(--color-text-main)]'
+                                            : 'text-[var(--color-text-muted)] hover:bg-[var(--color-panel-bg)]')
+                                    }
+                                    style={
+                                        calendarView === view
+                                            ? {
+                                                backgroundColor: 'var(--color-page-surface-2)',
+                                                borderColor: 'var(--color-border-subtle)',
+                                            }
+                                            : {
+                                                borderColor: 'transparent',
+                                            }
+                                    }
+                                >
+                                    {VIEW_LABEL[view]}
+                                </button>
+                            ))}
+                            <button
+                                type="button"
+                                onClick={() => handleOpenDiary(todayKey)}
+                                className="ui-control flex h-8 w-8 items-center justify-center rounded-full"
+                                aria-label="작성"
+                                title="작성"
+                            >
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.7"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M15.8 4.8l3.4 3.4" />
+                                    <path d="M6.2 17.8l3.5-.7 9.1-9.1a2.4 2.4 0 0 0-3.4-3.4l-9.1 9.1-.7 3.5a.5.5 0 0 0 .6.6z" />
+                                    <path d="M5 20h14" />
+                                </svg>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsSettingsOpen(true)}
+                                className="ui-control flex h-8 w-8 items-center justify-center rounded-full"
+                                aria-label="다이어리 설정"
+                                title="다이어리 설정"
+                            >
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="1.7"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z" />
+                                    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 0 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2a2 2 0 0 1-4 0V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 0 1 4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H2.8a2 2 0 0 1 0-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1A2 2 0 0 1 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 .9-1.6V2.8a2 2 0 0 1 4 0V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 0 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.6.9h.2a2 2 0 0 1 0 4H21a1.7 1.7 0 0 0-1.6 1z" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            {calendarView === 'monthly' ? (
+                                <>
+                                    <CalendarDropdown
+                                        className="w-[86px]"
+                                        value={year}
+                                        label={`${year}년`}
+                                        options={yearOptions.map((y) => ({ value: y, label: `${y}년` }))}
+                                        onChange={setYear}
+                                    />
+                                    <CalendarDropdown
+                                        className="w-[70px]"
+                                        value={month}
+                                        label={`${month}월`}
+                                        options={monthOptions.map((m) => ({ value: m, label: `${m}월` }))}
+                                        onChange={setMonth}
+                                    />
+                                </>
+                            ) : (
+                                <span
+                                    className="rounded-lg border px-3 py-1.5 text-[12px] font-medium"
+                                    style={{
+                                        backgroundColor: 'var(--color-page-surface-2)',
+                                        borderColor: 'var(--color-border-subtle)',
+                                        color: 'var(--color-text-main)',
+                                    }}
+                                >
+                                    {calendarView === 'timeline' ? `${year}년` : `${year}년 ${month}월`}
+                                </span>
+                            )}
+                            <button
+                                type="button"
+                                onClick={handlePrev}
+                                className="ui-control h-6 w-6 rounded-full"
+                                aria-label="이전"
+                            >
+                                <svg
+                                    viewBox="0 0 20 20"
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M12.5 5L7.5 10l5 5" />
+                                </svg>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleToday}
+                                className="rounded px-1.5 py-1 text-[12px] font-medium"
+                                style={{ color: 'var(--color-text-main)' }}
+                            >
+                                오늘
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleNext}
+                                className="ui-control h-6 w-6 rounded-full"
+                                aria-label="다음"
+                            >
+                                <svg
+                                    viewBox="0 0 20 20"
+                                    className="h-4 w-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    aria-hidden="true"
+                                >
+                                    <path d="M7.5 5l5 5-5 5" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
-                <div className="flex items-center gap-1">
-                    <button
-                        type="button"
-                        onClick={handlePrevMonth}
-                        className="ui-control rounded-full px-2 py-1"
-                    >
-                        ◀
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handleNextMonth}
-                        className="ui-control rounded-full px-2 py-1"
-                    >
-                        ▶
-                    </button>
-                </div>
-            </div>
+                <div className="flex min-h-0 flex-1 flex-col overflow-auto pt-3">
+                    {calendarView === 'timeline' ? (
+                        <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto pb-2 text-[12px]">
+                            {monthOptions.map((timelineMonth) => (
+                                <div
+                                    key={timelineMonth}
+                                    className="min-w-[86px] flex-1"
+                                >
+                                    <div
+                                        className="px-2 py-2 text-center font-semibold"
+                                        style={{
+                                            color: 'var(--color-text-main)',
+                                        }}
+                                    >
+                                        {timelineMonth}월
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <>
+                            <div className="grid shrink-0 grid-cols-7 pb-[7px] text-[11.5px]">
+                                {['일', '월', '화', '수', '목', '금', '토'].map((d) => (
+                                    <div
+                                        key={d}
+                                        className="px-2 py-1 text-center font-medium"
+                                        style={{ color: 'var(--color-text-main)' }}
+                                    >
+                                        {d}
+                                    </div>
+                                ))}
+                            </div>
 
-            {/* 행동 legend: 클릭해서 ON/OFF */}
-            <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                {['viewed', 'updated', 'created'].map((action) => {
-                    const isOn = actionFilter[action];
-                    const style = isOn ? ACTION_STYLES[action] : ACTION_STYLE_OFF;
-
-                    return (
-                        <button
-                            key={action}
-                            type="button"
-                            onClick={() => toggleAction(action)}
-                            className="focus:outline-none"
-                        >
-                            <span
+                            <div
                                 className={
-                                    'inline-flex items-center rounded-full px-2 py-[2px] transition ' +
-                                    style
+                                    'grid grid-cols-7 border-l border-t border-border-subtle text-[11px] ' +
+                                    (calendarView === 'weekly' ? 'min-h-0 flex-1' : '')
                                 }
                             >
-                                {ACTION_LABEL[action]}
-                            </span>
-                        </button>
-                    );
-                })}
-                <span className="ml-1 text-[10px] text-slate-400">
-                    뱃지를 클릭해서 작성/수정/열람 표시를 켜고 끌 수 있어.
-                </span>
-            </div>
-
-            {/* 로딩 / 달력 */}
-            {isLoading ? (
-                <p className="mt-3 text-xs text-slate-500">
-                    활동 기록을 불러오는 중...
-                </p>
-            ) : (
-                <div className="ui-panel rounded-2xl p-3">
-                    {/* 요일 헤더 */}
-                    <div className="mb-1 grid grid-cols-7 gap-1 text-[11px] font-semibold ui-page-subtitle">
-                        {['일', '월', '화', '수', '목', '금', '토'].map((d) => (
-                            <div key={d} className="text-center">
-                                {d}
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* 날짜 그리드 */}
-                    <div className="grid grid-cols-7 gap-1 text-[11px]">
-                        {weeks.map((week, wi) =>
-                            week.map((d, di) => {
-                                if (!d) {
-                                    return (
-                                        <div
-                                            key={`${wi}-${di}`}
-                                            className="h-24 rounded-xl bg-transparent"
-                                        />
-                                    );
-                                }
-
-                                const key = `${year}-${String(month).padStart(
-                                    2,
-                                    '0',
-                                )}-${String(d).padStart(2, '0')}`;
-                                const items = activityByDate[key] || [];
-
-                                return (
-                                    <button
-                                        type="button"
-                                        key={`${wi}-${di}`}
-                                        onClick={() => handleSelectDate(key)}
-                                        className={'ui-day flex h-24 flex-col rounded-xl p-1.5 text-left overflow-hidden' }
-                                        data-selected={selectedDateKey === key}
-                                    >
-                                        <div className="mb-1 flex items-center justify-between">
-                                            <span className="text-[11px] font-medium"
-                                                  style={{color: "var(--color-text-main)"}}>
-                                                {d}
-                                            </span>
-                                            {items.length > 0 && (
-                                                <span className="text-[10px] text-slate-400">
-                                                    {items.length}건
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        {/* 문서 뱃지들 – 최대 3개만 표시 */}
-                                        <BadgeSummary items={items} maxLines={2} />
-                                    </button>
-                                );
-                            }),
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* 선택한 날짜 상세 – 화면 중앙 모달 */}
-            {selectedDateKey && (
-                <div
-                    className="ui-modal-backdrop fixed inset-0 z-30 flex items-center justify-center"
-                    onClick={() => setSelectedDateKey(null)} // 바깥 아무 곳 클릭 시 닫기
-                >
-                    <div
-                        className="ui-modal w-full max-w-md rounded-2xl p-4 shadow-xl text-xs"
-                        onClick={(e) => e.stopPropagation()} // 모달 안쪽 클릭은 전파 막기
-                    >
-                        {(() => {
-                            const items = (activityByDate[selectedDateKey] || [])
-                                .slice()
-                                .sort(
-                                    (a, b) =>
-                                        new Date(b.created_at).getTime() -
-                                        new Date(a.created_at).getTime(),
-                                );
-                            const [y, m, d] = selectedDateKey.split('-');
-
-                            return (
-                                <>
-                                    <div className="mb-2 flex items-center justify-between">
-                                        <div className="text-[11px] font-semibold text-slate-600">
-                                            {y}년 {Number(m)}월 {Number(d)}일 활동
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                setSelectedDateKey(null)
-                                            }
-                                            className="text-[11px]"
-                                            style={{ color: "var(--color-text-muted)" }}
-                                        >
-                                            닫기 ✕
-                                        </button>
-                                    </div>
-
-                                    {items.length === 0 ? (
-                                        <p className="text-[11px] text-slate-400">
-                                            이 날에는 활동 기록이 없어.
-                                        </p>
-                                    ) : (
-                                        <ul className="max-h-64 space-y-1 overflow-y-auto">
-                                            {items.map((item) => {
-                                                const doc = item.documents;
-                                                const title =
-                                                    doc?.title ?? '(삭제됨)';
-                                                const href = doc?.slug
-                                                    ? `/wiki/${doc.slug}`
-                                                    : null;
-                                                const action = item.action;
-                                                const label =
-                                                    ACTION_LABEL[action] ??
-                                                    action;
-
+                                {calendarView === 'monthly' ? (
+                                    visibleWeeks.map((week, wi) =>
+                                        week.map((d, di) => {
+                                            if (!d) {
                                                 return (
-                                                    <li
-                                                        key={item.id}
-                                                        className="flex items-center justify-between rounded-lg ui-surface-2 px-2 py-1"
-                                                    >
-                                                        <span className="inline-flex items-center gap-2">
-                                                            <span
-                                                                className={
-                                                                    'rounded-full px-1.5 py-[1px] text-[10px] ' +
-                                                                    ACTION_STYLES[
-                                                                        action
-                                                                        ]
-                                                                }
-                                                            >
-                                                                {label}
-                                                            </span>
-                                                            {href ? (
-                                                                <Link
-                                                                    to={href}
-                                                                    className="text-[11px] underline-offset-2 hover:underline"
-                                                                    style={{ color: "var(--color-text-main)" }}
-                                                                >
-                                                                    {title}
-                                                                </Link>
-                                                            ) : (
-                                                                <span className="text-[11px] underline-offset-2" style={{ color: "var(--color-text-main)" }}>
-                                                                    {title}
-                                                                </span>
-                                                            )}
-                                                        </span>
-                                                        <span className="text-[10px]"
-                                                              style={{color: "var(--color-text-muted)"}}>
-                                                            {new Date(
-                                                                item.created_at,
-                                                            ).toLocaleTimeString(
-                                                                'ko-KR',
-                                                                {
-                                                                    hour: '2-digit',
-                                                                    minute:
-                                                                        '2-digit',
-                                                                },
-                                                            )}
-                                                        </span>
-                                                    </li>
+                                                    <div
+                                                        key={`${wi}-${di}`}
+                                                        className="min-h-[132px] border-b border-r border-border-subtle bg-transparent"
+                                                    />
                                                 );
-                                            })}
-                                        </ul>
-                                    )}
-                                </>
-                            );
-                        })()}
-                    </div>
+                                            }
+
+                                            const key = `${year}-${String(month).padStart(
+                                                2,
+                                                '0',
+                                            )}-${String(d).padStart(2, '0')}`;
+                                            const isToday = key === todayKey;
+                                            const isHoliday = holidayDateSet.has(key);
+                                            const diary = diaryMap.get(key);
+                                            const preview = getDiaryPreviewText(diary);
+
+                                            return (
+                                                <button
+                                                    type="button"
+                                                    key={`${wi}-${di}`}
+                                                    onClick={() => handleOpenDiary(key)}
+                                                    className="flex min-h-[132px] flex-col border-b border-r border-border-subtle px-2 py-1.5 text-left transition hover:bg-[var(--color-panel-bg)]"
+                                                >
+                                                    <div className="flex items-start justify-end">
+                                                        <span
+                                                            className={
+                                                                'inline-flex h-[22px] w-[22px] items-center justify-center rounded-full text-[12px] leading-none ' +
+                                                                (isToday ? 'bg-red-500 text-white' : '')
+                                                            }
+                                                            style={isToday ? undefined : { color: getDayTextColor(di, isHoliday) }}
+                                                        >
+                                                            {d}
+                                                        </span>
+                                                    </div>
+                                                    {diary && (
+                                                        <div className="mt-2 min-w-0">
+                                                            <div
+                                                                className="mb-1 h-1.5 w-1.5 rounded-full"
+                                                                style={{ backgroundColor: 'var(--color-accent)' }}
+                                                            />
+                                                            {preview && (
+                                                                <p className="line-clamp-2 break-words text-[11px] leading-snug text-[var(--color-text-muted)]">
+                                                                    {preview}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </button>
+                                            );
+                                        }),
+                                    )
+                                ) : (
+                                    weekDays.map((date) => {
+                                        const key = getDateKey(date);
+                                        const isToday = key === todayKey;
+                                        const isHoliday = holidayDateSet.has(key);
+                                        const diary = diaryMap.get(key);
+                                        const preview = getDiaryPreviewText(diary);
+
+                                        return (
+                                            <button
+                                                type="button"
+                                                key={key}
+                                                onClick={() => handleOpenDiary(key)}
+                                                className="flex min-h-[34rem] flex-col border-b border-r border-border-subtle px-3 py-2 text-left transition hover:bg-[var(--color-panel-bg)]"
+                                            >
+                                                <div className="flex items-start justify-end">
+                                                    <span
+                                                        className={
+                                                            'inline-flex h-[24px] w-[24px] items-center justify-center rounded-full text-[12px] leading-none ' +
+                                                            (isToday ? 'bg-red-500 text-white' : '')
+                                                        }
+                                                        style={isToday ? undefined : { color: getDayTextColor(date.getDay(), isHoliday) }}
+                                                    >
+                                                        {date.getDate()}
+                                                    </span>
+                                                </div>
+                                                {diary && (
+                                                    <div className="mt-3 min-w-0">
+                                                        <div
+                                                            className="mb-2 h-1.5 w-1.5 rounded-full"
+                                                            style={{ backgroundColor: 'var(--color-accent)' }}
+                                                        />
+                                                        {preview && (
+                                                            <p className="line-clamp-4 break-words text-[12px] leading-relaxed text-[var(--color-text-muted)]">
+                                                                {preview}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </button>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </>
+                    )}
                 </div>
-            )}
+            </div>
+            <DiaryEditor
+                open={!!editorDate}
+                diaryDate={editorDate}
+                onClose={() => setEditorDate(null)}
+            />
+            <DiarySettings
+                open={isSettingsOpen}
+                onClose={() => setIsSettingsOpen(false)}
+            />
         </div>
     );
 }

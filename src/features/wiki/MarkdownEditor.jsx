@@ -18,6 +18,7 @@ import {
 } from '../../lib/internalLinkMeta';
 import {
     extractSectionsFromMarkdown,
+    stripHeadingText,
 } from '../../lib/wikiSectionUtils';
 
 import { normalizeFontSizeTokensToSpans } from './wikiFontRender';
@@ -618,6 +619,67 @@ function internalLinkTokenSyntaxPlugin() {
                 return true;
             },
         },
+    };
+}
+
+function headingNumberDecorationPlugin(context) {
+    const { Plugin, PluginKey } = context.pmState;
+    const { Decoration, DecorationSet } = context.pmView;
+
+    const buildDecorations = (doc) => {
+        const counters = [0, 0, 0, 0, 0, 0, 0];
+        const decorations = [];
+
+        doc.descendants((node, pos) => {
+            if (node.type?.name !== 'heading') return;
+
+            const level = Number(node.attrs?.level) || 1;
+            const plainText = stripHeadingText(node.textContent || '');
+
+            if (!plainText) return;
+
+            counters[level] += 1;
+            for (let i = level + 1; i < counters.length; i += 1) {
+                counters[i] = 0;
+            }
+
+            const nums = counters.slice(1, level + 1).filter((n) => n > 0);
+            const number = nums.join('.');
+
+            decorations.push(
+                Decoration.node(pos, pos + node.nodeSize, {
+                    class: 'wiki-editor-heading-numbered',
+                    'data-wiki-heading-number': `${number}.`,
+                })
+            );
+        });
+
+        return DecorationSet.create(doc, decorations);
+    };
+
+    return {
+        wysiwygPlugins: [
+            () => new Plugin({
+                key: new PluginKey('pediaryHeadingNumbers'),
+                state: {
+                    init(_, state) {
+                        return buildDecorations(state.doc);
+                    },
+                    apply(tr, oldDecorations) {
+                        if (!tr.docChanged) {
+                            return oldDecorations.map(tr.mapping, tr.doc);
+                        }
+
+                        return buildDecorations(tr.doc);
+                    },
+                },
+                props: {
+                    decorations(state) {
+                        return this.getState(state);
+                    },
+                },
+            }),
+        ],
     };
 }
 
@@ -2462,6 +2524,7 @@ export default function MarkdownEditor({
                 useCommandShortcut={true}
                 plugins={[
                     internalLinkTokenSyntaxPlugin,
+                    headingNumberDecorationPlugin,
                     fontSizeSyntaxPlugin,
                     underlineSyntaxPlugin,
                     paragraphAlignSyntaxPlugin,

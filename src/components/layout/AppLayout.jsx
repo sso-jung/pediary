@@ -93,9 +93,8 @@ export default function AppLayout({ children }) {
       lg:pl-[80px] lg:pr-[80px]
     `
         : `
-      relative mx-auto flex h-full min-h-0 w-full max-w-[90rem] flex-col
-      pl-2 pr-2 py-6
-      lg:pl-[147px] lg:pr-[147px]
+      relative mx-auto flex h-full min-h-0 w-full max-w-[100rem] flex-col
+      px-3 py-6 sm:px-4 lg:px-8
     `;
 
     useEffect(() => {
