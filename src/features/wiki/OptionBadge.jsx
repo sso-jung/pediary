@@ -4,7 +4,7 @@ export default function OptionBadge({ option, compact = false, onRemove }) {
     return (
         <span
             className={[
-                'inline-flex max-w-full items-center gap-1 rounded-full font-medium leading-none',
+                'inline-flex max-w-full items-center gap-1 overflow-hidden rounded-full font-medium leading-none',
                 compact ? 'px-1.5 py-[3px] text-[11px]' : 'px-2 py-1 text-[12px]',
             ].join(' ')}
             style={{
@@ -12,7 +12,7 @@ export default function OptionBadge({ option, compact = false, onRemove }) {
                 color: option.textColor || option.text_color || '#374151',
             }}
         >
-            <span className="truncate">{option.name}</span>
+            <span className="min-w-0 truncate">{option.name}</span>
 
             {onRemove && (
                 <button

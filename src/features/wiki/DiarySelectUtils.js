@@ -33,6 +33,7 @@ export const OPTION_COLOR_PRESETS = [
     { color: '#93c5fd', textColor: '#072473' },
     { color: '#529af6', textColor: '#ffffff' },
     { color: '#e0e7ff', textColor: '#1a1486' },
+    { color: '#6c7bb0', textColor: '#f3f8ff' },
     { color: '#465fa6', textColor: '#f3f8ff' },
     { color: '#002596', textColor: '#e9f5ff' },
     { color: '#58519b', textColor: '#f8f9ff' },
@@ -44,6 +45,7 @@ export const OPTION_COLOR_PRESETS = [
     { color: '#490c98', textColor: '#f0eeff' },
     { color: '#ffffff', textColor: '#374151' },
     { color: '#374151', textColor: '#ffffff' },
+    { color: '#545865', textColor: '#ffc1c1' },
 ];
 
 function getOptionPresetTextColor(color = DEFAULT_OPTION_COLOR) {

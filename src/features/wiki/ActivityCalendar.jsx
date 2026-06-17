@@ -1,5 +1,5 @@
 // src/features/wiki/ActivityCalendar.jsx
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DiaryEditor from './DiaryEditor';
 import DiarySettings from './DiarySettings';
@@ -26,6 +26,8 @@ const VIEW_LABEL = {
     monthly: 'MONTHLY',
     timeline: 'TIMELINE',
 };
+
+const TIMELINE_GROUP_GAP_DAYS = 31;
 
 function addDays(date, amount) {
     const next = new Date(date);
@@ -196,6 +198,183 @@ function getDiaryValueMap(diary) {
     );
 }
 
+function parseDateKey(dateKey) {
+    const [year, month, day] = String(dateKey || '').split('-').map(Number);
+    return new Date(year, month - 1, day);
+}
+
+function getDayOfYear(dateKey) {
+    const date = parseDateKey(dateKey);
+    const start = new Date(date.getFullYear(), 0, 1);
+
+    return Math.floor((date - start) / 86400000) + 1;
+}
+
+function getDaysInYear(year) {
+    return new Date(year, 1, 29).getMonth() === 1 ? 366 : 365;
+}
+
+function formatShortDate(dateKey) {
+    const [, month, day] = String(dateKey || '').split('-');
+    return `${Number(month)}/${Number(day)}`;
+}
+
+function getDateDiffDays(fromDateKey, toDateKey) {
+    const from = parseDateKey(fromDateKey);
+    const to = parseDateKey(toDateKey);
+
+    return Math.floor((to - from) / 86400000);
+}
+
+function getTimelineDisplayValue(property, value, optionMetaMap) {
+    if (!value) return null;
+
+    if (property?.type === 'select') {
+        const option = mergeLatestOptionMeta(value.option, optionMetaMap);
+        return option ? { text: option.name, option } : null;
+    }
+
+    if (property?.type === 'multi_select') {
+        const options = normalizeOptionValues(value.options)
+            .map((option) => mergeLatestOptionMeta(option, optionMetaMap))
+            .filter(Boolean);
+
+        if (options.length === 0) return null;
+
+        return {
+            text: options.map((option) => option.name).join(', '),
+            option: options[0],
+        };
+    }
+
+    const text = String(getPropertyValueText(property, value) || '').trim();
+    return text ? { text } : null;
+}
+
+function buildTimelineSegments({
+                                   diaries = [],
+                                   property,
+                                   propertyId,
+                                   optionMetaMap,
+                               }) {
+    const points = (diaries || [])
+        .map((diary) => {
+            const value = getDiaryValueMap(diary).get(propertyId);
+            const display = getTimelineDisplayValue(property, value, optionMetaMap);
+
+            if (!display?.text) return null;
+
+            return {
+                dateKey: diary.diary_date,
+                text: display.text,
+                option: display.option,
+            };
+        })
+        .filter(Boolean)
+        .sort((a, b) => String(a.dateKey).localeCompare(String(b.dateKey)));
+
+    const segmentsByText = new Map();
+
+    points.forEach((point) => {
+        const key = point.text;
+        const segments = segmentsByText.get(key) || [];
+        const last = segments[segments.length - 1];
+
+        if (
+            last &&
+            getDateDiffDays(last.lastSeenDateKey, point.dateKey) < TIMELINE_GROUP_GAP_DAYS
+        ) {
+            last.endDateKey = point.dateKey;
+            last.lastSeenDateKey = point.dateKey;
+            return;
+        }
+
+        segments.push({
+            text: point.text,
+            option: point.option,
+            startDateKey: point.dateKey,
+            endDateKey: point.dateKey,
+            lastSeenDateKey: point.dateKey,
+        });
+
+        segmentsByText.set(key, segments);
+    });
+
+    return [...segmentsByText.values()]
+        .flat()
+        .sort(
+            (a, b) =>
+                String(a.startDateKey).localeCompare(String(b.startDateKey)) ||
+                String(a.endDateKey).localeCompare(String(b.endDateKey)),
+        );
+}
+function assignTimelineLanes(segments = []) {
+    const lanes = [];
+
+    return segments.map((segment) => {
+        const startDay = getDayOfYear(segment.startDateKey);
+        const endDay = getDayOfYear(segment.endDateKey);
+
+        let laneIndex = lanes.findIndex((laneEndDay) => startDay > laneEndDay);
+
+        if (laneIndex < 0) {
+            laneIndex = lanes.length;
+            lanes.push(endDay);
+        } else {
+            lanes[laneIndex] = endDay;
+        }
+
+        return {
+            ...segment,
+            laneIndex,
+            startDay,
+            endDay,
+        };
+    });
+}
+function TimelineSegmentBar({ segment, year, onClickDate }) {
+    const daysInYear = getDaysInYear(year);
+
+    const startDay = segment.startDay ?? getDayOfYear(segment.startDateKey);
+    const endDay = segment.endDay ?? getDayOfYear(segment.endDateKey);
+
+    const left = ((startDay - 1) / daysInYear) * 100;
+    const width = Math.max(((endDay - startDay + 1) / daysInYear) * 100, 0.7);
+
+    const isSingleDay = segment.startDateKey === segment.endDateKey;
+    const dateText = isSingleDay
+        ? formatShortDate(segment.startDateKey)
+        : `${formatShortDate(segment.startDateKey)}~${formatShortDate(segment.endDateKey)}`;
+
+    return (
+        <button
+            type="button"
+            className="absolute flex h-7 items-center justify-center overflow-hidden rounded-full border px-2 text-[11px] font-semibold shadow-sm transition hover:brightness-95"
+            style={{
+                left: `${left}%`,
+                top: `${8 + (segment.laneIndex || 0) * 34}px`,
+                width: `${width}%`,
+                minWidth: isSingleDay ? 42 : 56,
+                backgroundColor: segment.option?.color || 'var(--color-page-surface-2)',
+                borderColor: 'var(--color-border-subtle)',
+                color:
+                    segment.option?.textColor ||
+                    segment.option?.text_color ||
+                    'var(--color-text-main)',
+            }}
+            title={`${dateText} ${segment.text}`}
+            onClick={(e) => {
+                e.stopPropagation();
+                onClickDate?.(segment.startDateKey);
+            }}
+        >
+            <span className="truncate">
+                {segment.text}
+            </span>
+        </button>
+    );
+}
+
 function renderDiaryProperties(
     diary,
     viewItems,
@@ -293,8 +472,8 @@ function renderDiaryProperties(
                 const blockTextIndentClass =
                     showIcon && item.property?.icon
                         ? isWeekly
-                            ? 'pl-[2px]'
-                            : 'pl-[2px]'
+                            ? 'px-[1px]'
+                            : 'px-[1px]'
                         : '';
                 const listWrapperClass = isWeekly
                     ? hasPropertyHeader
@@ -305,23 +484,24 @@ function renderDiaryProperties(
                         : 'mt-0 space-y-0';
 
                 return (
-                    <div
-                        key={item.propertyId}
-                        className={[
-                            'min-w-0 break-words text-[var(--color-text-muted)]',
-                            propertyTextClass,
-                            propertyLineClass,
-                            hasSectionSeparator
-                                ? isWeekly
-                                    ? 'border-t border-dashed border-[rgba(82,154,246,0.42)] pt-2'
-                                    : 'border-t border-dashed border-[rgba(82,154,246,0.22)] pt-1'
-                                : '',
-                            !isWeekly && isOptionProperty ? 'pb-1' : '',
-                        ].join(' ')}
-                    >
+                    <Fragment key={item.propertyId}>
+                        {hasSectionSeparator && isWeekly && (
+                            <div className="py-3" aria-hidden="true">
+                                <div className="border-t border-dashed border-[rgba(127,127,127,0.22)]" />
+                            </div>
+                        )}
+
+                        <div
+                            className={[
+                                'min-w-0 break-words text-[var(--color-text-muted)]',
+                                propertyTextClass,
+                                propertyLineClass,
+                                !isWeekly && isOptionProperty ? 'pb-1' : '',
+                            ].join(' ')}
+                        >
                         <div className="flex min-w-0 items-start gap-[3px]">
                             {showIcon && item.property?.icon && (
-                                <span className={iconBoxClass}>
+                                <span className="flex h-4 w-4 shrink-0 items-center justify-center">
                                     <PropertyIcon icon={item.property.icon}/>
                                 </span>
                             )}
@@ -329,7 +509,11 @@ function renderDiaryProperties(
                             <span
                                 className={[
                                     'min-w-0 break-words',
-                                    isOptionProperty ? 'mt-[1px]' : 'mt-[2px]',
+                                    isOptionProperty
+                                        ? isWeekly
+                                            ? 'relative -top-px'
+                                            : ''
+                                        : 'mt-[2px]',
                                 ].join(' ')}
                             >
                                 {showName && name && (
@@ -342,7 +526,7 @@ function renderDiaryProperties(
                                     <span
                                         className={[
                                             showName && name ? 'ml-1.5' : '',
-                                            'inline-flex flex-wrap items-center align-middle',
+                                            'inline-flex max-w-full flex-wrap items-center overflow-hidden align-middle',
                                             isWeekly ? 'gap-x-1 gap-y-1.5' : 'gap-[3px]',
                                         ].join(' ')}
                                     >
@@ -465,7 +649,8 @@ function renderDiaryProperties(
                                 ))}
                             </div>
                         )}
-                    </div>
+                        </div>
+                    </Fragment>
                 );
             })}
         </div>
@@ -477,6 +662,45 @@ function getDayTextColor(dayIndex, isHoliday = false) {
     if (dayIndex === 0) return '#ef4444';
     if (dayIndex === 6) return '#3b82f6';
     return 'var(--color-text-main)';
+}
+
+function TimelineMonthHeader({ year }) {
+    const daysInYear = getDaysInYear(year);
+
+    return (
+        <div
+            className="relative h-10"
+            style={{
+                backgroundColor: 'var(--color-page-surface-2)',
+            }}
+        >
+            <div className="absolute inset-x-0 bottom-0 border-b border-border-subtle" />
+
+            {Array.from({ length: 12 }).map((_, index) => {
+                const month = index + 1;
+                const monthStart = new Date(year, index, 1);
+                const monthDays = new Date(year, month, 0).getDate();
+                const startDay = getDayOfYear(getDateKey(monthStart));
+
+                const left = ((startDay - 1) / daysInYear) * 100;
+                const width = (monthDays / daysInYear) * 100;
+
+                return (
+                    <div
+                        key={month}
+                        className="absolute top-0 flex h-full items-center justify-center text-[11px] font-semibold"
+                        style={{
+                            left: `${left}%`,
+                            width: `${width}%`,
+                            color: 'var(--color-text-main)',
+                        }}
+                    >
+                        {month}월
+                    </div>
+                );
+            })}
+        </div>
+    );
 }
 
 function CalendarDropdown({ value, label, options, onChange, className = '' }) {
@@ -891,87 +1115,78 @@ export default function ActivityCalendar() {
                 <div className="flex min-h-0 flex-1 flex-col overflow-auto pt-3">
                     {calendarView === 'timeline' ? (
                         <div className="min-h-0 flex-1 overflow-x-auto pb-2 text-[12px]">
-                            <div className="grid min-w-[980px] grid-cols-[120px_repeat(12,minmax(72px,1fr))] border-l border-t border-border-subtle">
-                                <div className="border-b border-r border-border-subtle px-2 py-2" />
-                                {monthOptions.map((timelineMonth) => (
-                                    <div
-                                        key={timelineMonth}
-                                        className="border-b border-r border-border-subtle px-2 py-2 text-center font-semibold"
-                                        style={{
-                                            color: 'var(--color-text-main)',
-                                        }}
-                                    >
-                                        {timelineMonth}월
-                                    </div>
-                                ))}
+                            <div className="min-w-[1080px] border-l border-t border-border-subtle">
+                                <div className="grid grid-cols-[110px_minmax(900px,1fr)]">
+                                    <div className="border-b border-r border-border-subtle px-2 py-2" />
+                                    <TimelineMonthHeader year={year} />
 
-                                {viewItems.map((item) => {
-                                    const name = getPropertyDisplayName(item.property?.name);
-                                    const showIcon = ['icon_name', 'icon'].includes(item.displayMode);
-                                    const showName = ['icon_name', 'name'].includes(item.displayMode);
+                                    {viewItems.map((item) => {
+                                        const name = getPropertyDisplayName(item.property?.name);
+                                        const showIcon = ['icon_name', 'icon'].includes(item.displayMode);
+                                        const showName = ['icon_name', 'name'].includes(item.displayMode);
 
-                                    return (
-                                        <div key={item.propertyId} className="contents">
-                                            <div className="flex min-w-0 items-start gap-1 break-words border-b border-r border-border-subtle px-2 py-2 font-semibold text-[var(--color-text-main)]">
-                                                {showIcon && item.property?.icon && (
-                                                    <span className={iconBoxClass}>
-                                                        <PropertyIcon icon={item.property.icon}/>
-                                                    </span>
-                                                )}
-                                                {showName && (
-                                                    <span className="min-w-0 break-words">
-                                                        {name || '속성명 없음'}
-                                                    </span>
-                                                )}
+                                        const rawSegments = buildTimelineSegments({
+                                            diaries: diaries || [],
+                                            property: item.property,
+                                            propertyId: item.propertyId,
+                                            optionMetaMap: optionMapByPropertyId.get(item.propertyId),
+                                        });
+
+                                        const segments = assignTimelineLanes(rawSegments);
+                                        const laneCount = Math.max(1, ...segments.map((segment) => segment.laneIndex + 1));
+                                        const rowHeight = Math.max(48, 16 + laneCount * 34);
+
+                                        return (
+                                            <div key={item.propertyId} className="contents">
+                                                <div
+                                                    className="flex min-w-0 items-center gap-1 border-b border-r border-border-subtle px-2 py-2 font-semibold text-[var(--color-text-main)]"
+                                                    style={{ height: rowHeight }}
+                                                >
+                                                    {showIcon && item.property?.icon && (
+                                                        <span
+                                                            className="flex h-4 w-4 shrink-0 items-center justify-center">
+                                        <PropertyIcon icon={item.property.icon}/>
+                                    </span>
+                                                    )}
+
+                                                    {showName && (
+                                                        <span className="min-w-0 break-words">
+                                        {name || '속성명 없음'}
+                                    </span>
+                                                    )}
+                                                </div>
+
+                                                <div
+                                                    className="relative border-b border-r border-border-subtle px-2"
+                                                    style={{height: rowHeight}}
+                                                >
+                                                    {segments.length === 0 ? (
+                                                        <span
+                                                            className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-[var(--color-text-muted)] opacity-60">
+            기록 없음
+        </span>
+                                                    ) : (
+                                                        segments.map((segment, index) => (
+                                                            <TimelineSegmentBar
+                                                                key={`${segment.startDateKey}-${segment.endDateKey}-${segment.text}-${index}`}
+                                                                segment={segment}
+                                                                year={year}
+                                                                onClickDate={handleOpenDiary}
+                                                            />
+                                                        ))
+                                                    )}
+                                                </div>
                                             </div>
-                                            {monthOptions.map((timelineMonth) => {
-                                                const monthDiaries = (diaries || []).filter((diary) => {
-                                                    const [, diaryMonth] = String(diary.diary_date || '').split('-');
-                                                    return Number(diaryMonth) === timelineMonth;
-                                                });
-                                                const values = monthDiaries
-                                                    .map((diary) => {
-                                                        const value = getDiaryValueMap(diary).get(item.propertyId);
-                                                        const text = getPropertyValueText(item.property, value);
+                                        );
+                                    })}
+                                </div>
 
-                                                        if (!String(text || '').trim()) return null;
-
-                                                        return {
-                                                            date: String(diary.diary_date || '').slice(8, 10),
-                                                            text,
-                                                        };
-                                                    })
-                                                    .filter(Boolean);
-
-                                                return (
-                                                    <div
-                                                        key={`${item.propertyId}-${timelineMonth}`}
-                                                        className="min-h-[72px] space-y-1 border-b border-r border-border-subtle px-2 py-2"
-                                                    >
-                                                        {values.map((value, index) => (
-                                                            <p
-                                                                key={`${value.date}-${index}`}
-                                                                className="break-words text-[11px] leading-snug text-[var(--color-text-muted)]"
-                                                            >
-                                                                <span className="font-semibold text-[var(--color-text-main)]">
-                                                                    {value.date}: {' '}
-                                                                </span>
-                                                                <span>{value.text}</span>
-                                                            </p>
-                                                        ))}
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    );
-                                })}
+                                {viewItems.length === 0 && (
+                                    <p className="px-2 py-5 text-xs ui-dialog-message">
+                                        TIMELINE에 표시할 속성이 없어.
+                                    </p>
+                                )}
                             </div>
-
-                            {viewItems.length === 0 && (
-                                <p className="px-2 py-5 text-xs ui-dialog-message">
-                                    TIMELINE에 표시할 속성이 없어.
-                                </p>
-                            )}
                         </div>
                     ) : (
                         <>
@@ -1035,7 +1250,7 @@ export default function ActivityCalendar() {
                                                         </span>
                                                     </div>
                                                     {diary && (
-                                                        <div className="mt-2 min-h-0 min-w-0 flex-1 overflow-y-auto pr-1">
+                                                        <div className="diary-monthly-cell-scroll mt-2 min-h-0 min-w-0 flex-1 overflow-y-auto pr-1">
                                                             {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'monthly', optionMapByPropertyId, allDocs || [], categories || [])}
                                                         </div>
                                                     )}
