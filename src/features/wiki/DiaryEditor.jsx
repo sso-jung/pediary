@@ -1,11 +1,24 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { PropertyIcon } from './DiaryPropertyUtils';
 import { useDiary } from './hooks/useDiary';
+import { useDeleteDiary } from './hooks/useDeleteDiary';
 import { useDiaryLayout } from './hooks/useDiaryLayout';
 import { useDiaryProperties, useDiaryPropertySections } from './hooks/useDiaryProperties';
 import { useDiaryPropertyValues } from './hooks/useDiaryPropertyValues';
 import { useSaveDiary } from './hooks/useSaveDiary';
+import DiaryOptionSelectField from './DiaryOptionSelectField';
+import {
+    DEFAULT_OPTION_COLOR,
+    getOptionName,
+    makeOptionValue,
+    normalizeOptionValue,
+    normalizeOptionValues,
+} from './DiarySelectUtils';
+import {
+    useCreateDiaryPropertyOption,
+    useDiaryPropertyOptions,
+} from './hooks/useDiaryPropertyOptions';
 
 const AUTO_SAVE_DELAY = 500;
 const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -22,7 +35,11 @@ function getDiaryDateText(dateKey) {
 
 function getInitialPropertyValue(property) {
     const value = property?.default_value;
-    if (!value) return '';
+   if (!value) {
+       if (property.type === 'multi_select') return [];
+       if (property.type === 'select') return null;
+       return '';
+   }
 
     if (property.type === 'period') {
         return {
@@ -32,7 +49,11 @@ function getInitialPropertyValue(property) {
     }
 
     if (property.type === 'multi_select') {
-        return Array.isArray(value.options) ? value.options.join(', ') : '';
+        return normalizeOptionValues(value.options);
+    }
+
+    if (property.type === 'select') {
+        return normalizeOptionValue(value.option);
     }
 
     if (property.type === 'number_list') {
@@ -56,7 +77,6 @@ function getInitialPropertyValue(property) {
 
     if (property.type === 'number') return value.number ?? '';
     if (property.type === 'date') return value.date || '';
-    if (property.type === 'select') return value.option || '';
     return value.text || '';
 }
 
@@ -72,7 +92,11 @@ function getValueForInput(property, savedValues) {
     }
 
     if (property.type === 'multi_select') {
-        return Array.isArray(saved.options) ? saved.options.join(', ') : '';
+        return normalizeOptionValues(saved.options);
+    }
+
+    if (property.type === 'select') {
+        return normalizeOptionValue(saved.option);
     }
 
     if (property.type === 'number_list') {
@@ -96,7 +120,6 @@ function getValueForInput(property, savedValues) {
 
     if (property.type === 'number') return saved.number ?? '';
     if (property.type === 'date') return saved.date || '';
-    if (property.type === 'select') return saved.option || '';
     return saved.text || '';
 }
 
@@ -110,10 +133,18 @@ function buildPropertyValue(property, rawValue) {
 
     if (property.type === 'multi_select') {
         return {
-            options: String(rawValue || '')
-                .split(',')
-                .map((item) => item.trim())
-                .filter(Boolean),
+            options: Array.isArray(rawValue)
+                ? rawValue.map(normalizeOptionValue).filter(Boolean)
+                : String(rawValue || '')
+                    .split(',')
+                    .map((name) => normalizeOptionValue(name))
+                    .filter(Boolean),
+        };
+    }
+
+    if (property.type === 'select') {
+        return {
+            option: normalizeOptionValue(rawValue),
         };
     }
 
@@ -121,12 +152,7 @@ function buildPropertyValue(property, rawValue) {
         return {
             numbers: String(rawValue || '')
                 .split('\n')
-                .map((item) => item.trim())
-                .map((item) => {
-                    if (item === '') return null;
-                    const numberValue = Number(item);
-                    return Number.isNaN(numberValue) ? null : numberValue;
-                }),
+                .map((item) => item.trim()),
         };
     }
 
@@ -158,7 +184,6 @@ function buildPropertyValue(property, rawValue) {
     }
 
     if (property.type === 'date') return { date: rawValue || '' };
-    if (property.type === 'select') return { option: rawValue || '' };
     return { text: rawValue || '' };
 }
 
@@ -168,7 +193,15 @@ function hasPropertyValue(property, rawValue) {
     }
 
     if (property.type === 'multi_select') {
+        if (Array.isArray(rawValue)) {
+            return rawValue.some((item) => getOptionName(item));
+        }
+
         return String(rawValue || '').split(',').some((item) => item.trim());
+    }
+
+    if (property.type === 'select') {
+        return !!getOptionName(rawValue);
     }
 
     if (property.type === 'check_list') {
@@ -186,7 +219,17 @@ function hasPropertyValue(property, rawValue) {
     return String(rawValue ?? '').trim() !== '';
 }
 
-function getVisibleProperties(properties = [], layout = [], propertyValues = {}) {
+function hasDraftContent({ title, properties = [], propertyValues = {}, contentMarkdown = '' }) {
+    const titleText = String(title || '').trim();
+    if (titleText && titleText !== '다이어리') return true;
+    if (String(contentMarkdown || '').trim()) return true;
+
+    return (properties || []).some((property) =>
+        hasPropertyValue(property, propertyValues[property.id]),
+    );
+}
+
+function getDiaryPropertyItems(properties = [], layout = [], propertyValues = {}) {
     const layoutMap = new Map((layout || []).map((item) => [item.property_id, item]));
 
     return (properties || [])
@@ -199,18 +242,50 @@ function getVisibleProperties(properties = [], layout = [], propertyValues = {})
                 sectionId: property.section_id ?? null,
             };
         })
-        .filter(({ property, visibility }) => {
-            if (visibility === 'hidden') return false;
-            if (visibility === 'when_filled') {
-                return hasPropertyValue(property, propertyValues[property.id]);
-            }
-            return true;
-        })
         .sort(
             (a, b) =>
                 (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
                 (a.property?.created_at || '').localeCompare(b.property?.created_at || ''),
-        )
+        );
+}
+
+function getVisibleProperties(
+    properties = [],
+    layout = [],
+    propertyValues = {},
+    forceVisiblePropertyIds = new Set(),
+    forceCollapsedPropertyIds = new Set(),
+) {
+    return getDiaryPropertyItems(properties, layout, propertyValues)
+        .filter(({ property, visibility }) => {
+            if (visibility === 'hidden') return false;
+            if (visibility === 'when_filled') {
+                if (forceVisiblePropertyIds.has(property.id)) return true;
+                if (forceCollapsedPropertyIds.has(property.id)) return false;
+                return hasPropertyValue(property, propertyValues[property.id]);
+            }
+            return true;
+        })
+        .map((item) => item.property);
+}
+
+function getCollapsedProperties(
+    properties = [],
+    layout = [],
+    propertyValues = {},
+    forceVisiblePropertyIds = new Set(),
+    forceCollapsedPropertyIds = new Set(),
+) {
+    return getDiaryPropertyItems(properties, layout, propertyValues)
+        .filter(({ property, visibility }) => {
+            if (visibility === 'hidden') return true;
+            if (visibility === 'when_filled') {
+                if (forceVisiblePropertyIds.has(property.id)) return false;
+                if (forceCollapsedPropertyIds.has(property.id)) return true;
+                return !hasPropertyValue(property, propertyValues[property.id]);
+            }
+            return false;
+        })
         .map((item) => item.property);
 }
 
@@ -222,16 +297,36 @@ function sortSections(sections = []) {
     );
 }
 
+function getPropertyDisplayName(name) {
+    const displayName = String(name || '').trim();
+    return displayName === '새 속성' ? '' : displayName;
+}
+
+function isTextareaProperty(property) {
+    return ['textarea', 'long_text', 'longText'].includes(property?.type);
+}
+
 function DiaryTextareaField({ value, onChange, onBlur, disabled }) {
+    const textareaRef = useRef(null);
+
+    useEffect(() => {
+        const textarea = textareaRef.current;
+        if (!textarea) return;
+
+        textarea.style.height = 'auto';
+        textarea.style.height = `${textarea.scrollHeight}px`;
+    }, [value]);
+
     return (
         <div className="rounded-lg border border-border-subtle bg-[rgba(255,255,255,0.55)] p-1.5 shadow-sm focus-within:border-[rgba(120,145,255,0.55)] focus-within:ring-2 focus-within:ring-[rgba(120,145,255,0.18)]">
             <textarea
-                className="block h-[120px] w-full resize-none overflow-y-auto rounded-md bg-transparent px-1 py-1 text-xs leading-5 outline-none"
+                ref={textareaRef}
+                className="block min-h-[68px] w-full resize-none overflow-hidden rounded-md bg-transparent px-1 py-1 text-xs leading-5 outline-none"
                 value={value}
                 onChange={onChange}
                 onBlur={onBlur}
                 disabled={disabled}
-                placeholder="내용 입력"
+                placeholder=""
             />
         </div>
     );
@@ -329,10 +424,16 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
     const { data: savedPropertyValues, isLoading: valuesLoading } = useDiaryPropertyValues(
         open ? diaryDate : null,
     );
+    const { data: propertyOptions } = useDiaryPropertyOptions();
+    const createPropertyOption = useCreateDiaryPropertyOption();
     const saveDiary = useSaveDiary();
+    const deleteDiary = useDeleteDiary();
 
     const [propertyValues, setPropertyValues] = useState({});
     const [title, setTitle] = useState('다이어리');
+    const [isCollapsedPropertiesOpen, setIsCollapsedPropertiesOpen] = useState(false);
+    const [forceVisiblePropertyIds, setForceVisiblePropertyIds] = useState(() => new Set());
+    const [forceCollapsedPropertyIds, setForceCollapsedPropertyIds] = useState(() => new Set());
 
     const saveTimerRef = useRef(null);
     const latestDraftRef = useRef({
@@ -340,13 +441,41 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
         propertyValues: {},
     });
     const hydratedRef = useRef(false);
+    const dirtyRef = useRef(false);
 
     const loading = isLoading || valuesLoading;
-    const visibleProperties = getVisibleProperties(properties || [], layout || [], propertyValues);
+    const visibleProperties = getVisibleProperties(
+        properties || [],
+        layout || [],
+        propertyValues,
+        forceVisiblePropertyIds,
+        forceCollapsedPropertyIds,
+    );
+    const optionsByPropertyId = useMemo(() => {
+        const map = new Map();
+
+        (propertyOptions || []).forEach((option) => {
+            const propertyId = option.property_id;
+            map.set(propertyId, [...(map.get(propertyId) || []), option]);
+        });
+
+        return map;
+    }, [propertyOptions]);
+    const collapsedProperties = getCollapsedProperties(
+        properties || [],
+        layout || [],
+        propertyValues,
+        forceVisiblePropertyIds,
+        forceCollapsedPropertyIds,
+    );
 
     useEffect(() => {
         if (!open) {
             hydratedRef.current = false;
+            dirtyRef.current = false;
+            setIsCollapsedPropertiesOpen(false);
+            setForceVisiblePropertyIds(new Set());
+            setForceCollapsedPropertyIds(new Set());
             latestDraftRef.current = {
                 title: '다이어리',
                 propertyValues: {},
@@ -381,6 +510,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
         };
 
         hydratedRef.current = true;
+        dirtyRef.current = false;
     }, [open, diaryDate, loading, diary, properties, savedPropertyValues]);
 
     useEffect(() => {
@@ -395,8 +525,20 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
 
     const saveDraft = async () => {
         if (!diaryDate || !properties || !hydratedRef.current) return;
+        if (!dirtyRef.current) return;
 
         const draft = latestDraftRef.current;
+        if (
+            !diary &&
+            !hasDraftContent({
+                title: draft.title,
+                properties,
+                propertyValues: draft.propertyValues,
+                contentMarkdown: diary?.content_markdown || '',
+            })
+        ) {
+            return;
+        }
 
         await saveDiary.mutateAsync({
             diaryDate,
@@ -432,6 +574,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
 
     const handleChangeTitle = (value) => {
         setTitle(value);
+        dirtyRef.current = true;
 
         latestDraftRef.current = {
             ...latestDraftRef.current,
@@ -442,6 +585,8 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
     };
 
     const handleChangePropertyValue = (propertyId, value) => {
+        dirtyRef.current = true;
+
         const nextPropertyValues = {
             ...latestDraftRef.current.propertyValues,
             [propertyId]: value,
@@ -455,6 +600,46 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
         };
 
         scheduleSave();
+    };
+
+    const handleCreateOptionAndSelect = async (property, option) => {
+        const name = String(option?.name || '').trim();
+        if (!name) return null;
+
+        const propertyOptions = optionsByPropertyId.get(property.id) || [];
+
+        const duplicated = propertyOptions.find(
+            (item) => item.name.trim().toLowerCase() === name.toLowerCase(),
+        );
+
+        if (duplicated) {
+            return makeOptionValue(duplicated);
+        }
+
+        const created = await createPropertyOption.mutateAsync({
+            propertyId: property.id,
+            name,
+            color: option.color || DEFAULT_OPTION_COLOR,
+            textColor: option.textColor || DEFAULT_OPTION_TEXT_COLOR,
+            sortOrder: propertyOptions.length,
+        });
+
+        return makeOptionValue(created);
+    };
+
+    const handleDeleteDiary = async () => {
+        if (!diaryDate || deleteDiary.isPending) return;
+        if (!window.confirm('이 다이어리를 삭제할까?')) return;
+
+        if (saveTimerRef.current) {
+            window.clearTimeout(saveTimerRef.current);
+            saveTimerRef.current = null;
+        }
+
+        dirtyRef.current = false;
+
+        await deleteDiary.mutateAsync({ diaryDate });
+        onClose();
     };
 
     const handleBackdropMouseDown = async (e) => {
@@ -481,6 +666,49 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
 
     const getPropertiesBySection = (sectionId) =>
         visibleProperties.filter((property) => (property.section_id ?? null) === sectionId);
+    const getCollapsedPropertiesBySection = (sectionId) =>
+        collapsedProperties.filter((property) => (property.section_id ?? null) === sectionId);
+
+    const keepPropertyPosition = (propertyId, position) => {
+        const addPropertyId = (setter) => {
+            setter((prev) => {
+                if (prev.has(propertyId)) return prev;
+
+                const next = new Set(prev);
+                next.add(propertyId);
+                return next;
+            });
+        };
+
+        if (position === 'visible') {
+            addPropertyId(setForceVisiblePropertyIds);
+            return;
+        }
+
+        if (position === 'collapsed') {
+            addPropertyId(setForceCollapsedPropertyIds);
+        }
+    };
+
+    const releasePropertyPosition = (propertyId) => {
+        window.setTimeout(() => {
+            setForceVisiblePropertyIds((prev) => {
+                if (!prev.has(propertyId)) return prev;
+
+                const next = new Set(prev);
+                next.delete(propertyId);
+                return next;
+            });
+
+            setForceCollapsedPropertyIds((prev) => {
+                if (!prev.has(propertyId)) return prev;
+
+                const next = new Set(prev);
+                next.delete(propertyId);
+                return next;
+            });
+        }, 0);
+    };
 
     const renderPropertyInput = (property) => {
         if (property.type === 'period') {
@@ -596,7 +824,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
                                 {index + 1}.
                             </span>
                             <input
-                                type="number"
+                                type="text"
                                 className="ui-input !h-7 !rounded-md !px-2 !py-0 text-xs"
                                 value={item}
                                 onChange={(e) =>
@@ -624,12 +852,30 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
             );
         }
 
-        if (property.type === 'textarea') {
+        if (isTextareaProperty(property)) {
             return (
                 <DiaryTextareaField
                     value={propertyValues[property.id] ?? ''}
                     onChange={(e) =>
                         handleChangePropertyValue(property.id, e.target.value)
+                    }
+                    onBlur={flushSave}
+                    disabled={loading}
+                />
+            );
+        }
+
+        if (property.type === 'select' || property.type === 'multi_select') {
+            return (
+                <DiaryOptionSelectField
+                    value={propertyValues[property.id]}
+                    options={optionsByPropertyId.get(property.id) || []}
+                    multiple={property.type === 'multi_select'}
+                    onChange={(nextValue) =>
+                        handleChangePropertyValue(property.id, nextValue)
+                    }
+                    onCreateOption={(option) =>
+                        handleCreateOptionAndSelect(property, option)
                     }
                     onBlur={flushSave}
                     disabled={loading}
@@ -664,16 +910,21 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
         );
     };
 
-    const renderPropertyRow = (property) => (
+    const renderPropertyRow = (property, position = 'visible') => (
         <div
             key={property.id}
-            className="grid grid-cols-[28px_minmax(0,180px)_minmax(0,1fr)] items-center border-b border-border-subtle px-2 py-1 text-xs hover:bg-[rgba(127,127,127,0.04)]"
+            className="grid grid-cols-[28px_minmax(0,120px)_minmax(0,1fr)] items-start border-b border-border-subtle px-2 py-1 text-xs hover:bg-[rgba(127,127,127,0.04)]"
+            onFocusCapture={() => keepPropertyPosition(property.id, position)}
+            onBlurCapture={(e) => {
+                if (e.currentTarget.contains(e.relatedTarget)) return;
+                releasePropertyPosition(property.id);
+            }}
         >
             <span className="flex h-7 w-7 shrink-0 items-center justify-center text-center">
                 <PropertyIcon icon={property.icon}/>
             </span>
-            <span className="flex min-h-7 min-w-0 items-center truncate px-2 font-medium text-[var(--color-text-muted)]">
-                {property.name}
+            <span className="flex min-h-7 min-w-0 items-center break-words px-2 font-medium leading-4 text-[var(--color-text-muted)]">
+                {getPropertyDisplayName(property.name)}
             </span>
             <div className="min-w-0 self-center">
                 {renderPropertyInput(property)}
@@ -683,23 +934,33 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
 
     const renderSection = (section, depth = 0) => {
         const sectionProperties = getPropertiesBySection(section.id);
+        const collapsedSectionProperties = isCollapsedPropertiesOpen
+            ? getCollapsedPropertiesBySection(section.id)
+            : [];
         const childSections = sortSections(childSectionMap.get(section.id) || []);
 
-        if (sectionProperties.length === 0 && childSections.length === 0) return null;
+        if (
+            sectionProperties.length === 0 &&
+            collapsedSectionProperties.length === 0 &&
+            childSections.length === 0
+        ) return null;
 
         return (
             <div key={section.id} className={depth > 0 ? "ml-6" : ""}>
                 <div className="mt-3 border-b border-border-subtle px-2 py-2 text-[13px] font-bold text-[var(--color-text-main)]">
                     {section.name}
                 </div>
-                {sectionProperties.map(renderPropertyRow)}
+                {sectionProperties.map((property) => renderPropertyRow(property, 'visible'))}
+                {collapsedSectionProperties.map((property) => renderPropertyRow(property, 'collapsed'))}
                 {childSections.map((childSection) => renderSection(childSection, depth + 1))}
             </div>
         );
     };
 
     const unclassifiedProperties = getPropertiesBySection(null);
-    const titleInputWidth = `${Math.max(10, Math.min(50, String(title || '').length + 1))}ch`;
+    const collapsedUnclassifiedProperties = isCollapsedPropertiesOpen
+        ? getCollapsedPropertiesBySection(null)
+        : [];
 
     const dialog = (
         <div
@@ -710,46 +971,93 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
                 className="ui-dialog flex max-h-[86vh] w-[min(720px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl p-4"
                 onMouseDown={(e) => e.stopPropagation()}
                 >
-                <div className="flex min-w-0 items-end gap-1">
-                    <input
-                        className="rounded-md bg-transparent px-1 py-0.5 text-m font-semibold outline-none ui-dialog-title hover:bg-[rgba(127,127,127,0.08)] focus:bg-[rgba(127,127,127,0.10)]"
-                        style={{ width: titleInputWidth }}
-                        value={title}
-                        onChange={(e) => handleChangeTitle(e.target.value)}
-                        onBlur={flushSave}
-                        placeholder="제목 입력"
-                        disabled={loading}
-                        maxLength={45}
-                    />
-                    <span className="shrink-0 pb-1 text-sm ui-dialog-message">
-                        - {getDiaryDateText(diaryDate)}
-                    </span>
-                    {saveDiary.isPending && (
-                        <span className="pb-0.5 pl-1 text-[11px] text-[var(--color-text-muted)]">
-                            저장 중...
-                        </span>
+                <div className="flex items-start justify-between gap-3">
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <input
+                            className="w-full rounded-md bg-transparent px-1 py-0.5 text-m font-semibold outline-none ui-dialog-title hover:bg-[rgba(127,127,127,0.08)] focus:bg-[rgba(127,127,127,0.10)]"
+                            value={title}
+                            onChange={(e) => handleChangeTitle(e.target.value)}
+                            onBlur={flushSave}
+                            placeholder="제목 입력"
+                            disabled={loading}
+                            maxLength={45}
+                        />
+
+                        <div className="flex min-h-5 items-center gap-2 px-1">
+                            <span className="text-sm ui-dialog-message">
+                                {getDiaryDateText(diaryDate)}
+                            </span>
+
+                            {saveDiary.isPending && (
+                                <span className="text-[11px] text-[var(--color-text-muted)]">
+                                저장 중...
+                            </span>
+                            )}
+                        </div>
+                    </div>
+
+                    {diary && (
+                        <button
+                            type="button"
+                            className="shrink-0 rounded px-1 py-1 text-[11px] font-medium text-red-500 transition hover:bg-red-500/10 disabled:opacity-40"
+                            onClick={handleDeleteDiary}
+                            disabled={deleteDiary.isPending}
+                        >
+                            {deleteDiary.isPending ? '삭제 중...' : '삭제'}
+                        </button>
                     )}
                 </div>
 
                 <div className="mt-0 min-h-0 flex-1 overflow-y-auto p-1">
                     <div className="space-y-1">
-                        {unclassifiedProperties.length > 0 && (
+                        {(unclassifiedProperties.length > 0 || collapsedUnclassifiedProperties.length > 0) && (
                             <div>
                                 <div className="border-b border-border-subtle px-2 py-1.5 text-xs font-semibold text-[var(--color-text-muted)]">
                                     미분류
                                 </div>
-                                {unclassifiedProperties.map(renderPropertyRow)}
+                                {unclassifiedProperties.map((property) => renderPropertyRow(property, 'visible'))}
+                                {collapsedUnclassifiedProperties.map((property) => renderPropertyRow(property, 'collapsed'))}
                             </div>
                         )}
 
                         {rootSections.map((section) => renderSection(section))}
+
+                        {collapsedProperties.length > 0 && (
+                            <div className="pt-1">
+                                <button
+                                    type="button"
+                                    className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-[var(--color-text-muted)] transition hover:text-[var(--color-text-main)]"
+                                    onClick={() => setIsCollapsedPropertiesOpen((prev) => !prev)}
+                                >
+                                    <svg
+                                        viewBox="0 0 20 20"
+                                        className="h-3.5 w-3.5"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        aria-hidden="true"
+                                    >
+                                        {isCollapsedPropertiesOpen ? (
+                                            <path d="M5.5 12.5 10 8l4.5 4.5" />
+                                        ) : (
+                                            <path d="M5.5 7.5 10 12l4.5-4.5" />
+                                        )}
+                                    </svg>
+                                    <span>
+                                        속성 {collapsedProperties.length}개 {isCollapsedPropertiesOpen ? '접기' : '펼치기'}
+                                    </span>
+                                </button>
+                            </div>
+                        )}
 
                         {(properties || []).length === 0 && (
                             <p className="text-xs ui-dialog-message">
                                 아직 설정한 속성이 없어.
                             </p>
                         )}
-                        {(properties || []).length > 0 && visibleProperties.length === 0 && (
+                        {(properties || []).length > 0 && visibleProperties.length === 0 && collapsedProperties.length === 0 && (
                             <p className="text-xs ui-dialog-message">
                                 표시할 속성이 없어.
                             </p>

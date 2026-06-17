@@ -1,9 +1,20 @@
 // src/features/wiki/ActivityCalendar.jsx
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import DiaryEditor from './DiaryEditor';
 import DiarySettings from './DiarySettings';
+import { PropertyIcon } from './DiaryPropertyUtils';
 import { useDiariesByDateRange } from './hooks/useDiariesByDateRange';
+import { useDiaryProperties } from './hooks/useDiaryProperties';
+import { useDiaryViewLayout, useDiaryViewSetting } from './hooks/useDiaryViewLayout';
 import { useHolidays } from './hooks/useHolidays';
+import OptionBadge from './OptionBadge';
+import {
+    buildOptionMetaMap,
+    mergeLatestOptionMeta,
+    normalizeOptionValue,
+    normalizeOptionValues,
+} from './DiarySelectUtils';
+import { useDiaryPropertyOptions } from './hooks/useDiaryPropertyOptions';
 
 const VIEW_LABEL = {
     weekly: 'WEEKLY',
@@ -32,22 +43,346 @@ function getNextDateKey(dateKey) {
     return getDateKey(new Date(year, month - 1, day + 1));
 }
 
-function getDiaryPreview(content = '') {
-    return content.replace(/\s+/g, ' ').trim();
+function getPropertyDisplayName(name) {
+    const displayName = String(name || '').trim();
+    return displayName === '새 속성' ? '' : displayName;
 }
 
-function getDiaryPreviewText(diary) {
-    const textareaValue = (diary?.diary_property_values || [])
-        .filter((item) => item.diary_properties?.type === 'textarea')
-        .sort(
-            (a, b) =>
-                (a.diary_properties?.sort_order ?? 0) -
-                (b.diary_properties?.sort_order ?? 0),
-        )
-        .map((item) => item.value?.text || '')
-        .find((text) => text.trim());
+function getPropertyValueText(property, value) {
+    if (!value) return '';
 
-    return getDiaryPreview(textareaValue || diary?.content_markdown || '');
+    if (property?.type === 'period') {
+        return [value.start, value.end].filter(Boolean).join(' ~ ');
+    }
+
+    if (property?.type === 'multi_select') {
+        return normalizeOptionValues(value.options)
+            .map((option) => option.name)
+            .join(', ');
+    }
+
+    if (property?.type === 'select') {
+        return normalizeOptionValue(value.option)?.name || '';
+    }
+
+    if (property?.type === 'number_list') {
+        return Array.isArray(value.numbers)
+            ? value.numbers.filter((item) => item !== null && item !== undefined && item !== '').join(', ')
+            : '';
+    }
+
+    if (property?.type === 'check_list') {
+        return Array.isArray(value.items)
+            ? value.items
+                .map((item) => {
+                    const text = typeof item === 'string' ? item : item.text;
+                    if (!String(text || '').trim()) return '';
+                    return item.checked ? `✓ ${text}` : text;
+                })
+                .filter(Boolean)
+                .join(', ')
+            : '';
+    }
+
+    if (property?.type === 'number') return value.number ?? '';
+    if (property?.type === 'date') return value.date || '';
+    return value.text || '';
+}
+
+function getPropertyValueLines(property, value, optionMetaMap) {
+    if (!value) return [];
+
+    if (property?.type === 'select') {
+        const option = mergeLatestOptionMeta(value.option, optionMetaMap);
+        return option ? [{ ...option, type: 'option' }] : [];
+    }
+
+    if (property?.type === 'multi_select') {
+        return normalizeOptionValues(value.options)
+            .map((option) => mergeLatestOptionMeta(option, optionMetaMap))
+            .filter(Boolean)
+            .map((option) => ({
+                ...option,
+                type: 'option',
+            }));
+    }
+
+    if (property?.type === 'number_list') {
+        return Array.isArray(value.numbers)
+            ? value.numbers
+                .filter((item) => item !== null && item !== undefined && item !== '')
+                .map((item) => String(item))
+            : [];
+    }
+
+    if (property?.type === 'check_list') {
+        return Array.isArray(value.items)
+            ? value.items
+                .map((item) => {
+                    const text = typeof item === 'string' ? item : item.text;
+                    if (!String(text || '').trim()) return null;
+
+                    return {
+                        checked: typeof item === 'string' ? false : !!item.checked,
+                        text,
+                    };
+                })
+                .filter(Boolean)
+            : [];
+    }
+
+    const text = getPropertyValueText(property, value);
+    return String(text || '').trim() ? [text] : [];
+}
+
+function buildViewItems(properties = [], viewLayout = []) {
+    const layoutMap = new Map(
+        (viewLayout || []).map((item) => [
+            item.property_id,
+            {
+                visibility: item.visibility || 'hidden',
+                displayMode: item.display_mode || (item.show_name === false ? 'content' : 'icon_name'),
+                sortOrder: item.sort_order ?? 0,
+            },
+        ]),
+    );
+
+    return (properties || [])
+        .map((property, index) => {
+            const layoutItem = layoutMap.get(property.id);
+
+            return {
+                property,
+                propertyId: property.id,
+                visibility: layoutItem?.visibility || 'hidden',
+                displayMode: layoutItem?.displayMode || 'icon_name',
+                sortOrder: layoutItem ? layoutItem.sortOrder : 10000 + (property.sort_order ?? index),
+            };
+        })
+        .filter((item) => item.visibility === 'visible')
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+function getDiaryValueMap(diary) {
+    return new Map(
+        (diary?.diary_property_values || []).map((item) => [
+            item.property_id,
+            item.value,
+        ]),
+    );
+}
+
+function renderDiaryProperties(
+    diary,
+    viewItems,
+    showTitle = false,
+    viewType = 'monthly',
+    optionMapByPropertyId = new Map(),
+    className = '',
+) {
+    if (!diary || (viewItems.length === 0 && !showTitle)) return null;
+
+    const valueMap = getDiaryValueMap(diary);
+    const rows = viewItems
+        .map((item) => ({
+            ...item,
+            lines: getPropertyValueLines(
+                item.property,
+                valueMap.get(item.propertyId),
+                optionMapByPropertyId.get(item.propertyId),
+            ),
+        }))
+        .filter((item) => item.lines.length > 0);
+
+    if (rows.length === 0 && !showTitle) return null;
+
+    const isWeekly = viewType === 'weekly';
+
+    const wrapperGapClass = isWeekly ? 'space-y-1.5' : 'space-y-[1px]';
+    const propertyLineClass = isWeekly ? 'leading-[1.45]' : 'leading-[1.25]';
+
+    const listWrapperClass = isWeekly ? 'mt-1 space-y-1' : 'mt-0 space-y-0';
+    const contentTextClass = '[color:color-mix(in_srgb,var(--color-text-main)_74%,var(--color-text-muted))]';
+    const blockTextTypes = ['textarea', 'long_text', 'text_area'];
+    const titleTextClass = isWeekly ? 'mb-2 text-[14px]' : 'text-[11px]';
+    const propertyTextClass = isWeekly ? 'text-[12px]' : 'text-[11px]';
+
+    const iconBoxClass = isWeekly
+        ? 'mt-[1px] flex h-5 w-5 shrink-0 items-center justify-center'
+        : 'mt-[1px] flex h-4 w-4 shrink-0 items-center justify-center';
+
+    const listItemGapClass = isWeekly ? 'gap-1' : 'gap-1';
+
+    return (
+        <div className={[wrapperGapClass, className].join(" ")}>
+            {showTitle && diary.title && (
+                <p
+                    className={[
+                        "break-words font-semibold leading-snug text-[var(--color-text-main)]",
+                        titleTextClass,
+                    ].join(" ")}
+                >
+                    {diary.title}
+                </p>
+            )}
+            {rows.map((item) => {
+                const name = getPropertyDisplayName(item.property?.name);
+                const showIcon = ['icon_name', 'icon'].includes(item.displayMode);
+                const showName = ['icon_name', 'name'].includes(item.displayMode);
+                const isListProperty = ['check_list', 'number_list'].includes(item.property?.type);
+                const isOptionProperty = ['select', 'multi_select'].includes(item.property?.type);
+
+                const propertyType = item.property?.type;
+                const isTextProperty = blockTextTypes.includes(propertyType);
+                const hasPropertyHeader = (showIcon && item.property?.icon) || (showName && name);
+                const shouldRenderTextAsBlock = isTextProperty && hasPropertyHeader;
+
+                const blockTextIndentClass =
+                    showIcon && item.property?.icon
+                        ? isWeekly
+                            ? 'pl-[2px]'
+                            : 'pl-[2px]'
+                        : '';
+
+                return (
+                    <div
+                        key={item.propertyId}
+                        className={[
+                            'min-w-0 break-words text-[var(--color-text-muted)]',
+                            propertyTextClass,
+                            propertyLineClass,
+                        ].join(' ')}
+                    >
+                        <div className="flex min-w-0 items-start gap-[3px]">
+                            {showIcon && item.property?.icon && (
+                                <span className={iconBoxClass}>
+                                    <PropertyIcon icon={item.property.icon}/>
+                                </span>
+                            )}
+
+                            <span className="min-w-0 break-words mt-[2px]">
+                                {showName && name && (
+                                    <span className="font-semibold text-[var(--color-text-main)]">
+                                        {name}
+                                    </span>
+                                )}
+
+                                {isOptionProperty && (
+                                    <span
+                                        className={[
+                                            showName && name ? 'ml-1.5' : '',
+                                            'inline-flex flex-wrap items-center gap-[3px] align-middle',
+                                        ].join(' ')}
+                                    >
+                                    {item.lines.map((option, index) => (
+                                        <OptionBadge
+                                            key={`${option.name}-${index}`}
+                                            option={option}
+                                            compact={!isWeekly}
+                                        />
+                                    ))}
+                                </span>
+                                )}
+
+                                {!isListProperty && !isOptionProperty && !shouldRenderTextAsBlock && (
+                                    <span
+                                        className={[
+                                            showName && name ? 'ml-1.5' : '',
+                                            contentTextClass,
+                                        ].join(' ')}
+                                    >
+                                            {item.lines[0]}
+                                        </span>
+                                )}
+                                </span>
+                        </div>
+
+                        {shouldRenderTextAsBlock && (
+                            <div
+                                className={[
+                                    'mt-[1px] min-w-0 break-words',
+                                    blockTextIndentClass,
+                                    contentTextClass,
+                                ].join(' ')}
+                            >
+                                {item.lines[0]}
+                            </div>
+                        )}
+
+                        {isListProperty && (
+                            <div className={listWrapperClass}>
+                                {item.lines.map((line, index) => (
+                                    <div
+                                        key={index}
+                                        className={['flex min-w-0 items-start break-words', listItemGapClass].join(' ')}
+                                    >
+                                        {item.property?.type === 'check_list' ? (
+                                            <span
+                                                className="mt-[1px] ml-[1px] flex h-[18px] w-[18px] shrink-0 items-center justify-center">
+                                            {line.checked ? (
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    viewBox="0 0 24 24"
+                                                    className="h-[18px] w-[18px]"
+                                                    fill="currentColor"
+                                                    aria-hidden="true"
+                                                >
+                                                    <path
+                                                        fillRule="evenodd"
+                                                        clipRule="evenodd"
+                                                        d="M6.2 4.2h11.6a2 2 0 0 1 2 2v11.6a2 2 0 0 1-2 2H6.2a2 2 0 0 1-2-2V6.2a2 2 0 0 1 2-2Zm10.2 5.6-1.5-1.3-4.2 4.8-1.7-1.7-1.4 1.4 3.2 3.2 5.6-6.4Z"
+                                                    />
+                                                </svg>
+                                            ) : (
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    viewBox="0 0 24 24"
+                                                    className="h-[18px] w-[18px]"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    strokeWidth="1.6"
+                                                    aria-hidden="true"
+                                                >
+                                                    <rect
+                                                        x="5"
+                                                        y="5"
+                                                        width="14"
+                                                        height="14"
+                                                        rx="1.2"
+                                                    />
+                                                </svg>
+                                            )}
+                                        </span>
+                                        ) : (
+                                            <span
+                                                className={[
+                                                    'w-4 shrink-0 text-right text-[var(--color-text-main)]',
+                                                    isWeekly ? '' : 'mt-[2px]',
+                                                ].join(' ')}
+                                            >
+                                                {index + 1}.
+                                            </span>
+                                        )}
+                                        <span
+                                            className={[
+                                                'min-w-0 break-words',contentTextClass,
+                                                item.property?.type === 'check_list' && line.checked === false
+                                                    ? 'bg-red-100'
+                                                    : contentTextClass,
+                                                isWeekly ? '' : 'mt-[2px]',
+                                            ].join(' ')}
+                                        >
+                                            {line.text ?? line}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
 }
 
 function getDayTextColor(dayIndex, isHoliday = false) {
@@ -140,6 +475,27 @@ export default function ActivityCalendar() {
         () => new Date(today.getFullYear(), today.getMonth(), today.getDate()),
     );
     const { data: holidays } = useHolidays(year);
+    const { data: properties } = useDiaryProperties();
+    const { data: viewLayout } = useDiaryViewLayout(calendarView);
+    const { data: viewSetting } = useDiaryViewSetting(calendarView);
+    const { data: propertyOptions } = useDiaryPropertyOptions();
+
+    const optionMapByPropertyId = useMemo(() => {
+        const grouped = new Map();
+
+        (propertyOptions || []).forEach((option) => {
+            const propertyId = option.property_id;
+            grouped.set(propertyId, [...(grouped.get(propertyId) || []), option]);
+        });
+
+        return new Map(
+            [...grouped.entries()].map(([propertyId, options]) => [
+                propertyId,
+                buildOptionMetaMap(options),
+            ]),
+        );
+    }, [propertyOptions]);
+
     const holidayDateSet = new Set((holidays || []).map((holiday) => holiday.holiday_date));
 
     const handleChangeCalendarView = (nextView) => {
@@ -238,16 +594,30 @@ export default function ActivityCalendar() {
     const todayKey = getDateKey(today);
     const monthStartKey = `${year}-${String(month).padStart(2, '0')}-01`;
     const monthEndKey = getDateKey(new Date(year, month, 1));
+    const yearStartKey = `${year}-01-01`;
+    const yearEndKey = `${year + 1}-01-01`;
     const weekStartKey = getDateKey(weekStart);
     const weekEndKey = getNextDateKey(getDateKey(weekDays[6]));
-    const rangeStartKey = calendarView === 'weekly' ? weekStartKey : monthStartKey;
-    const rangeEndKey = calendarView === 'weekly' ? weekEndKey : monthEndKey;
+    const rangeStartKey =
+        calendarView === 'weekly'
+            ? weekStartKey
+            : calendarView === 'timeline'
+                ? yearStartKey
+                : monthStartKey;
+    const rangeEndKey =
+        calendarView === 'weekly'
+            ? weekEndKey
+            : calendarView === 'timeline'
+                ? yearEndKey
+                : monthEndKey;
     const { data: diaries } = useDiariesByDateRange(
         rangeStartKey,
         rangeEndKey,
-        calendarView === 'weekly' || calendarView === 'monthly',
+        calendarView === 'weekly' || calendarView === 'monthly' || calendarView === 'timeline',
     );
     const diaryMap = new Map((diaries || []).map((diary) => [diary.diary_date, diary]));
+    const viewItems = buildViewItems(properties || [], viewLayout || []);
+    const showDiaryTitle = ['weekly', 'monthly'].includes(calendarView) && !!viewSetting?.show_title;
 
     const yearOptions = [];
     const baseYear = today.getFullYear();
@@ -414,22 +784,88 @@ export default function ActivityCalendar() {
 
                 <div className="flex min-h-0 flex-1 flex-col overflow-auto pt-3">
                     {calendarView === 'timeline' ? (
-                        <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto pb-2 text-[12px]">
-                            {monthOptions.map((timelineMonth) => (
-                                <div
-                                    key={timelineMonth}
-                                    className="min-w-[86px] flex-1"
-                                >
+                        <div className="min-h-0 flex-1 overflow-x-auto pb-2 text-[12px]">
+                            <div className="grid min-w-[980px] grid-cols-[120px_repeat(12,minmax(72px,1fr))] border-l border-t border-border-subtle">
+                                <div className="border-b border-r border-border-subtle px-2 py-2" />
+                                {monthOptions.map((timelineMonth) => (
                                     <div
-                                        className="px-2 py-2 text-center font-semibold"
+                                        key={timelineMonth}
+                                        className="border-b border-r border-border-subtle px-2 py-2 text-center font-semibold"
                                         style={{
                                             color: 'var(--color-text-main)',
                                         }}
                                     >
                                         {timelineMonth}월
                                     </div>
-                                </div>
-                            ))}
+                                ))}
+
+                                {viewItems.map((item) => {
+                                    const name = getPropertyDisplayName(item.property?.name);
+                                    const showIcon = ['icon_name', 'icon'].includes(item.displayMode);
+                                    const showName = ['icon_name', 'name'].includes(item.displayMode);
+
+                                    return (
+                                        <div key={item.propertyId} className="contents">
+                                            <div className="flex min-w-0 items-start gap-1 break-words border-b border-r border-border-subtle px-2 py-2 font-semibold text-[var(--color-text-main)]">
+                                                {showIcon && item.property?.icon && (
+                                                    <span className={iconBoxClass}>
+                                                        <PropertyIcon icon={item.property.icon}/>
+                                                    </span>
+                                                )}
+                                                {showName && (
+                                                    <span className="min-w-0 break-words">
+                                                        {name || '속성명 없음'}
+                                                    </span>
+                                                )}
+                                            </div>
+                                            {monthOptions.map((timelineMonth) => {
+                                                const monthDiaries = (diaries || []).filter((diary) => {
+                                                    const [, diaryMonth] = String(diary.diary_date || '').split('-');
+                                                    return Number(diaryMonth) === timelineMonth;
+                                                });
+                                                const values = monthDiaries
+                                                    .map((diary) => {
+                                                        const value = getDiaryValueMap(diary).get(item.propertyId);
+                                                        const text = getPropertyValueText(item.property, value);
+
+                                                        if (!String(text || '').trim()) return null;
+
+                                                        return {
+                                                            date: String(diary.diary_date || '').slice(8, 10),
+                                                            text,
+                                                        };
+                                                    })
+                                                    .filter(Boolean);
+
+                                                return (
+                                                    <div
+                                                        key={`${item.propertyId}-${timelineMonth}`}
+                                                        className="min-h-[72px] space-y-1 border-b border-r border-border-subtle px-2 py-2"
+                                                    >
+                                                        {values.map((value, index) => (
+                                                            <p
+                                                                key={`${value.date}-${index}`}
+                                                                className="break-words text-[11px] leading-snug text-[var(--color-text-muted)]"
+                                                            >
+                                                                <span className="font-semibold text-[var(--color-text-main)]">
+                                                                    {value.date}: {' '}
+                                                                </span>
+                                                                <span>{value.text}</span>
+                                                            </p>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {viewItems.length === 0 && (
+                                <p className="px-2 py-5 text-xs ui-dialog-message">
+                                    TIMELINE에 표시할 속성이 없어.
+                                </p>
+                            )}
                         </div>
                     ) : (
                         <>
@@ -458,7 +894,7 @@ export default function ActivityCalendar() {
                                                 return (
                                                     <div
                                                         key={`${wi}-${di}`}
-                                                        className="min-h-[132px] border-b border-r border-border-subtle bg-transparent"
+                                                        className="h-[146px] border-b border-r border-border-subtle bg-transparent"
                                                     />
                                                 );
                                             }
@@ -470,19 +906,18 @@ export default function ActivityCalendar() {
                                             const isToday = key === todayKey;
                                             const isHoliday = holidayDateSet.has(key);
                                             const diary = diaryMap.get(key);
-                                            const preview = getDiaryPreviewText(diary);
 
                                             return (
                                                 <button
                                                     type="button"
                                                     key={`${wi}-${di}`}
                                                     onClick={() => handleOpenDiary(key)}
-                                                    className="flex min-h-[132px] flex-col border-b border-r border-border-subtle px-2 py-1.5 text-left transition hover:bg-[var(--color-panel-bg)]"
+                                                    className="flex h-[146px] flex-col overflow-hidden border-b border-r border-border-subtle px-2 py-1.5 text-left transition hover:bg-[var(--color-panel-bg)]"
                                                 >
                                                     <div className="flex items-start justify-end">
                                                         <span
                                                             className={
-                                                                'inline-flex h-[22px] w-[22px] items-center justify-center rounded-full text-[12px] leading-none ' +
+                                                                'inline-flex h-[20px] w-[20px] items-center justify-center rounded-full text-[12px] leading-none ' +
                                                                 (isToday ? 'bg-red-500 text-white' : '')
                                                             }
                                                             style={isToday ? undefined : { color: getDayTextColor(di, isHoliday) }}
@@ -491,16 +926,8 @@ export default function ActivityCalendar() {
                                                         </span>
                                                     </div>
                                                     {diary && (
-                                                        <div className="mt-2 min-w-0">
-                                                            <div
-                                                                className="mb-1 h-1.5 w-1.5 rounded-full"
-                                                                style={{ backgroundColor: 'var(--color-accent)' }}
-                                                            />
-                                                            {preview && (
-                                                                <p className="line-clamp-2 break-words text-[11px] leading-snug text-[var(--color-text-muted)]">
-                                                                    {preview}
-                                                                </p>
-                                                            )}
+                                                        <div className="mt-2 min-h-0 min-w-0 flex-1 overflow-y-auto pr-1">
+                                                            {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'monthly', optionMapByPropertyId)}
                                                         </div>
                                                     )}
                                                 </button>
@@ -513,14 +940,13 @@ export default function ActivityCalendar() {
                                         const isToday = key === todayKey;
                                         const isHoliday = holidayDateSet.has(key);
                                         const diary = diaryMap.get(key);
-                                        const preview = getDiaryPreviewText(diary);
 
                                         return (
                                             <button
                                                 type="button"
                                                 key={key}
                                                 onClick={() => handleOpenDiary(key)}
-                                                className="flex min-h-[34rem] flex-col border-b border-r border-border-subtle px-3 py-2 text-left transition hover:bg-[var(--color-panel-bg)]"
+                                                className="flex min-h-[34rem] flex-col border-b border-r border-border-subtle px-2 py-2 text-left transition hover:bg-[var(--color-panel-bg)]"
                                             >
                                                 <div className="flex items-start justify-end">
                                                     <span
@@ -535,15 +961,7 @@ export default function ActivityCalendar() {
                                                 </div>
                                                 {diary && (
                                                     <div className="mt-3 min-w-0">
-                                                        <div
-                                                            className="mb-2 h-1.5 w-1.5 rounded-full"
-                                                            style={{ backgroundColor: 'var(--color-accent)' }}
-                                                        />
-                                                        {preview && (
-                                                            <p className="line-clamp-4 break-words text-[12px] leading-relaxed text-[var(--color-text-muted)]">
-                                                                {preview}
-                                                            </p>
-                                                        )}
+                                                        {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'weekly', optionMapByPropertyId)}
                                                     </div>
                                                 )}
                                             </button>

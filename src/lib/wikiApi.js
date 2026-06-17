@@ -739,8 +739,12 @@ export async function fetchDiariesByDateRange({ userId, startDate, endDate }) {
         .select(`
             *,
             diary_property_values (
+                property_id,
                 value,
                 diary_properties (
+                    id,
+                    name,
+                    icon,
                     type,
                     section_id,
                     sort_order
@@ -1053,6 +1057,84 @@ export async function updateDiaryLayout({ userId, items }) {
     return data ?? [];
 }
 
+export async function fetchDiaryViewLayout({ userId, viewType }) {
+    if (!userId || !viewType) return [];
+
+    const { data, error } = await supabase
+        .from('diary_view_property_layouts')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('view_type', viewType)
+        .order('sort_order', { ascending: true });
+
+    if (error) throw error;
+    return data ?? [];
+}
+
+export async function fetchDiaryViewSetting({ userId, viewType }) {
+    if (!userId || !viewType) return null;
+
+    const { data, error } = await supabase
+        .from('diary_view_settings')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('view_type', viewType)
+        .maybeSingle();
+
+    if (error) throw error;
+    return data;
+}
+
+export async function updateDiaryViewLayout({ userId, viewType, items }) {
+    if (!userId || !viewType || !Array.isArray(items)) return [];
+
+    const rows = items.map((item, index) => ({
+        user_id: userId,
+        view_type: viewType,
+        property_id: item.propertyId,
+        sort_order: index,
+        visibility: item.visibility || 'hidden',
+        show_name: item.showName !== false,
+        display_mode: item.displayMode || (item.showName === false ? 'content' : 'icon_name'),
+        updated_at: new Date().toISOString(),
+    }));
+
+    if (rows.length === 0) return [];
+
+    const { data, error } = await supabase
+        .from('diary_view_property_layouts')
+        .upsert(rows, {
+            onConflict: 'user_id,view_type,property_id',
+        })
+        .select('*');
+
+    if (error) throw error;
+    return data ?? [];
+}
+
+export async function updateDiaryViewSetting({ userId, viewType, showTitle }) {
+    if (!userId || !viewType) return null;
+
+    const { data, error } = await supabase
+        .from('diary_view_settings')
+        .upsert(
+            {
+                user_id: userId,
+                view_type: viewType,
+                show_title: !!showTitle,
+                updated_at: new Date().toISOString(),
+            },
+            {
+                onConflict: 'user_id,view_type',
+            },
+        )
+        .select('*')
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
 export async function fetchDiaryPropertyValues({ userId, diaryDate }) {
     if (!userId || !diaryDate) return [];
 
@@ -1111,6 +1193,18 @@ export async function upsertDiary({ userId, diaryDate, title, contentMarkdown, p
     }
 
     return data;
+}
+
+export async function deleteDiary({ userId, diaryDate }) {
+    if (!userId || !diaryDate) return;
+
+    const { error } = await supabase
+        .from('diaries')
+        .delete()
+        .eq('user_id', userId)
+        .eq('diary_date', diaryDate);
+
+    if (error) throw error;
 }
 
 // ─────────────────────────────

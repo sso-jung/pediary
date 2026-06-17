@@ -45,7 +45,12 @@ export function useUpdateDiaryProperty() {
     return useMutation({
         mutationFn: ({ propertyId, name, type, icon, sectionId }) =>
             updateDiaryProperty({ userId, propertyId, name, type, icon, sectionId }),
-        onSuccess: () => {
+        onSuccess: (property) => {
+            queryClient.setQueryData(['diaryProperties', userId], (properties) =>
+                (properties || []).map((item) =>
+                    item.id === property.id ? property : item,
+                ),
+            );
             queryClient.invalidateQueries({ queryKey: ['diaryProperties', userId] });
         },
     });

@@ -1,10 +1,13 @@
 // src/components/layout/Header.jsx
+import { useState } from 'react';
 import Button from '../ui/Button';
 import { useAuthStore } from '../../store/authStore';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import pediaryMark from '../../assets/logo.png';
 import pediaryMarkDark from '../../assets/logo-dark.png';
 import pediaryMarkDusk from '../../assets/logo-dusk.svg';
+import { useSnackbar } from '../ui/SnackbarContext';
+import { downloadMyDocumentsExcel } from '../../lib/exportMyDocumentsExcel';
 
 export default function Header({
                                    onToggleFriends,
@@ -17,6 +20,8 @@ export default function Header({
                                }) {
     const user = useAuthStore((s) => s.user);
     const signOut = useAuthStore((s) => s.signOut);
+    const { showSnackbar } = useSnackbar();
+    const [exporting, setExporting] = useState(false);
 
     const location = useLocation();
     const navigate = useNavigate();
@@ -45,6 +50,25 @@ export default function Header({
 
     const isFriendsOpen = activeSidePanel === 'friends';
     const isMyInfoOpen = activeSidePanel === 'me';
+
+    const handleExportExcel = async () => {
+        if (!user) {
+            showSnackbar?.('로그인 후에 내보내기를 할 수 있어.');
+            return;
+        }
+        if (exporting) return;
+
+        try {
+            setExporting(true);
+            await downloadMyDocumentsExcel(user.id);
+            showSnackbar?.('엑셀 백업 파일을 내려받았어.');
+        } catch (e) {
+            console.error(e);
+            showSnackbar?.('엑셀 내보내기에 실패했어. 잠시 후 다시 시도해줘.');
+        } finally {
+            setExporting(false);
+        }
+    };
 
     return (
         <div
@@ -100,6 +124,32 @@ export default function Header({
                     {/*    자료 분석*/}
                     {/*</button>*/}
                 </div>
+
+                {activeTab === 'home' && (
+                    <button
+                        type="button"
+                        onClick={handleExportExcel}
+                        disabled={exporting}
+                        className="ui-btn-success inline-flex items-center gap-1 rounded-full border px-2.5 py-[5px] text-[10px] font-medium shadow-sm disabled:opacity-60 sm:px-3 sm:py-1.5 sm:text-xs"
+                    >
+                        <svg
+                            className="h-4 w-4"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <path d="M4 4h16v6H4z" />
+                            <path d="M9 4v6" />
+                            <path d="M15 4v6" />
+                            <path d="M6 14l3 3-3 3" />
+                            <path d="M10 20h8" />
+                        </svg>
+                        <span>{exporting ? '내보내는 중...' : '엑셀로 백업'}</span>
+                    </button>
+                )}
 
                 {/* 모바일/태블릿용 카테고리 토글 버튼 (문서 화면에서만) */}
                 {isDocs && onToggleSidebar && (

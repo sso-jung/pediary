@@ -94,7 +94,7 @@ export default function AppLayout({ children }) {
     `
         : `
       relative mx-auto flex h-full min-h-0 w-full max-w-[100rem] flex-col
-      px-3 py-6 sm:px-4 lg:px-8
+      px-3 py-4 sm:px-4 lg:px-9
     `;
 
     useEffect(() => {

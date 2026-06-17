@@ -1,6 +1,6 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { PROPERTY_TYPES, PropertyIcon } from './DiaryPropertyUtils';
+import { PROPERTY_ICON_PRESETS, PROPERTY_TYPES, PropertyIcon } from './DiaryPropertyUtils';
 import {
     useCreateDiaryProperty,
     useCreateDiaryPropertySection,
@@ -13,6 +13,19 @@ import {
     useUpdateDiaryProperty,
 } from './hooks/useDiaryProperties';
 import { useDiaryLayout, useUpdateDiaryLayout } from './hooks/useDiaryLayout';
+import {
+    useDiaryViewLayout,
+    useDiaryViewSetting,
+    useUpdateDiaryViewLayout,
+    useUpdateDiaryViewSetting,
+} from './hooks/useDiaryViewLayout';
+import PropertyOptionsDialog from './PropertyOptionsDialog';
+import {
+    useCreateDiaryPropertyOption,
+    useDeleteDiaryPropertyOption,
+    useDiaryPropertyOptions,
+    useUpdateDiaryPropertyOption,
+} from './hooks/useDiaryPropertyOptions';
 
 const AUTO_SAVE_DELAY = 500;
 const VISIBILITY_OPTIONS = [
@@ -20,10 +33,36 @@ const VISIBILITY_OPTIONS = [
     { value: 'when_filled', label: '값 있을 때' },
     { value: 'hidden', label: '숨김' },
 ];
+const VIEW_OPTIONS = [
+    { value: 'weekly', label: 'WEEKLY' },
+    { value: 'monthly', label: 'MONTHLY' },
+    { value: 'timeline', label: 'TIMELINE' },
+];
+const SETTINGS_TABS = [
+    { value: 'properties', label: '속성 편집' },
+    { value: 'weekly', label: 'WEEKLY' },
+    { value: 'monthly', label: 'MONTHLY' },
+    { value: 'timeline', label: 'TIMELINE' },
+];
+const VIEW_VISIBILITY_OPTIONS = [
+    { value: 'visible', label: '내용 표시' },
+    { value: 'hidden', label: '내용 숨김' },
+];
+const DISPLAY_MODE_OPTIONS = [
+    { value: 'icon_name', label: '아이콘+속성명' },
+    { value: 'icon', label: '아이콘만' },
+    { value: 'name', label: '속성명만' },
+    { value: 'content', label: '내용만' },
+];
+
+function getPropertyDraftName(name) {
+    const draftName = String(name || '').trim();
+    return draftName === '새 속성' ? '' : draftName;
+}
 
 function getDraftFromProperty(property) {
     return {
-        name: property?.name || '',
+        name: getPropertyDraftName(property?.name),
         type: property?.type || 'text',
         icon: property?.icon || '',
     };
@@ -55,6 +94,33 @@ function buildLayoutItems(properties = [], layout = []) {
                 property,
                 sectionId: property.section_id ?? null,
                 visibility: layoutItem?.visibility || 'always',
+                sortOrder: layoutItem ? layoutItem.sortOrder : 10000 + (property.sort_order ?? index),
+            };
+        })
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+function buildViewLayoutItems(properties = [], viewLayout = []) {
+    const layoutMap = new Map(
+        (viewLayout || []).map((item) => [
+            item.property_id,
+            {
+                visibility: item.visibility || 'hidden',
+                displayMode: item.display_mode || (item.show_name === false ? 'content' : 'icon_name'),
+                sortOrder: item.sort_order ?? 0,
+            },
+        ]),
+    );
+
+    return (properties || [])
+        .map((property, index) => {
+            const layoutItem = layoutMap.get(property.id);
+
+            return {
+                propertyId: property.id,
+                property,
+                visibility: layoutItem?.visibility || 'hidden',
+                displayMode: layoutItem?.displayMode || 'icon_name',
                 sortOrder: layoutItem ? layoutItem.sortOrder : 10000 + (property.sort_order ?? index),
             };
         })
@@ -273,6 +339,185 @@ function SettingsDropdown({ value, options, onChange }) {
     );
 }
 
+function PropertyIconPicker({ icon, onChange, onUpload }) {
+    const pickerId = useId();
+    const [isOpen, setIsOpen] = useState(false);
+    const buttonRef = useRef(null);
+    const menuRef = useRef(null);
+    const [menuRect, setMenuRect] = useState(null);
+
+    const updateMenuRect = () => {
+        const rect = buttonRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
+        const width = 236;
+        const height = 288;
+        const gap = 4;
+        const left = Math.min(rect.left, window.innerWidth - width - 8);
+        const bottomTop = rect.bottom + gap;
+        const top = bottomTop + height > window.innerHeight
+            ? Math.max(8, rect.top - height - gap)
+            : bottomTop;
+
+        setMenuRect({
+            left: Math.max(8, left),
+            top,
+            width,
+        });
+    };
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleClickOutside = (e) => {
+            const isButtonClick = buttonRef.current?.contains(e.target);
+            const isMenuClick = menuRef.current?.contains(e.target);
+
+            if (!isButtonClick && !isMenuClick) {
+                setIsOpen(false);
+            }
+        };
+
+        const handleWindowChange = () => updateMenuRect();
+
+        document.addEventListener('mousedown', handleClickOutside, true);
+        window.addEventListener('scroll', handleWindowChange, true);
+        window.addEventListener('resize', handleWindowChange);
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside, true);
+            window.removeEventListener('scroll', handleWindowChange, true);
+            window.removeEventListener('resize', handleWindowChange);
+        };
+    }, [isOpen]);
+
+    useEffect(() => {
+        const handleOpenDropdown = (e) => {
+            if (e.detail !== pickerId) {
+                setIsOpen(false);
+            }
+        };
+
+        window.addEventListener('diary-settings-dropdown-open', handleOpenDropdown);
+        return () =>
+            window.removeEventListener('diary-settings-dropdown-open', handleOpenDropdown);
+    }, [pickerId]);
+
+    return (
+        <div className="relative">
+            <button
+                ref={buttonRef}
+                type="button"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] hover:text-[var(--color-text-primary)]"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    updateMenuRect();
+                    setIsOpen((prev) => {
+                        const next = !prev;
+
+                        if (next) {
+                            window.dispatchEvent(
+                                new CustomEvent('diary-settings-dropdown-open', {
+                                    detail: pickerId,
+                                }),
+                            );
+                        }
+
+                        return next;
+                    });
+                }}
+                aria-label="아이콘 선택"
+                title="아이콘 선택"
+            >
+                {icon ? (
+                    <PropertyIcon icon={icon} />
+                ) : (
+                    <svg
+                        viewBox="0 0 20 20"
+                        className="h-3.5 w-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                    >
+                        <path d="M10 13V4"/>
+                        <path d="M6.5 7.5 10 4l3.5 3.5"/>
+                        <path d="M4 13.5V15a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1.5"/>
+                    </svg>
+                )}
+            </button>
+
+            {isOpen && menuRect && createPortal(
+                <div
+                    ref={menuRef}
+                    className="fixed z-50 max-h-72 overflow-y-auto rounded-md border p-2 text-[12px] shadow-lg"
+                    style={{
+                        left: menuRect.left,
+                        top: menuRect.top,
+                        width: menuRect.width,
+                        borderColor: 'var(--color-border-subtle)',
+                        backgroundColor: 'var(--color-page-surface)',
+                        color: 'var(--color-text-main)',
+                    }}
+                >
+                    <div className="grid grid-cols-6 gap-1">
+                        {PROPERTY_ICON_PRESETS.map((preset) => (
+                            <button
+                                key={preset.label}
+                                type="button"
+                                className={[
+                                    "flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-[rgba(127,127,127,0.08)]",
+                                    preset.icon === icon ? "bg-[rgba(127,127,127,0.10)]" : "",
+                                ].join(" ")}
+                                onClick={() => {
+                                    onChange(preset.icon);
+                                    setIsOpen(false);
+                                }}
+                                aria-label={preset.label}
+                                title={preset.label}
+                            >
+                                <PropertyIcon icon={preset.icon} />
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="mt-2 flex items-center justify-between border-t border-border-subtle pt-2">
+                        <label className="cursor-pointer rounded-md px-2 py-1 text-[11px] font-medium text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] hover:text-[var(--color-text-primary)]">
+                            업로드
+                            <input
+                                type="file"
+                                accept="image/svg+xml,image/webp,.svg,.webp"
+                                className="hidden"
+                                onChange={(e) =>
+                                    onUpload(e.target.files?.[0], (nextIcon) => {
+                                        onChange(nextIcon);
+                                        setIsOpen(false);
+                                    })
+                                }
+                            />
+                        </label>
+                        {icon && (
+                            <button
+                                type="button"
+                                className="rounded-md px-2 py-1 text-[11px] font-medium text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] hover:text-red-500"
+                                onClick={() => {
+                                    onChange('');
+                                    setIsOpen(false);
+                                }}
+                            >
+                                제거
+                            </button>
+                        )}
+                    </div>
+                </div>,
+                document.body,
+            )}
+        </div>
+    );
+}
+
 function DiarySettingsTooltip({ tooltip }) {
     const tooltipRef = useRef(null);
     const [position, setPosition] = useState({
@@ -346,6 +591,15 @@ export default function DiarySettings({ open, onClose }) {
     const { data: properties } = useDiaryProperties();
     const { data: sections } = useDiaryPropertySections();
     const { data: layout } = useDiaryLayout();
+    const { data: weeklyViewLayout } = useDiaryViewLayout('weekly');
+    const { data: monthlyViewLayout } = useDiaryViewLayout('monthly');
+    const { data: timelineViewLayout } = useDiaryViewLayout('timeline');
+    const { data: weeklyViewSetting } = useDiaryViewSetting('weekly');
+    const { data: monthlyViewSetting } = useDiaryViewSetting('monthly');
+    const { data: propertyOptions } = useDiaryPropertyOptions();
+    const createPropertyOption = useCreateDiaryPropertyOption();
+    const updatePropertyOption = useUpdateDiaryPropertyOption();
+    const deletePropertyOption = useDeleteDiaryPropertyOption();
     const createProperty = useCreateDiaryProperty();
     const updateProperty = useUpdateDiaryProperty();
     const deleteProperty = useDeleteDiaryProperty();
@@ -354,6 +608,11 @@ export default function DiarySettings({ open, onClose }) {
     const deleteSection = useDeleteDiaryPropertySection();
     const updateSectionOrder = useUpdateDiaryPropertySectionOrder();
     const updateLayout = useUpdateDiaryLayout();
+    const updateWeeklyViewLayout = useUpdateDiaryViewLayout('weekly');
+    const updateMonthlyViewLayout = useUpdateDiaryViewLayout('monthly');
+    const updateTimelineViewLayout = useUpdateDiaryViewLayout('timeline');
+    const updateWeeklyViewSetting = useUpdateDiaryViewSetting('weekly');
+    const updateMonthlyViewSetting = useUpdateDiaryViewSetting('monthly');
 
     const [propertyDrafts, setPropertyDrafts] = useState({});
     const [sectionDrafts, setSectionDrafts] = useState({});
@@ -363,9 +622,22 @@ export default function DiarySettings({ open, onClose }) {
     const [dropIndicator, setDropIndicator] = useState(null);
     const [sectionDropIndicator, setSectionDropIndicator] = useState(null);
     const [titleTooltip, setTitleTooltip] = useState(null);
+    const [activeSettingsTab, setActiveSettingsTab] = useState('properties');
     const saveTimersRef = useRef({});
     const latestDraftsRef = useRef({});
     const tooltipTargetRef = useRef(null);
+    const [editingOptionProperty, setEditingOptionProperty] = useState(null);
+
+    const optionsByPropertyId = useMemo(() => {
+        const map = new Map();
+
+        (propertyOptions || []).forEach((option) => {
+            const propertyId = option.property_id;
+            map.set(propertyId, [...(map.get(propertyId) || []), option]);
+        });
+
+        return map;
+    }, [propertyOptions]);
 
     useEffect(() => {
         if (!open || !properties) return;
@@ -406,6 +678,12 @@ export default function DiarySettings({ open, onClose }) {
     }, [propertyDrafts]);
 
     useEffect(() => {
+        if (!open) {
+            setActiveSettingsTab('properties');
+        }
+    }, [open]);
+
+    useEffect(() => {
         return () => {
             Object.values(saveTimersRef.current).forEach((timerId) => {
                 window.clearTimeout(timerId);
@@ -419,21 +697,27 @@ export default function DiarySettings({ open, onClose }) {
         createProperty.isPending ||
         updateProperty.isPending ||
         deleteProperty.isPending ||
+        createPropertyOption.isPending ||
+        updatePropertyOption.isPending ||
+        deletePropertyOption.isPending ||
         createSection.isPending ||
         updateSection.isPending ||
         deleteSection.isPending ||
         updateSectionOrder.isPending ||
-        updateLayout.isPending;
+        updateLayout.isPending ||
+        updateWeeklyViewLayout.isPending ||
+        updateMonthlyViewLayout.isPending ||
+        updateTimelineViewLayout.isPending ||
+        updateWeeklyViewSetting.isPending ||
+        updateMonthlyViewSetting.isPending;
 
     const getOriginalProperty = (propertyId) =>
         (properties || []).find((property) => property.id === propertyId);
 
     const savePropertyDraft = (propertyId, draft) => {
-        const name = String(draft?.name || '').trim();
+        const name = String(draft?.name || '').trim() || '새 속성';
         const type = draft?.type || 'text';
         const icon = draft?.icon || '';
-
-        if (!name) return;
 
         const original = getOriginalProperty(propertyId);
 
@@ -529,6 +813,30 @@ export default function DiarySettings({ open, onClose }) {
             icon: '',
             sectionId,
         });
+    };
+
+    const handleCreatePropertyOption = async ({ propertyId, name, color, sortOrder }) => {
+        return createPropertyOption.mutateAsync({
+            propertyId,
+            name,
+            color,
+            sortOrder,
+        });
+    };
+
+    const handleUpdatePropertyOption = async ({ optionId, name, color, sortOrder }) => {
+        return updatePropertyOption.mutateAsync({
+            optionId,
+            name,
+            color,
+            sortOrder,
+        });
+    };
+
+    const handleDeletePropertyOption = async ({ optionId }) => {
+        if (!window.confirm('이 옵션을 삭제할까? 기존 다이어리 기록에서는 삭제되지 않아.')) return;
+
+        return deletePropertyOption.mutateAsync({ optionId });
     };
 
     const handleCreateSection = async (parentSectionId = null) => {
@@ -796,6 +1104,130 @@ export default function DiarySettings({ open, onClose }) {
     const getItemsBySection = (sectionId) =>
         layoutItems.filter((item) => (item.sectionId ?? null) === sectionId);
     const unclassifiedItems = getItemsBySection(null);
+    const viewLayouts = {
+        weekly: weeklyViewLayout || [],
+        monthly: monthlyViewLayout || [],
+        timeline: timelineViewLayout || [],
+    };
+    const viewSettings = {
+        weekly: weeklyViewSetting || null,
+        monthly: monthlyViewSetting || null,
+    };
+    const updateViewLayouts = {
+        weekly: updateWeeklyViewLayout,
+        monthly: updateMonthlyViewLayout,
+        timeline: updateTimelineViewLayout,
+    };
+    const updateViewSettings = {
+        weekly: updateWeeklyViewSetting,
+        monthly: updateMonthlyViewSetting,
+    };
+
+    const handleChangeViewLayout = (viewType, propertyId, field, value) => {
+        const viewItems = buildViewLayoutItems(properties || [], viewLayouts[viewType]).map((item) =>
+            item.propertyId === propertyId
+                ? {
+                    ...item,
+                    [field]: value,
+                }
+                : item,
+        );
+
+        updateViewLayouts[viewType].mutate({
+            items: viewItems.map((item) => ({
+                propertyId: item.propertyId,
+                visibility: item.visibility,
+                displayMode: item.displayMode,
+            })),
+        });
+    };
+
+    const handleChangeViewSetting = (viewType, field, value) => {
+        if (field !== 'showTitle') return;
+
+        updateViewSettings[viewType]?.mutate({
+            showTitle: value,
+        });
+    };
+
+    const renderViewSettings = (viewOption) => {
+        const viewItems = buildViewLayoutItems(properties || [], viewLayouts[viewOption.value]);
+        const canShowTitle = viewOption.value === 'weekly' || viewOption.value === 'monthly';
+
+        return (
+            <div key={viewOption.value}>
+                {canShowTitle && (
+                    <div className="grid grid-cols-[minmax(0,1fr)_112px_132px] items-center border-b border-border-subtle px-2 py-1.5 text-xs">
+                        <div className="min-w-0 break-words font-medium text-[var(--color-text-main)]">
+                            다이어리 제목
+                        </div>
+
+                        <SettingsDropdown
+                            value={viewSettings[viewOption.value]?.show_title ? 'visible' : 'hidden'}
+                            options={VIEW_VISIBILITY_OPTIONS}
+                            onChange={(value) =>
+                                handleChangeViewSetting(
+                                    viewOption.value,
+                                    'showTitle',
+                                    value === 'visible',
+                                )
+                            }
+                        />
+
+                        <div />
+                    </div>
+                )}
+
+                {viewItems.map((item) => (
+                    <div
+                        key={item.propertyId}
+                        className="grid grid-cols-[minmax(0,1fr)_112px_132px] items-center border-b border-border-subtle px-2 py-1.5 text-xs last:border-b-0"
+                    >
+                        <div className="flex min-w-0 items-center gap-2">
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md">
+                                <PropertyIcon icon={item.property?.icon} />
+                            </span>
+                            <span className="min-w-0 break-words font-medium text-[var(--color-text-main)]">
+                                {getPropertyDraftName(item.property?.name) || '속성명 없음'}
+                            </span>
+                        </div>
+
+                        <SettingsDropdown
+                            value={item.visibility}
+                            options={VIEW_VISIBILITY_OPTIONS}
+                            onChange={(value) =>
+                                handleChangeViewLayout(
+                                    viewOption.value,
+                                    item.propertyId,
+                                    'visibility',
+                                    value,
+                                )
+                            }
+                        />
+
+                        <SettingsDropdown
+                            value={item.displayMode}
+                            options={DISPLAY_MODE_OPTIONS}
+                            onChange={(value) =>
+                                handleChangeViewLayout(
+                                    viewOption.value,
+                                    item.propertyId,
+                                    'displayMode',
+                                    value,
+                                )
+                            }
+                        />
+                    </div>
+                ))}
+
+                {viewItems.length === 0 && (
+                    <p className="px-2 py-4 text-xs ui-dialog-message">
+                        아직 추가된 속성이 없어.
+                    </p>
+                )}
+            </div>
+        );
+    };
 
     const renderPropertyRow = (layoutItem) => {
         const property = layoutItem.property;
@@ -805,7 +1237,7 @@ export default function DiarySettings({ open, onClose }) {
             <div
                 key={property.id}
                 className={[
-                    "relative grid grid-cols-[28px_108px_repeat(3,minmax(0,1fr))_32px] items-center border-b border-border-subtle px-2 py-1 text-xs hover:bg-[rgba(127,127,127,0.06)]",
+                    "relative grid grid-cols-[28px_40px_repeat(3,minmax(0,1fr))_32px] items-center border-b border-border-subtle px-2 py-1 text-xs hover:bg-[rgba(127,127,127,0.06)]",
                     draggingPropertyId === property.id ? "opacity-60" : "",
                 ].join(" ")}
                 onDragOver={(e) => handleDragOverProperty(e, property.id)}
@@ -855,62 +1287,61 @@ export default function DiarySettings({ open, onClose }) {
                 </button>
 
                 <div className="flex min-w-0 items-center">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md">
-                        <PropertyIcon icon={draft.icon}/>
-                    </span>
-
-                    <label
-                        className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] hover:text-[var(--color-text-primary)]"
-                        title="아이콘 추가"
-                    >
-                        <svg
-                            viewBox="0 0 20 20"
-                            className="h-3.5 w-3.5"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            aria-hidden="true"
-                        >
-                            <path d="M10 13V4"/>
-                            <path d="M6.5 7.5 10 4l3.5 3.5"/>
-                            <path d="M4 13.5V15a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-1.5"/>
-                        </svg>
-
-                        <input
-                            type="file"
-                            accept="image/svg+xml,image/webp,.svg,.webp"
-                            className="hidden"
-                            onChange={(e) =>
-                                handleUploadIcon(
-                                    e.target.files?.[0],
-                                    (icon) =>
-                                        handleChangePropertyDraft(
-                                            property.id,
-                                            'icon',
-                                            icon,
-                                            0,
-                                        ),
-                                )
-                            }
-                        />
-                    </label>
+                    <PropertyIconPicker
+                        icon={draft.icon}
+                        onChange={(icon) =>
+                            handleChangePropertyDraft(
+                                property.id,
+                                'icon',
+                                icon,
+                                0,
+                            )
+                        }
+                        onUpload={handleUploadIcon}
+                    />
                 </div>
 
-                <input
-                    className="h-8 w-[calc(100%-16px)] min-w-0 rounded-md bg-transparent px-2 outline-none hover:bg-[rgba(127,127,127,0.08)] focus:bg-[rgba(127,127,127,0.10)]"
-                    value={draft.name}
-                    onChange={(e) =>
-                        handleChangePropertyDraft(
-                            property.id,
-                            'name',
-                            e.target.value,
-                        )
-                    }
-                    onBlur={() => flushPropertySave(property.id)}
-                    placeholder="속성명"
-                />
+                <div className="flex min-w-0 items-center gap-1 pr-2">
+                    <input
+                        className="h-8 min-w-0 flex-1 rounded-md bg-transparent px-2 outline-none hover:bg-[rgba(127,127,127,0.08)] focus:bg-[rgba(127,127,127,0.10)]"
+                        value={draft.name}
+                        onChange={(e) =>
+                            handleChangePropertyDraft(
+                                property.id,
+                                'name',
+                                e.target.value,
+                            )
+                        }
+                        onBlur={() => flushPropertySave(property.id)}
+                        placeholder="속성명"
+                        maxLength={10}
+                    />
+
+                    {['select', 'multi_select'].includes(draft.type) && (
+                        <button
+                            type="button"
+                            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] hover:text-[var(--color-text-primary)]"
+                            onClick={() => setEditingOptionProperty(property)}
+                            aria-label="옵션 관리"
+                            title="옵션 관리"
+                        >
+                            <svg
+                                viewBox="0 0 20 20"
+                                className="h-3.5 w-3.5"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden="true"
+                            >
+                                <path
+                                    d="M8.8 2.8h2.4l.4 1.8a5.8 5.8 0 0 1 1.3.5l1.6-1 1.7 1.7-1 1.6c.2.4.4.8.5 1.3l1.8.4v2.4l-1.8.4a5.8 5.8 0 0 1-.5 1.3l1 1.6-1.7 1.7-1.6-1a5.8 5.8 0 0 1-1.3.5l-.4 1.8H8.8l-.4-1.8a5.8 5.8 0 0 1-1.3-.5l-1.6 1-1.7-1.7 1-1.6a5.8 5.8 0 0 1-.5-1.3l-1.8-.4V9.1l1.8-.4c.1-.5.3-.9.5-1.3l-1-1.6 1.7-1.7 1.6 1c.4-.2.8-.4 1.3-.5l.4-1.8Z"/>
+                                <circle cx="10" cy="10" r="2.4"/>
+                            </svg>
+                        </button>
+                    )}
+                </div>
 
                 <SettingsDropdown
                     value={draft.type}
@@ -1099,59 +1530,93 @@ export default function DiarySettings({ open, onClose }) {
                 onMouseOut={handleTooltipMouseLeave}
             >
                 <div className="flex items-center justify-between border-b border-border-subtle px-5 py-3">
-                    <div>
-                        <h2 className="text-sm font-semibold ui-dialog-title">속성 편집</h2>
+                    <div className="flex flex-wrap items-center gap-1">
+                        {SETTINGS_TABS.map((tab) => (
+                            <button
+                                key={tab.value}
+                                type="button"
+                                className={[
+                                    "rounded-md px-3 py-1.5 text-xs font-semibold transition",
+                                    activeSettingsTab === tab.value
+                                        ? "bg-[rgba(127,127,127,0.10)] text-[var(--color-text-main)]"
+                                        : "text-[var(--color-text-muted)] hover:bg-[rgba(127,127,127,0.08)] hover:text-[var(--color-text-primary)]",
+                                ].join(" ")}
+                                onClick={() => setActiveSettingsTab(tab.value)}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
                     </div>
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-2 pb-4">
-                    <div
-                        className="mt-1 rounded-md border border-dashed border-border-subtle"
-                        onDragOver={(e) => {
-                            if (!draggingPropertyId) return;
-                            e.preventDefault();
-                        }}
-                        onDrop={(e) => handleDropPropertyOnSection(e, null)}
-                    >
-                        <div
-                            className={[
-                                "flex items-center justify-between border-border-subtle px-2 py-1.5 text-xs font-semibold text-[var(--color-text-muted)]",
-                                unclassifiedItems.length > 0 ? "border-b" : "",
-                            ].join(" ")}
-                        >
-                            <span>미분류</span>
-                            <div className="flex items-center gap-1">
-                                <button
-                                    type="button"
-                                    className="rounded-md px-2 py-1 text-[11px] font-medium transition hover:bg-[rgba(127,127,127,0.08)] hover:text-[var(--color-text-primary)] disabled:opacity-40"
-                                    onClick={() => handleCreateSection(null)}
-                                    disabled={createSection.isPending}
+                    {activeSettingsTab === 'properties' ? (
+                        <>
+                            <div
+                                className="mt-1 rounded-md border border-dashed border-border-subtle"
+                                onDragOver={(e) => {
+                                    if (!draggingPropertyId) return;
+                                    e.preventDefault();
+                                }}
+                                onDrop={(e) => handleDropPropertyOnSection(e, null)}
+                            >
+                                <div
+                                    className={[
+                                        "flex items-center justify-between border-border-subtle px-2 py-1.5 text-xs font-semibold text-[var(--color-text-muted)]",
+                                        unclassifiedItems.length > 0 ? "border-b" : "",
+                                    ].join(" ")}
                                 >
-                                    섹션추가
-                                </button>
-                                <button
-                                    type="button"
-                                    className="rounded-md px-2 py-1 text-[11px] font-medium transition hover:bg-[rgba(127,127,127,0.08)] hover:text-[var(--color-text-primary)] disabled:opacity-40"
-                                    onClick={() => handleCreateProperty(null)}
-                                    disabled={createProperty.isPending}
-                                >
-                                    속성추가
-                                </button>
+                                    <span>미분류</span>
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            type="button"
+                                            className="rounded-md px-2 py-1 text-[11px] font-medium transition hover:bg-[rgba(127,127,127,0.08)] hover:text-[var(--color-text-primary)] disabled:opacity-40"
+                                            onClick={() => handleCreateSection(null)}
+                                            disabled={createSection.isPending}
+                                        >
+                                            섹션추가
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="rounded-md px-2 py-1 text-[11px] font-medium transition hover:bg-[rgba(127,127,127,0.08)] hover:text-[var(--color-text-primary)] disabled:opacity-40"
+                                            onClick={() => handleCreateProperty(null)}
+                                            disabled={createProperty.isPending}
+                                        >
+                                            속성추가
+                                        </button>
+                                    </div>
+                                </div>
+                                {unclassifiedItems.map(renderPropertyRow)}
                             </div>
+
+                            {rootSections.map((section) => renderSection(section))}
+
+                            {(properties || []).length === 0 && (
+                                <p className="px-2 py-5 text-xs ui-dialog-message">
+                                    아직 추가된 속성이 없어.
+                                </p>
+                            )}
+                        </>
+                    ) : (
+                        <div className="mt-1">
+                            {renderViewSettings(
+                                VIEW_OPTIONS.find((option) => option.value === activeSettingsTab),
+                            )}
                         </div>
-                        {unclassifiedItems.map(renderPropertyRow)}
-                    </div>
-
-                    {rootSections.map((section) => renderSection(section))}
-
-                    {(properties || []).length === 0 && (
-                        <p className="px-2 py-5 text-xs ui-dialog-message">
-                            아직 추가된 속성이 없어.
-                        </p>
                     )}
                 </div>
             </div>
             <DiarySettingsTooltip tooltip={titleTooltip} />
+            {editingOptionProperty && (
+                <PropertyOptionsDialog
+                    property={editingOptionProperty}
+                    options={optionsByPropertyId.get(editingOptionProperty.id) || []}
+                    onCreate={handleCreatePropertyOption}
+                    onUpdate={handleUpdatePropertyOption}
+                    onDelete={handleDeletePropertyOption}
+                    onClose={() => setEditingOptionProperty(null)}
+                />
+            )}
         </div>
     );
 
