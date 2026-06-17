@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { PropertyIcon } from './DiaryPropertyUtils';
 import { useDiary } from './hooks/useDiary';
 import { useDeleteDiary } from './hooks/useDeleteDiary';
@@ -7,7 +8,13 @@ import { useDiaryLayout } from './hooks/useDiaryLayout';
 import { useDiaryProperties, useDiaryPropertySections } from './hooks/useDiaryProperties';
 import { useDiaryPropertyValues } from './hooks/useDiaryPropertyValues';
 import { useSaveDiary } from './hooks/useSaveDiary';
+import { useAllDocuments } from './hooks/useAllDocuments';
+import { useCategories } from './hooks/useCategories';
 import DiaryOptionSelectField from './DiaryOptionSelectField';
+import { buildInternalLink } from '../../lib/internalLinkFormat';
+import { parseInternalLinks } from '../../lib/internalLinkParser';
+import { extractSectionsFromMarkdown } from '../../lib/wikiSectionUtils';
+import { useWikiLinkTooltip, WikiLinkTooltip } from './WikiLinkTooltip';
 import {
     DEFAULT_OPTION_COLOR,
     DEFAULT_OPTION_TEXT_COLOR,
@@ -307,29 +314,459 @@ function isTextareaProperty(property) {
     return ['textarea', 'long_text', 'longText'].includes(property?.type);
 }
 
-function DiaryTextareaField({ value, onChange, onBlur, disabled }) {
-    const textareaRef = useRef(null);
+function buildDiaryLinkCandidates(allDocs = []) {
+    if (!Array.isArray(allDocs)) return [];
+
+    const result = [];
+
+    for (const doc of allDocs) {
+        if (!doc?.title || !doc?.slug) continue;
+
+        result.push({
+            type: 'doc',
+            docId: doc.id,
+            docTitle: doc.title,
+            slug: doc.slug,
+        });
+
+        const sections = extractSectionsFromMarkdown(doc.content_markdown || '');
+        for (const section of sections) {
+            result.push({
+                type: 'section',
+                docId: doc.id,
+                docTitle: doc.title,
+                slug: doc.slug,
+                sectionNumber: section.number,
+                headingText: section.text,
+                level: section.level,
+            });
+        }
+    }
+
+    return result;
+}
+
+function filterDiaryLinkCandidates(candidates = [], query = '') {
+    const q = String(query || '').trim().toLowerCase();
+    if (!q) return candidates;
+
+    return candidates.filter((item) => {
+        const title = String(item.docTitle || '').toLowerCase();
+
+        if (item.type === 'doc') {
+            return title.includes(q);
+        }
+
+        const heading = String(item.headingText || '').toLowerCase();
+        const sectionNumber = String(item.sectionNumber || '').toLowerCase();
+        return title.includes(q) || heading.includes(q) || sectionNumber.includes(q);
+    });
+}
+
+function buildDiaryInternalLink(item) {
+    if (!item) return '';
+
+    if (item.type === 'doc') {
+        return buildInternalLink({
+            docId: item.docId,
+            section: null,
+            label: item.docTitle,
+        });
+    }
+
+    return buildInternalLink({
+        docId: item.docId,
+        section: item.sectionNumber,
+        label: item.headingText,
+    });
+}
+
+function findDiaryLinkTrigger(value = '', cursor = 0) {
+    const beforeCursor = String(value || '').slice(0, cursor);
+    const start = beforeCursor.lastIndexOf('[[');
+    if (start < 0) return null;
+
+    const query = beforeCursor.slice(start + 2);
+    if (query.includes(']]') || query.includes('\n\n')) return null;
+
+    return {
+        start,
+        query,
+    };
+}
+
+function getScrollParent(element) {
+    let parent = element?.parentElement;
+
+    while (parent) {
+        const style = window.getComputedStyle(parent);
+        const overflowY = style.overflowY;
+
+        if (
+            (overflowY === 'auto' || overflowY === 'scroll') &&
+            parent.scrollHeight > parent.clientHeight
+        ) {
+            return parent;
+        }
+
+        parent = parent.parentElement;
+    }
+
+    return document.scrollingElement || document.documentElement;
+}
+
+function getDiaryInternalLinkHref(target) {
+    return target?.closest?.('a.wiki-internal-link')?.getAttribute('href') || '';
+}
+
+function DiaryInternalLinkField({
+                                    value,
+                                    onChangeValue,
+                                    onBlur,
+                                    disabled,
+                                    linkCandidates,
+                                    documents = [],
+                                    categories = [],
+                                    onNavigateLink,
+                                    multiline = false,
+                                    inputClassName,
+                                    wrapperClassName = '',
+                                }) {
+    const fieldRef = useRef(null);
+    const rootRef = useRef(null);
+    const paletteListRef = useRef(null);
+    const [linkState, setLinkState] = useState({
+        open: false,
+        start: 0,
+        query: '',
+        highlightedIndex: 0,
+    });
+    const [isFocused, setIsFocused] = useState(false);
+
+    const filteredCandidates = useMemo(
+        () => filterDiaryLinkCandidates(linkCandidates, linkState.query),
+        [linkCandidates, linkState.query],
+    );
+    const linkPreviewHtml = useMemo(() => {
+        const text = String(value || '');
+        if (!text.includes('[[')) return '';
+        return parseInternalLinks(text, documents, categories);
+    }, [categories, documents, value]);
+
+    useLayoutEffect(() => {
+        if (!multiline) return;
+
+        const field = fieldRef.current;
+        if (!field) return;
+
+        const scrollParent = getScrollParent(field);
+        const scrollTop = scrollParent?.scrollTop ?? 0;
+
+        field.style.height = 'auto';
+        field.style.height = `${field.scrollHeight}px`;
+
+        if (scrollParent) {
+            scrollParent.scrollTop = scrollTop;
+            requestAnimationFrame(() => {
+                scrollParent.scrollTop = scrollTop;
+            });
+        }
+    }, [multiline, value]);
 
     useEffect(() => {
-        const textarea = textareaRef.current;
-        if (!textarea) return;
+        if (!linkState.open) return;
 
-        textarea.style.height = 'auto';
-        textarea.style.height = `${textarea.scrollHeight}px`;
-    }, [value]);
+        setLinkState((prev) => {
+            if (filteredCandidates.length === 0 && prev.highlightedIndex === 0) return prev;
+            const nextIndex = Math.min(prev.highlightedIndex, Math.max(filteredCandidates.length - 1, 0));
+
+            if (nextIndex === prev.highlightedIndex) return prev;
+            return {
+                ...prev,
+                highlightedIndex: nextIndex,
+            };
+        });
+    }, [filteredCandidates.length, linkState.open]);
+
+    useEffect(() => {
+        if (!linkState.open) return;
+
+        const handleMouseDown = (e) => {
+            if (!rootRef.current) return;
+            if (rootRef.current.contains(e.target)) return;
+
+            setLinkState((prev) => ({
+                ...prev,
+                open: false,
+            }));
+        };
+
+        document.addEventListener('mousedown', handleMouseDown);
+        return () => document.removeEventListener('mousedown', handleMouseDown);
+    }, [linkState.open]);
+
+    useEffect(() => {
+        if (!linkState.open) return;
+        const container = paletteListRef.current;
+        if (!container) return;
+
+        const itemEl = container.children[linkState.highlightedIndex];
+        itemEl?.scrollIntoView?.({ block: 'nearest' });
+    }, [linkState.highlightedIndex, linkState.open]);
+
+    const updateLinkStateFromCursor = (nextValue, cursor) => {
+        const trigger = findDiaryLinkTrigger(nextValue, cursor);
+
+        if (!trigger) {
+            setLinkState((prev) => ({
+                ...prev,
+                open: false,
+            }));
+            return;
+        }
+
+        setLinkState((prev) => ({
+            open: true,
+            start: trigger.start,
+            query: trigger.query,
+            highlightedIndex: prev.query === trigger.query ? prev.highlightedIndex : 0,
+        }));
+    };
+
+    const applyLinkCandidate = (item) => {
+        if (!item) return;
+
+        const field = fieldRef.current;
+        const cursor = field?.selectionStart ?? String(value || '').length;
+        const trigger = findDiaryLinkTrigger(value, cursor) || linkState;
+        const insertion = buildDiaryInternalLink(item);
+        const nextValue = String(value || '').slice(0, trigger.start) + insertion + String(value || '').slice(cursor);
+        const nextCursor = trigger.start + insertion.length;
+
+        onChangeValue(nextValue);
+        setLinkState((prev) => ({
+            ...prev,
+            open: false,
+        }));
+
+        requestAnimationFrame(() => {
+            fieldRef.current?.focus();
+            fieldRef.current?.setSelectionRange?.(nextCursor, nextCursor);
+        });
+    };
+
+    const focusField = () => {
+        if (disabled) return;
+
+        setIsFocused(true);
+        requestAnimationFrame(() => {
+            const field = fieldRef.current;
+            const cursor = String(value || '').length;
+            field?.focus();
+            field?.setSelectionRange?.(cursor, cursor);
+        });
+    };
+
+    const handlePreviewMouseDown = (e) => {
+        if (e.target?.closest?.('a.wiki-internal-link')) return;
+
+        e.preventDefault();
+        focusField();
+    };
+
+    const handlePreviewClick = (e) => {
+        const link = e.target?.closest?.('a.wiki-internal-link');
+        if (!link) return;
+
+        const href = link.getAttribute('href');
+        if (!href) return;
+
+        e.preventDefault();
+        onNavigateLink?.(href);
+    };
+
+    const handleChange = (e) => {
+        const nextValue = e.target.value;
+        const cursor = e.target.selectionStart ?? nextValue.length;
+
+        onChangeValue(nextValue);
+        updateLinkStateFromCursor(nextValue, cursor);
+    };
+
+    const handleKeyDown = (e) => {
+        if (!linkState.open) return;
+
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            setLinkState((prev) => ({
+                ...prev,
+                open: false,
+            }));
+            return;
+        }
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setLinkState((prev) => ({
+                ...prev,
+                highlightedIndex:
+                    filteredCandidates.length === 0
+                        ? 0
+                        : (prev.highlightedIndex + 1) % filteredCandidates.length,
+            }));
+            return;
+        }
+
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setLinkState((prev) => ({
+                ...prev,
+                highlightedIndex:
+                    filteredCandidates.length === 0
+                        ? 0
+                        : (prev.highlightedIndex - 1 + filteredCandidates.length) % filteredCandidates.length,
+            }));
+            return;
+        }
+
+        if (e.key === 'Enter' || e.key === 'Tab') {
+            const item = filteredCandidates[linkState.highlightedIndex];
+            if (!item) return;
+
+            e.preventDefault();
+            applyLinkCandidate(item);
+        }
+    };
+
+    const handleBlur = (e) => {
+        setIsFocused(false);
+        onBlur?.(e);
+    };
+
+    const FieldTag = multiline ? 'textarea' : 'input';
+    const showLinkPreview = !!linkPreviewHtml && !isFocused && !linkState.open;
 
     return (
-        <div className="rounded-lg border border-border-subtle bg-[rgba(255,255,255,0.55)] p-1.5 shadow-sm focus-within:border-[rgba(120,145,255,0.55)] focus-within:ring-2 focus-within:ring-[rgba(120,145,255,0.18)]">
-            <textarea
-                ref={textareaRef}
-                className="block min-h-[68px] w-full resize-none overflow-hidden rounded-md bg-transparent px-1 py-1 text-xs leading-5 outline-none"
-                value={value}
-                onChange={onChange}
-                onBlur={onBlur}
-                disabled={disabled}
-                placeholder=""
-            />
+        <div ref={rootRef} className={'relative ' + wrapperClassName}>
+            {showLinkPreview ? (
+                <div
+                    className={[
+                        inputClassName,
+                        multiline ? 'whitespace-pre-wrap' : 'block overflow-hidden text-ellipsis leading-7 whitespace-pre',
+                        disabled ? '' : 'cursor-text',
+                    ].join(' ')}
+                    onMouseDown={handlePreviewMouseDown}
+                    onClick={handlePreviewClick}
+                    dangerouslySetInnerHTML={{ __html: linkPreviewHtml }}
+                />
+            ) : (
+                <FieldTag
+                    ref={fieldRef}
+                    type={multiline ? undefined : 'text'}
+                    className={inputClassName}
+                    value={value}
+                    onChange={handleChange}
+                    onKeyDown={handleKeyDown}
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={handleBlur}
+                    disabled={disabled}
+                    placeholder=""
+                />
+            )}
+
+            {linkState.open && (
+                <div
+                    className="absolute left-0 top-[calc(100%+4px)] z-[70] w-[min(360px,calc(100vw-72px))] rounded-xl border border-border-subtle bg-[var(--color-page-surface)] p-2 text-[12px] shadow-xl"
+                    onMouseDown={(e) => e.preventDefault()}
+                >
+                    <div className="mb-1 flex items-center justify-between gap-2 px-1 text-[11px] text-[var(--color-text-muted)]">
+                        <span className="font-semibold text-[var(--color-text-main)]">내부 링크 추가</span>
+                        <span className="rounded-full bg-[rgba(127,127,127,0.10)] px-2 py-[2px] text-[10px]">
+                            [[
+                        </span>
+                    </div>
+
+                    {filteredCandidates.length === 0 ? (
+                        <div className="rounded-lg bg-[rgba(127,127,127,0.06)] px-2 py-2 text-[11px] text-[var(--color-text-muted)]">
+                            일치하는 문서가 없어.
+                        </div>
+                    ) : (
+                        <div ref={paletteListRef} className="max-h-64 overflow-y-auto">
+                            {filteredCandidates.map((item, index) => (
+                                <button
+                                    key={
+                                        item.type === 'doc'
+                                            ? `doc-${item.docId}`
+                                            : `section-${item.docId}-${item.sectionNumber}-${item.headingText}`
+                                    }
+                                    type="button"
+                                    className={[
+                                        "block w-full rounded-md px-2 py-1 text-left transition",
+                                        index === linkState.highlightedIndex
+                                            ? "bg-[rgba(127,127,127,0.12)] text-[var(--color-text-main)]"
+                                            : "text-[var(--color-text-muted)] hover:bg-[rgba(127,127,127,0.08)]",
+                                    ].join(" ")}
+                                    onMouseEnter={() =>
+                                        setLinkState((prev) => ({
+                                            ...prev,
+                                            highlightedIndex: index,
+                                        }))
+                                    }
+                                    onClick={() => applyLinkCandidate(item)}
+                                >
+                                    {item.type === 'doc' ? (
+                                        <span className="block truncate font-medium">
+                                            {item.docTitle}
+                                        </span>
+                                    ) : (
+                                        <span className="block truncate font-medium">
+                                            {item.docTitle}
+                                            <span className="mx-1 opacity-40">&gt;</span>
+                                            <span className="opacity-70">{item.sectionNumber}</span>
+                                            <span className="ml-1">{item.headingText}</span>
+                                        </span>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
+    );
+}
+
+function DiaryTextField({ value, onChangeValue, onBlur, disabled, linkCandidates, documents, categories, onNavigateLink }) {
+    return (
+        <DiaryInternalLinkField
+            value={value}
+            onChangeValue={onChangeValue}
+            onBlur={onBlur}
+            disabled={disabled}
+            linkCandidates={linkCandidates}
+            documents={documents}
+            categories={categories}
+            onNavigateLink={onNavigateLink}
+            inputClassName="ui-input !h-7 !rounded-md !px-2 !py-0 text-xs"
+        />
+    );
+}
+
+function DiaryTextareaField({ value, onChangeValue, onBlur, disabled, linkCandidates, documents, categories, onNavigateLink }) {
+    return (
+        <DiaryInternalLinkField
+            value={value}
+            onChangeValue={onChangeValue}
+            onBlur={onBlur}
+            disabled={disabled}
+            linkCandidates={linkCandidates}
+            documents={documents}
+            categories={categories}
+            onNavigateLink={onNavigateLink}
+            multiline
+            wrapperClassName="rounded-lg border border-border-subtle bg-[rgba(255,255,255,0.55)] p-1.5 shadow-sm focus-within:border-[rgba(120,145,255,0.55)] focus-within:ring-2 focus-within:ring-[rgba(120,145,255,0.18)]"
+            inputClassName="block min-h-[68px] w-full resize-none overflow-hidden rounded-md bg-transparent px-1 py-1 text-xs leading-5 outline-none"
+        />
     );
 }
 
@@ -418,6 +855,7 @@ function ListActionButton({ type, onClick, disabled }) {
 }
 
 export default function DiaryEditor({ open, diaryDate, onClose }) {
+    const navigate = useNavigate();
     const { data: diary, isLoading } = useDiary(open ? diaryDate : null);
     const { data: properties } = useDiaryProperties();
     const { data: sections } = useDiaryPropertySections();
@@ -426,6 +864,8 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
         open ? diaryDate : null,
     );
     const { data: propertyOptions } = useDiaryPropertyOptions();
+    const { data: allDocs } = useAllDocuments();
+    const { data: categories } = useCategories();
     const createPropertyOption = useCreateDiaryPropertyOption();
     const saveDiary = useSaveDiary();
     const deleteDiary = useDeleteDiary();
@@ -443,8 +883,27 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
     });
     const hydratedRef = useRef(false);
     const dirtyRef = useRef(false);
+    const dialogRootRef = useRef(null);
+
+    const getDialogRoot = useCallback(() => dialogRootRef.current, []);
+    const wikiLinkTooltip = useWikiLinkTooltip(getDialogRoot, open);
+    const handleNavigateLink = useCallback((href) => {
+        if (!href) return;
+
+        onClose?.();
+        navigate(href);
+    }, [navigate, onClose]);
+    const handleInternalLinkClickCapture = useCallback((e) => {
+        const href = getDiaryInternalLinkHref(e.target);
+        if (!href) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        handleNavigateLink(href);
+    }, [handleNavigateLink]);
 
     const loading = isLoading || valuesLoading;
+    const linkCandidates = useMemo(() => buildDiaryLinkCandidates(allDocs || []), [allDocs]);
     const visibleProperties = getVisibleProperties(
         properties || [],
         layout || [],
@@ -857,11 +1316,15 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
             return (
                 <DiaryTextareaField
                     value={propertyValues[property.id] ?? ''}
-                    onChange={(e) =>
-                        handleChangePropertyValue(property.id, e.target.value)
+                    onChangeValue={(nextValue) =>
+                        handleChangePropertyValue(property.id, nextValue)
                     }
                     onBlur={flushSave}
                     disabled={loading}
+                    linkCandidates={linkCandidates}
+                    documents={allDocs || []}
+                    categories={categories || []}
+                    onNavigateLink={handleNavigateLink}
                 />
             );
         }
@@ -880,6 +1343,23 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
                     }
                     onBlur={flushSave}
                     disabled={loading}
+                />
+            );
+        }
+
+        if (property.type === 'text') {
+            return (
+                <DiaryTextField
+                    value={propertyValues[property.id] ?? ''}
+                    onChangeValue={(nextValue) =>
+                        handleChangePropertyValue(property.id, nextValue)
+                    }
+                    onBlur={flushSave}
+                    disabled={loading}
+                    linkCandidates={linkCandidates}
+                    documents={allDocs || []}
+                    categories={categories || []}
+                    onNavigateLink={handleNavigateLink}
                 />
             );
         }
@@ -965,8 +1445,11 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
 
     const dialog = (
         <div
-            className="fixed inset-0 z-40 flex items-center justify-center ui-dialog-backdrop"
+            ref={dialogRootRef}
+            className="diary-view-link-muted fixed inset-0 z-40 flex items-center justify-center ui-dialog-backdrop"
+            onMouseDownCapture={handleInternalLinkClickCapture}
             onMouseDown={handleBackdropMouseDown}
+            onClickCapture={handleInternalLinkClickCapture}
         >
             <div
                 className="ui-dialog flex max-h-[86vh] w-[min(720px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl p-4"
@@ -1066,6 +1549,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
                     </div>
                 </div>
             </div>
+            <WikiLinkTooltip tooltip={wikiLinkTooltip} />
         </div>
     );
 

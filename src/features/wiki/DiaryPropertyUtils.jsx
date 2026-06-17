@@ -118,11 +118,13 @@ export function PropertyIcon({ icon }) {
 
     if (isImageIcon(icon)) {
         return (
-            <img
-                src={String(icon || '')}
-                alt=""
-                className="h-[18px] w-[18px] object-contain"
-            />
+            <span className="inline-flex h-[18px] w-[18px] items-center justify-center">
+                <img
+                    src={String(icon || '')}
+                    alt=""
+                    className="h-[15px] w-[15px] object-contain"
+                />
+            </span>
         );
     }
 

@@ -121,7 +121,7 @@ function buildViewLayoutItems(properties = [], viewLayout = []) {
                 property,
                 visibility: layoutItem?.visibility || 'hidden',
                 displayMode: layoutItem?.displayMode || 'icon_name',
-                sortOrder: layoutItem ? layoutItem.sortOrder : 10000 + (property.sort_order ?? index),
+                sortOrder: property.sort_order ?? index,
             };
         })
         .sort((a, b) => a.sortOrder - b.sortOrder);

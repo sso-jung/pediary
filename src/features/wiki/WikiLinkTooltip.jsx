@@ -83,20 +83,6 @@ export function useWikiLinkTooltip(getRoot, enabled = true) {
                 });
             };
 
-            const moveTooltip = (e) => {
-                const el = prepareTooltipElement(e.target, root);
-                if (!el) return;
-
-                const text = getTooltipText(el);
-                if (!text) return;
-
-                setTooltip({
-                    text,
-                    top: e.clientY - 12,
-                    left: e.clientX,
-                });
-            };
-
             const hideTooltip = (e) => {
                 const related = e.relatedTarget;
                 if (related && prepareTooltipElement(related, root)) return;
@@ -104,12 +90,10 @@ export function useWikiLinkTooltip(getRoot, enabled = true) {
             };
 
             root.addEventListener('mouseover', showTooltip, true);
-            root.addEventListener('mousemove', moveTooltip, true);
             root.addEventListener('mouseout', hideTooltip, true);
 
             cleanup = () => {
                 root.removeEventListener('mouseover', showTooltip, true);
-                root.removeEventListener('mousemove', moveTooltip, true);
                 root.removeEventListener('mouseout', hideTooltip, true);
                 restoreNativeTitles(root);
             };

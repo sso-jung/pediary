@@ -739,7 +739,8 @@
 
 .toastui-editor-contents .wiki-internal-link-token,
 .toastui-editor-defaultUI .ProseMirror .wiki-internal-link-token,
-.ProseMirror .wiki-internal-link-token {
+.ProseMirror .wiki-internal-link-token,
+.wiki-internal-link {
     color: #0ea5e9 !important;
     font-weight: 700 !important;
     text-decoration: none !important;
@@ -755,8 +756,20 @@
 
 .toastui-editor-contents .wiki-internal-link-token:hover,
 .toastui-editor-defaultUI .ProseMirror .wiki-internal-link-token:hover,
-.ProseMirror .wiki-internal-link-token:hover {
+.ProseMirror .wiki-internal-link-token:hover,
+.wiki-internal-link:hover {
     background-color: color-mix(in srgb, #0ea5e9 12%, transparent);
+}
+
+.diary-calendar-link-weekly .wiki-internal-link {
+    color: #2471d7 !important;
+    font-weight: 500 !important;
+}
+
+.diary-calendar-link-monthly .wiki-internal-link,
+.diary-view-link-muted .wiki-internal-link {
+    color: #2471d7 !important;
+    font-weight: 600 !important;
 }
 
 /** 툴팁 **/

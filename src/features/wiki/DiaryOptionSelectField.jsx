@@ -27,6 +27,7 @@ export default function DiaryOptionSelectField({
     const inputRef = useRef(null);
     const [keyword, setKeyword] = useState('');
     const [isOpen, setIsOpen] = useState(false);
+    const [highlightedIndex, setHighlightedIndex] = useState(-1);
 
     const selectedOptions = useMemo(() => {
         const optionMetaMap = buildOptionMetaMap(options || []);
@@ -70,6 +71,17 @@ export default function DiaryOptionSelectField({
     const canCreate = keyword.trim() && !hasExactOption;
 
     useEffect(() => {
+        if (!isOpen || filteredOptions.length === 0) {
+            setHighlightedIndex(-1);
+            return;
+        }
+
+        setHighlightedIndex((prev) =>
+            prev >= filteredOptions.length ? filteredOptions.length - 1 : prev,
+        );
+    }, [filteredOptions.length, isOpen]);
+
+    useEffect(() => {
         if (!isOpen) return;
 
         const handleMouseDown = (e) => {
@@ -80,8 +92,8 @@ export default function DiaryOptionSelectField({
             onBlur?.();
         };
 
-        document.addEventListener('mousedown', handleMouseDown);
-        return () => document.removeEventListener('mousedown', handleMouseDown);
+        document.addEventListener('mousedown', handleMouseDown, true);
+        return () => document.removeEventListener('mousedown', handleMouseDown, true);
     }, [isOpen, onBlur]);
 
     const selectOption = (option) => {
@@ -92,6 +104,7 @@ export default function DiaryOptionSelectField({
         if (!multiple) {
             onChange(nextOption);
             setKeyword('');
+            setHighlightedIndex(-1);
             setIsOpen(false);
             onBlur?.();
             return;
@@ -106,6 +119,7 @@ export default function DiaryOptionSelectField({
         }
 
         setKeyword('');
+        setHighlightedIndex(-1);
         setIsOpen(true);
         window.setTimeout(() => inputRef.current?.focus(), 0);
     };
@@ -148,23 +162,58 @@ export default function DiaryOptionSelectField({
                     value={keyword}
                     onChange={(e) => {
                         setKeyword(e.target.value);
+                        setHighlightedIndex(-1);
                         setIsOpen(true);
                     }}
                     onFocus={() => setIsOpen(true)}
                     onKeyDown={async (e) => {
+                        if (e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            setIsOpen(true);
+                            setHighlightedIndex((prev) => {
+                                if (filteredOptions.length === 0) return -1;
+                                if (prev < 0) return 0;
+                                return (prev + 1) % filteredOptions.length;
+                            });
+                            return;
+                        }
+
+                        if (e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            setIsOpen(true);
+                            setHighlightedIndex((prev) => {
+                                if (filteredOptions.length === 0) return -1;
+                                if (prev < 0) return filteredOptions.length - 1;
+                                return (prev - 1 + filteredOptions.length) % filteredOptions.length;
+                            });
+                            return;
+                        }
+
+                        if (e.key === 'Tab' && isOpen && filteredOptions.length > 0) {
+                            e.preventDefault();
+                            selectOption(filteredOptions[highlightedIndex >= 0 ? highlightedIndex : 0]);
+                            return;
+                        }
+
                         if (e.key !== 'Enter') return;
 
                         e.preventDefault();
 
+                        const highlightedOption =
+                            isOpen && highlightedIndex >= 0
+                                ? filteredOptions[highlightedIndex]
+                                : null;
+
+                        if (highlightedOption) {
+                            selectOption(highlightedOption);
+                            return;
+                        }
+
                         const name = keyword.trim();
                         if (!name) return;
 
-                        const exact = (options || []).find((option) =>
-                            sameOptionName(option.name, name),
-                        );
-
-                        if (exact) {
-                            selectOption(exact);
+                        if (exactOption) {
+                            selectOption(exactOption);
                             return;
                         }
 
@@ -194,12 +243,18 @@ export default function DiaryOptionSelectField({
                         color: 'var(--color-text-main)',
                     }}
                 >
-                    {filteredOptions.map((option) => (
+                    {filteredOptions.map((option, index) => (
                         <button
                             key={option.id ?? option.name}
                             type="button"
-                            className="flex w-full items-center gap-2 px-2 py-1.5 text-left transition hover:bg-[rgba(127,127,127,0.08)]"
+                            className={[
+                                "flex w-full items-center gap-2 px-2 py-1.5 text-left transition",
+                                index === highlightedIndex
+                                    ? "bg-[rgba(127,127,127,0.10)]"
+                                    : "hover:bg-[rgba(127,127,127,0.08)]",
+                            ].join(" ")}
                             onMouseDown={(e) => e.preventDefault()}
+                            onMouseEnter={() => setHighlightedIndex(index)}
                             onClick={() => selectOption(option)}
                         >
                             <span

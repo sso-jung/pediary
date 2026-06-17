@@ -1,5 +1,6 @@
 // src/features/wiki/ActivityCalendar.jsx
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import DiaryEditor from './DiaryEditor';
 import DiarySettings from './DiarySettings';
 import { PropertyIcon } from './DiaryPropertyUtils';
@@ -7,6 +8,8 @@ import { useDiariesByDateRange } from './hooks/useDiariesByDateRange';
 import { useDiaryProperties } from './hooks/useDiaryProperties';
 import { useDiaryViewLayout, useDiaryViewSetting } from './hooks/useDiaryViewLayout';
 import { useHolidays } from './hooks/useHolidays';
+import { useAllDocuments } from './hooks/useAllDocuments';
+import { useCategories } from './hooks/useCategories';
 import OptionBadge from './OptionBadge';
 import {
     buildOptionMetaMap,
@@ -15,6 +18,8 @@ import {
     normalizeOptionValues,
 } from './DiarySelectUtils';
 import { useDiaryPropertyOptions } from './hooks/useDiaryPropertyOptions';
+import { parseInternalLinks } from '../../lib/internalLinkParser';
+import { useWikiLinkTooltip, WikiLinkTooltip } from './WikiLinkTooltip';
 
 const VIEW_LABEL = {
     weekly: 'WEEKLY',
@@ -46,6 +51,25 @@ function getNextDateKey(dateKey) {
 function getPropertyDisplayName(name) {
     const displayName = String(name || '').trim();
     return displayName === '새 속성' ? '' : displayName;
+}
+
+function LinkedDiaryText({ text, documents = [], categories = [] }) {
+    const value = String(text ?? '');
+    const html = value.includes('[[')
+        ? parseInternalLinks(value, documents, categories)
+        : value;
+
+    if (!value.includes('[[')) return <>{value}</>;
+
+    return <span dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+function getInternalLinkHref(target) {
+    return target?.closest?.('a.wiki-internal-link')?.getAttribute('href') || '';
+}
+
+function isInternalLinkClick(e) {
+    return !!getInternalLinkHref(e.target);
 }
 
 function getPropertyValueText(property, value) {
@@ -156,7 +180,7 @@ function buildViewItems(properties = [], viewLayout = []) {
                 propertyId: property.id,
                 visibility: layoutItem?.visibility || 'hidden',
                 displayMode: layoutItem?.displayMode || 'icon_name',
-                sortOrder: layoutItem ? layoutItem.sortOrder : 10000 + (property.sort_order ?? index),
+                sortOrder: property.sort_order ?? index,
             };
         })
         .filter((item) => item.visibility === 'visible')
@@ -178,6 +202,8 @@ function renderDiaryProperties(
     showTitle = false,
     viewType = 'monthly',
     optionMapByPropertyId = new Map(),
+    documents = [],
+    categories = [],
     className = '',
 ) {
     if (!diary || (viewItems.length === 0 && !showTitle)) return null;
@@ -198,7 +224,7 @@ function renderDiaryProperties(
 
     const isWeekly = viewType === 'weekly';
 
-    const wrapperGapClass = isWeekly ? 'space-y-1.5' : 'space-y-[1px]';
+    const wrapperGapClass = isWeekly ? 'space-y-2' : 'space-y-[1px]';
     const propertyLineClass = isWeekly ? 'leading-[1.45]' : 'leading-[1.25]';
 
     const contentTextClass = '[color:color-mix(in_srgb,var(--color-text-main)_74%,var(--color-text-muted))]';
@@ -213,7 +239,13 @@ function renderDiaryProperties(
     const listItemGapClass = isWeekly ? 'gap-1' : 'gap-1';
 
     return (
-        <div className={[wrapperGapClass, className].join(" ")}>
+        <div
+            className={[
+                wrapperGapClass,
+                isWeekly ? 'diary-calendar-link-weekly' : 'diary-calendar-link-monthly',
+                className,
+            ].join(" ")}
+        >
             {showTitle && diary.title && (
                 isWeekly ? (
                     <div className="mb-3 border-b border-border-subtle pb-2">
@@ -238,12 +270,15 @@ function renderDiaryProperties(
                     </p>
                 )
             )}
-            {rows.map((item) => {
+            {rows.map((item, index) => {
                 const name = getPropertyDisplayName(item.property?.name);
                 const showIcon = ['icon_name', 'icon'].includes(item.displayMode);
                 const showName = ['icon_name', 'name'].includes(item.displayMode);
                 const isListProperty = ['check_list', 'number_list'].includes(item.property?.type);
                 const isOptionProperty = ['select', 'multi_select'].includes(item.property?.type);
+                const prevSectionId = rows[index - 1]?.property?.section_id ?? null;
+                const currentSectionId = item.property?.section_id ?? null;
+                const hasSectionSeparator = index > 0 && prevSectionId !== currentSectionId;
 
                 const propertyType = item.property?.type;
                 const isTextProperty = blockTextTypes.includes(propertyType);
@@ -276,7 +311,12 @@ function renderDiaryProperties(
                             'min-w-0 break-words text-[var(--color-text-muted)]',
                             propertyTextClass,
                             propertyLineClass,
-                            !isWeekly && isOptionProperty ? 'pb-[2px]' : '',
+                            hasSectionSeparator
+                                ? isWeekly
+                                    ? 'border-t border-dashed border-[rgba(82,154,246,0.42)] pt-2'
+                                    : 'border-t border-dashed border-[rgba(82,154,246,0.22)] pt-1'
+                                : '',
+                            !isWeekly && isOptionProperty ? 'pb-1' : '',
                         ].join(' ')}
                     >
                         <div className="flex min-w-0 items-start gap-[3px]">
@@ -302,7 +342,8 @@ function renderDiaryProperties(
                                     <span
                                         className={[
                                             showName && name ? 'ml-1.5' : '',
-                                            'inline-flex flex-wrap items-center gap-[3px] align-middle',
+                                            'inline-flex flex-wrap items-center align-middle',
+                                            isWeekly ? 'gap-x-1 gap-y-1.5' : 'gap-[3px]',
                                         ].join(' ')}
                                     >
                                     {item.lines.map((option, index) => (
@@ -323,7 +364,11 @@ function renderDiaryProperties(
                                             textContentClass,
                                         ].join(' ')}
                                     >
-                                            {item.lines[0]}
+                                            <LinkedDiaryText
+                                                text={item.lines[0]}
+                                                documents={documents}
+                                                categories={categories}
+                                            />
                                         </span>
                                 )}
                                 </span>
@@ -332,13 +377,17 @@ function renderDiaryProperties(
                         {shouldRenderTextAsBlock && (
                             <div
                                 className={[
-                                    'mt-[1px] min-w-0 break-words',
+                                    'mt-[3px] min-w-0 break-words',
                                     blockTextIndentClass,
                                     contentTextClass,
                                     textContentClass,
                                 ].join(' ')}
                             >
-                                {item.lines[0]}
+                                <LinkedDiaryText
+                                    text={item.lines[0]}
+                                    documents={documents}
+                                    categories={categories}
+                                />
                             </div>
                         )}
 
@@ -401,12 +450,16 @@ function renderDiaryProperties(
                                                 'min-w-0 break-words',
                                                 contentTextClass,
                                                 item.property?.type === 'check_list' && line.checked === false
-                                                    ? 'rounded bg-rose-50 px-1 py-[1px]'
+                                                    ? 'rounded bg-red-100 px-1 py-[1px]'
                                                     : '',
                                                 isWeekly ? '' : 'mt-[2px]',
                                             ].join(' ')}
                                         >
-                                            {line.text ?? line}
+                                            <LinkedDiaryText
+                                                text={line.text ?? line}
+                                                documents={documents}
+                                                categories={categories}
+                                            />
                                         </span>
                                     </div>
                                 ))}
@@ -499,6 +552,7 @@ function CalendarDropdown({ value, label, options, onChange, className = '' }) {
 }
 
 export default function ActivityCalendar() {
+    const navigate = useNavigate();
     const today = new Date();
     const [year, setYear] = useState(today.getFullYear());
     const [month, setMonth] = useState(today.getMonth() + 1); // 1~12
@@ -513,6 +567,19 @@ export default function ActivityCalendar() {
     const { data: viewLayout } = useDiaryViewLayout(calendarView);
     const { data: viewSetting } = useDiaryViewSetting(calendarView);
     const { data: propertyOptions } = useDiaryPropertyOptions();
+    const { data: allDocs } = useAllDocuments();
+    const { data: categories } = useCategories();
+    const rootRef = useRef(null);
+    const getRoot = useCallback(() => rootRef.current, []);
+    const wikiLinkTooltip = useWikiLinkTooltip(getRoot, true);
+    const handleInternalLinkClickCapture = useCallback((e) => {
+        const href = getInternalLinkHref(e.target);
+        if (!href) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+        navigate(href);
+    }, [navigate]);
 
     const optionMapByPropertyId = useMemo(() => {
         const grouped = new Map();
@@ -661,7 +728,12 @@ export default function ActivityCalendar() {
     const monthOptions = Array.from({ length: 12 }).map((_, i) => i + 1);
 
     return (
-        <div className="h-full min-h-0 text-xs">
+        <div
+            ref={rootRef}
+            className="h-full min-h-0 text-xs"
+            onMouseDownCapture={handleInternalLinkClickCapture}
+            onClickCapture={handleInternalLinkClickCapture}
+        >
             <div className="flex h-full min-h-0 flex-col">
                 <div className="shrink-0 border-b border-border-subtle pb-3">
                     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -945,7 +1017,10 @@ export default function ActivityCalendar() {
                                                 <button
                                                     type="button"
                                                     key={`${wi}-${di}`}
-                                                    onClick={() => handleOpenDiary(key)}
+                                                    onClick={(e) => {
+                                                        if (isInternalLinkClick(e)) return;
+                                                        handleOpenDiary(key);
+                                                    }}
                                                     className="flex h-[146px] flex-col overflow-hidden border-b border-r border-border-subtle px-2 py-1.5 text-left transition hover:bg-[var(--color-panel-bg)]"
                                                 >
                                                     <div className="flex items-start justify-end">
@@ -961,7 +1036,7 @@ export default function ActivityCalendar() {
                                                     </div>
                                                     {diary && (
                                                         <div className="mt-2 min-h-0 min-w-0 flex-1 overflow-y-auto pr-1">
-                                                            {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'monthly', optionMapByPropertyId)}
+                                                            {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'monthly', optionMapByPropertyId, allDocs || [], categories || [])}
                                                         </div>
                                                     )}
                                                 </button>
@@ -979,7 +1054,10 @@ export default function ActivityCalendar() {
                                             <button
                                                 type="button"
                                                 key={key}
-                                                onClick={() => handleOpenDiary(key)}
+                                                onClick={(e) => {
+                                                    if (isInternalLinkClick(e)) return;
+                                                    handleOpenDiary(key);
+                                                }}
                                                 className="flex min-h-[34rem] flex-col border-b border-r border-border-subtle px-2 py-2 text-left transition hover:bg-[var(--color-panel-bg)]"
                                             >
                                                 <div className="flex items-start justify-end">
@@ -995,7 +1073,7 @@ export default function ActivityCalendar() {
                                                 </div>
                                                 {diary && (
                                                     <div className="mt-3 min-w-0">
-                                                        {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'weekly', optionMapByPropertyId)}
+                                                        {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'weekly', optionMapByPropertyId, allDocs || [], categories || [])}
                                                     </div>
                                                 )}
                                             </button>
@@ -1016,6 +1094,7 @@ export default function ActivityCalendar() {
                 open={isSettingsOpen}
                 onClose={() => setIsSettingsOpen(false)}
             />
+            <WikiLinkTooltip tooltip={wikiLinkTooltip} />
         </div>
     );
 }
