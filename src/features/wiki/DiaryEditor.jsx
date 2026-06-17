@@ -10,6 +10,7 @@ import { useSaveDiary } from './hooks/useSaveDiary';
 import DiaryOptionSelectField from './DiaryOptionSelectField';
 import {
     DEFAULT_OPTION_COLOR,
+    DEFAULT_OPTION_TEXT_COLOR,
     getOptionName,
     makeOptionValue,
     normalizeOptionValue,

@@ -815,20 +815,22 @@ export default function DiarySettings({ open, onClose }) {
         });
     };
 
-    const handleCreatePropertyOption = async ({ propertyId, name, color, sortOrder }) => {
+    const handleCreatePropertyOption = async ({ propertyId, name, color, textColor, sortOrder }) => {
         return createPropertyOption.mutateAsync({
             propertyId,
             name,
             color,
+            textColor,
             sortOrder,
         });
     };
 
-    const handleUpdatePropertyOption = async ({ optionId, name, color, sortOrder }) => {
+    const handleUpdatePropertyOption = async ({ optionId, name, color, textColor, sortOrder }) => {
         return updatePropertyOption.mutateAsync({
             optionId,
             name,
             color,
+            textColor,
             sortOrder,
         });
     };

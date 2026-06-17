@@ -1,6 +1,54 @@
 export const DEFAULT_OPTION_COLOR = '#e5e7eb';
 export const DEFAULT_OPTION_TEXT_COLOR = '#374151';
 
+export const OPTION_COLOR_PRESETS = [
+    { color: '#8c8c8c', textColor: '#fafafa' },
+    { color: '#d9d9d9', textColor: '#26272a' },
+    { color: '#e5e7eb', textColor: '#2f333a' },
+    { color: '#f1f1f1', textColor: '#2f333a' },
+    { color: '#fee2e2', textColor: '#6c0505' },
+    { color: '#fce7f3', textColor: '#800636' },
+    { color: '#fca5a5', textColor: '#670606' },
+    { color: '#d37878', textColor: '#fffafa' },
+    { color: '#9f0000', textColor: '#ffecec' },
+    { color: '#b6587c', textColor: '#fff9fc' },
+    { color: '#ffedd5', textColor: '#9a3412' },
+    { color: '#fdba74', textColor: '#6c1f05' },
+    { color: '#e0795a', textColor: '#fff9f7' },
+    { color: '#c43600', textColor: '#fff2e6' },
+    { color: '#fef3c7', textColor: '#643705' },
+    { color: '#fde68a', textColor: '#673305' },
+    { color: '#b78d5c', textColor: '#ffffff' },
+    { color: '#724b14', textColor: '#fffbf6' },
+    { color: '#dff1e4', textColor: '#095225' },
+    { color: '#94e8b2', textColor: '#055e28' },
+    { color: '#cff1eb', textColor: '#035751' },
+    { color: '#63beb6', textColor: '#f6fffa' },
+    { color: '#409b66', textColor: '#fafffb' },
+    { color: '#29a296', textColor: '#f6fffa' },
+    { color: '#006426', textColor: '#ebfff2' },
+    { color: '#dbeafe', textColor: '#092683' },
+    { color: '#93c5fd', textColor: '#072473' },
+    { color: '#e0e7ff', textColor: '#1a1486' },
+    { color: '#465fa6', textColor: '#f3f8ff' },
+    { color: '#002596', textColor: '#e9f5ff' },
+    { color: '#58519b', textColor: '#f8f9ff' },
+    { color: '#ede9fe', textColor: '#421091' },
+    { color: '#c4b5fd', textColor: '#35087a' },
+    { color: '#825fb2', textColor: '#f8f6ff' },
+    { color: '#490c98', textColor: '#f0eeff' },
+    { color: '#ffffff', textColor: '#374151' },
+    { color: '#374151', textColor: '#ffffff' },
+];
+
+function getOptionPresetTextColor(color = DEFAULT_OPTION_COLOR) {
+    return OPTION_COLOR_PRESETS.find((preset) => preset.color === color)?.textColor;
+}
+
+export function getOptionTextColor(color = DEFAULT_OPTION_COLOR) {
+    return getOptionPresetTextColor(color) || DEFAULT_OPTION_TEXT_COLOR;
+}
+
 export function normalizeOptionValue(value) {
     if (!value) return null;
 
@@ -18,15 +66,18 @@ export function normalizeOptionValue(value) {
     const name = String(value.name || value.option || '').trim();
     if (!name) return null;
 
+    const color = value.color || value.backgroundColor || DEFAULT_OPTION_COLOR;
+    const textColor =
+        value.textColor ||
+        value.text_color ||
+        value.fontColor ||
+        value.font_color ||
+        DEFAULT_OPTION_TEXT_COLOR;
+
     return {
         name,
-        color: value.color || value.backgroundColor || DEFAULT_OPTION_COLOR,
-        textColor:
-            value.textColor ||
-            value.text_color ||
-            value.fontColor ||
-            value.font_color ||
-            DEFAULT_OPTION_TEXT_COLOR,
+        color,
+        textColor: getOptionPresetTextColor(color) || textColor,
     };
 }
 
@@ -45,15 +96,18 @@ export function getOptionName(value) {
 export function makeOptionValue(option) {
     const name = String(option?.name || '').trim();
 
+    const color = option?.color || option?.backgroundColor || DEFAULT_OPTION_COLOR;
+    const textColor =
+        option?.textColor ||
+        option?.text_color ||
+        option?.fontColor ||
+        option?.font_color ||
+        DEFAULT_OPTION_TEXT_COLOR;
+
     return {
         name,
-        color: option?.color || option?.backgroundColor || DEFAULT_OPTION_COLOR,
-        textColor:
-            option?.textColor ||
-            option?.text_color ||
-            option?.fontColor ||
-            option?.font_color ||
-            DEFAULT_OPTION_TEXT_COLOR,
+        color,
+        textColor: getOptionPresetTextColor(color) || textColor,
     };
 }
 

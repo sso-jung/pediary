@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import OptionBadge from './OptionBadge';
 import {
-    DEFAULT_OPTION_COLOR, DEFAULT_OPTION_TEXT_COLOR,
+    DEFAULT_OPTION_COLOR,
+    buildOptionMetaMap,
+    getOptionTextColor,
     makeOptionValue,
+    mergeLatestOptionMeta,
     normalizeOptionValue,
     normalizeOptionValues,
 } from './DiarySelectUtils';
@@ -26,11 +29,17 @@ export default function DiaryOptionSelectField({
     const [isOpen, setIsOpen] = useState(false);
 
     const selectedOptions = useMemo(() => {
-        if (multiple) return normalizeOptionValues(value);
+        const optionMetaMap = buildOptionMetaMap(options || []);
 
-        const option = normalizeOptionValue(value);
+        if (multiple) {
+            return normalizeOptionValues(value)
+                .map((option) => mergeLatestOptionMeta(option, optionMetaMap))
+                .filter(Boolean);
+        }
+
+        const option = mergeLatestOptionMeta(value, optionMetaMap);
         return option ? [option] : [];
-    }, [multiple, value]);
+    }, [multiple, options, value]);
 
     const filteredOptions = useMemo(() => {
         const text = keyword.trim().toLowerCase();
@@ -162,13 +171,13 @@ export default function DiaryOptionSelectField({
                         const created = await onCreateOption?.({
                             name,
                             color: DEFAULT_OPTION_COLOR,
-                            textColor: DEFAULT_OPTION_TEXT_COLOR,
+                            textColor: getOptionTextColor(DEFAULT_OPTION_COLOR),
                         });
 
                         selectOption(created || {
                             name,
                             color: DEFAULT_OPTION_COLOR,
-                            textColor: DEFAULT_OPTION_TEXT_COLOR,
+                            textColor: getOptionTextColor(DEFAULT_OPTION_COLOR),
                         });
                     }}
                     disabled={disabled}

@@ -201,10 +201,9 @@ function renderDiaryProperties(
     const wrapperGapClass = isWeekly ? 'space-y-1.5' : 'space-y-[1px]';
     const propertyLineClass = isWeekly ? 'leading-[1.45]' : 'leading-[1.25]';
 
-    const listWrapperClass = isWeekly ? 'mt-1 space-y-1' : 'mt-0 space-y-0';
     const contentTextClass = '[color:color-mix(in_srgb,var(--color-text-main)_74%,var(--color-text-muted))]';
     const blockTextTypes = ['textarea', 'long_text', 'text_area'];
-    const titleTextClass = isWeekly ? 'mb-2 text-[14px]' : 'text-[11px]';
+    const titleTextClass = isWeekly ? 'text-[14px]' : 'text-[11px]';
     const propertyTextClass = isWeekly ? 'text-[12px]' : 'text-[11px]';
 
     const iconBoxClass = isWeekly
@@ -216,14 +215,28 @@ function renderDiaryProperties(
     return (
         <div className={[wrapperGapClass, className].join(" ")}>
             {showTitle && diary.title && (
-                <p
-                    className={[
-                        "break-words font-semibold leading-snug text-[var(--color-text-main)]",
-                        titleTextClass,
-                    ].join(" ")}
-                >
-                    {diary.title}
-                </p>
+                isWeekly ? (
+                    <div className="mb-3 border-b border-border-subtle pb-2">
+                        <p
+                            className={[
+                                "flex items-center line-clamp-2 min-h-[38px] break-words font-semibold leading-snug text-[var(--color-text-main)]",
+                                titleTextClass,
+                            ].join(" ")}
+                            title={diary.title}
+                        >
+                            {diary.title}
+                        </p>
+                    </div>
+                ) : (
+                    <p
+                        className={[
+                            "break-words font-semibold leading-snug text-[var(--color-text-main)]",
+                            titleTextClass,
+                        ].join(" ")}
+                    >
+                        {diary.title}
+                    </p>
+                )
             )}
             {rows.map((item) => {
                 const name = getPropertyDisplayName(item.property?.name);
@@ -236,6 +249,11 @@ function renderDiaryProperties(
                 const isTextProperty = blockTextTypes.includes(propertyType);
                 const hasPropertyHeader = (showIcon && item.property?.icon) || (showName && name);
                 const shouldRenderTextAsBlock = isTextProperty && hasPropertyHeader;
+                const textContentClass = isTextProperty
+                    ? isWeekly
+                        ? 'leading-[1.65] text-justify'
+                        : 'leading-[1.55] text-justify'
+                    : '';
 
                 const blockTextIndentClass =
                     showIcon && item.property?.icon
@@ -243,6 +261,13 @@ function renderDiaryProperties(
                             ? 'pl-[2px]'
                             : 'pl-[2px]'
                         : '';
+                const listWrapperClass = isWeekly
+                    ? hasPropertyHeader
+                        ? 'mt-1 space-y-1'
+                        : 'mt-0 space-y-1'
+                    : hasPropertyHeader
+                        ? 'mt-0.5 space-y-0'
+                        : 'mt-0 space-y-0';
 
                 return (
                     <div
@@ -251,6 +276,7 @@ function renderDiaryProperties(
                             'min-w-0 break-words text-[var(--color-text-muted)]',
                             propertyTextClass,
                             propertyLineClass,
+                            !isWeekly && isOptionProperty ? 'pb-[2px]' : '',
                         ].join(' ')}
                     >
                         <div className="flex min-w-0 items-start gap-[3px]">
@@ -260,7 +286,12 @@ function renderDiaryProperties(
                                 </span>
                             )}
 
-                            <span className="min-w-0 break-words mt-[2px]">
+                            <span
+                                className={[
+                                    'min-w-0 break-words',
+                                    isOptionProperty ? 'mt-[1px]' : 'mt-[2px]',
+                                ].join(' ')}
+                            >
                                 {showName && name && (
                                     <span className="font-semibold text-[var(--color-text-main)]">
                                         {name}
@@ -289,6 +320,7 @@ function renderDiaryProperties(
                                         className={[
                                             showName && name ? 'ml-1.5' : '',
                                             contentTextClass,
+                                            textContentClass,
                                         ].join(' ')}
                                     >
                                             {item.lines[0]}
@@ -303,6 +335,7 @@ function renderDiaryProperties(
                                     'mt-[1px] min-w-0 break-words',
                                     blockTextIndentClass,
                                     contentTextClass,
+                                    textContentClass,
                                 ].join(' ')}
                             >
                                 {item.lines[0]}
@@ -365,10 +398,11 @@ function renderDiaryProperties(
                                         )}
                                         <span
                                             className={[
-                                                'min-w-0 break-words',contentTextClass,
+                                                'min-w-0 break-words',
+                                                contentTextClass,
                                                 item.property?.type === 'check_list' && line.checked === false
-                                                    ? 'bg-red-100'
-                                                    : contentTextClass,
+                                                    ? 'rounded bg-rose-50 px-1 py-[1px]'
+                                                    : '',
                                                 isWeekly ? '' : 'mt-[2px]',
                                             ].join(' ')}
                                         >
