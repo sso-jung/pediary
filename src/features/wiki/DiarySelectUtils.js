@@ -50,6 +50,7 @@ export const OPTION_COLOR_PRESETS = [
     { color: '#545865', textColor: '#ffc1c1' },
     { color: '#012d22', textColor: '#b5ffe5' },
     { color: '#01022d', textColor: '#d0faff' },
+    { color: '#000262', textColor: '#ffe1e1' },
     { color: '#e8e8e8', textColor: '#4d0000' },
 ];
 
