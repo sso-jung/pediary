@@ -1,5 +1,6 @@
 // src/features/wiki/ActivityCalendar.jsx
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import DiaryEditor from './DiaryEditor';
 import DiarySettings from './DiarySettings';
@@ -20,6 +21,7 @@ import {
 import { useDiaryPropertyOptions } from './hooks/useDiaryPropertyOptions';
 import { parseInternalLinks } from '../../lib/internalLinkParser';
 import { useWikiLinkTooltip, WikiLinkTooltip } from './WikiLinkTooltip';
+import { useAuthStore } from '../../store/authStore';
 
 const VIEW_LABEL = {
     weekly: 'WEEKLY',
@@ -28,6 +30,9 @@ const VIEW_LABEL = {
 };
 
 const TIMELINE_GROUP_GAP_DAYS = 31;
+const TIMELINE_LANE_GAP = 38;
+const CALENDAR_VIEW_STORAGE_KEY_PREFIX = 'pediary.diaryCalendar.viewState';
+const CALENDAR_VIEWS = ['weekly', 'monthly', 'timeline'];
 
 function addDays(date, amount) {
     const next = new Date(date);
@@ -64,6 +69,18 @@ function LinkedDiaryText({ text, documents = [], categories = [] }) {
     if (!value.includes('[[')) return <>{value}</>;
 
     return <span dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+function hasInternalLinkValue(value) {
+    if (!value) return false;
+    if (typeof value === 'string') return value.includes('[[');
+    if (Array.isArray(value)) return value.some(hasInternalLinkValue);
+    if (typeof value === 'object') return Object.values(value).some(hasInternalLinkValue);
+    return false;
+}
+
+function isWhiteColor(color) {
+    return String(color || '').trim().toLowerCase() === '#ffffff';
 }
 
 function getInternalLinkHref(target) {
@@ -226,51 +243,45 @@ function getDateDiffDays(fromDateKey, toDateKey) {
     return Math.floor((to - from) / 86400000);
 }
 
-function getTimelineDisplayValue(property, value, optionMetaMap) {
-    if (!value) return null;
+function getTimelineDisplayValues(property, value, optionMetaMap) {
+    if (!value) return [];
 
     if (property?.type === 'select') {
         const option = mergeLatestOptionMeta(value.option, optionMetaMap);
-        return option ? { text: option.name, option } : null;
+        return option ? [{ text: option.name, option }] : [];
     }
 
     if (property?.type === 'multi_select') {
-        const options = normalizeOptionValues(value.options)
+        return normalizeOptionValues(value.options)
             .map((option) => mergeLatestOptionMeta(option, optionMetaMap))
-            .filter(Boolean);
-
-        if (options.length === 0) return null;
-
-        return {
-            text: options.map((option) => option.name).join(', '),
-            option: options[0],
-        };
+            .filter(Boolean)
+            .map((option) => ({ text: option.name, option }));
     }
 
     const text = String(getPropertyValueText(property, value) || '').trim();
-    return text ? { text } : null;
+    return text ? [{ text }] : [];
 }
 
 function buildTimelineSegments({
                                    diaries = [],
+                                   diaryValueMapByDate = new Map(),
                                    property,
                                    propertyId,
                                    optionMetaMap,
                                }) {
     const points = (diaries || [])
-        .map((diary) => {
-            const value = getDiaryValueMap(diary).get(propertyId);
-            const display = getTimelineDisplayValue(property, value, optionMetaMap);
+        .flatMap((diary) => {
+            const value = diaryValueMapByDate.get(diary.diary_date)?.get(propertyId);
+            const displayValues = getTimelineDisplayValues(property, value, optionMetaMap);
 
-            if (!display?.text) return null;
+            if (displayValues.length === 0) return [];
 
-            return {
+            return displayValues.map((display) => ({
                 dateKey: diary.diary_date,
                 text: display.text,
                 option: display.option,
-            };
+            }));
         })
-        .filter(Boolean)
         .sort((a, b) => String(a.dateKey).localeCompare(String(b.dateKey)));
 
     const segmentsByText = new Map();
@@ -314,14 +325,16 @@ function assignTimelineLanes(segments = []) {
     return segments.map((segment) => {
         const startDay = getDayOfYear(segment.startDateKey);
         const endDay = getDayOfYear(segment.endDateKey);
+        const isSingleDay = segment.startDateKey === segment.endDateKey;
+        const visualEndDay = isSingleDay ? startDay + 4 : endDay;
 
         let laneIndex = lanes.findIndex((laneEndDay) => startDay > laneEndDay);
 
         if (laneIndex < 0) {
             laneIndex = lanes.length;
-            lanes.push(endDay);
+            lanes.push(visualEndDay);
         } else {
-            lanes[laneIndex] = endDay;
+            lanes[laneIndex] = visualEndDay;
         }
 
         return {
@@ -332,7 +345,45 @@ function assignTimelineLanes(segments = []) {
         };
     });
 }
-function TimelineSegmentBar({ segment, year, onClickDate }) {
+
+function getTimelineLaneOffset(laneIndex = 0) {
+    if (laneIndex === 0) return 0;
+
+    const distance = Math.ceil(laneIndex / 2);
+    return laneIndex % 2 === 1 ? -distance : distance;
+}
+
+function TimelineTooltip({ tooltip }) {
+    if (!tooltip) return null;
+
+    return createPortal(
+        <div
+            className="pointer-events-none fixed z-[9999] rounded-lg px-3 py-2 text-[11px] font-semibold leading-snug text-white shadow-xl"
+            style={{
+                left: tooltip.x,
+                top: tooltip.y,
+                transform: 'translate(-50%, 12px)',
+                backgroundColor: tooltip.backgroundColor || 'rgb(30 41 59)',
+                color: tooltip.color || '#fff',
+                whiteSpace: 'nowrap',
+                maxWidth: 'calc(100vw - 24px)',
+            }}
+        >
+            {tooltip.text}
+            <span
+                aria-hidden
+                className="absolute left-1/2 h-2 w-2 -translate-x-1/2 rotate-45"
+                style={{
+                    top: -4,
+                    backgroundColor: tooltip.backgroundColor || 'rgb(30 41 59)',
+                }}
+            />
+        </div>,
+        document.body,
+    );
+}
+
+function TimelineSegmentBar({ segment, year, onClickDate, onTooltipShow, onTooltipHide }) {
     const daysInYear = getDaysInYear(year);
 
     const startDay = segment.startDay ?? getDayOfYear(segment.startDateKey);
@@ -345,24 +396,67 @@ function TimelineSegmentBar({ segment, year, onClickDate }) {
     const dateText = isSingleDay
         ? formatShortDate(segment.startDateKey)
         : `${formatShortDate(segment.startDateKey)}~${formatShortDate(segment.endDateKey)}`;
+    const segmentColor = segment.option?.color || 'var(--color-page-surface-2)';
+    const segmentTextColor =
+        segment.option?.textColor ||
+        segment.option?.text_color ||
+        'var(--color-text-main)';
+    const hasTextColorBorder = isWhiteColor(segmentColor);
+    const laneOffset = getTimelineLaneOffset(segment.laneIndex || 0);
+    const laneY = `calc(50% + ${laneOffset * TIMELINE_LANE_GAP}px)`;
+
+    if (isSingleDay) {
+        return (
+            <button
+                type="button"
+                className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full transition hover:scale-125"
+                style={{
+                    left: `${left}%`,
+                    top: laneY,
+                    backgroundColor: segmentColor,
+                }}
+                onMouseEnter={(e) => {
+                    onTooltipShow?.({
+                        text: `${dateText} · ${segment.text}`,
+                        x: e.clientX,
+                        y: e.clientY,
+                        backgroundColor: segmentColor,
+                        color: segmentTextColor,
+                    });
+                }}
+                onMouseLeave={onTooltipHide}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onClickDate?.(segment.startDateKey);
+                }}
+                aria-label={`${dateText} ${segment.text}`}
+            >
+                <span className="sr-only">{segment.text}</span>
+            </button>
+        );
+    }
 
     return (
         <button
             type="button"
-            className="absolute flex h-7 items-center justify-center overflow-hidden rounded-full border px-2 text-[11px] font-semibold shadow-sm transition hover:brightness-95"
+            className="absolute flex h-6 items-center justify-center overflow-hidden rounded-full border px-2 text-[11px] font-semibold transition hover:-translate-y-px hover:brightness-95"
             style={{
                 left: `${left}%`,
-                top: `${8 + (segment.laneIndex || 0) * 34}px`,
+                top: `calc(50% + ${laneOffset * TIMELINE_LANE_GAP}px - 12px)`,
                 width: `${width}%`,
-                minWidth: isSingleDay ? 42 : 56,
-                backgroundColor: segment.option?.color || 'var(--color-page-surface-2)',
-                borderColor: 'var(--color-border-subtle)',
-                color:
-                    segment.option?.textColor ||
-                    segment.option?.text_color ||
-                    'var(--color-text-main)',
+                minWidth: 56,
+                backgroundColor: segmentColor,
+                borderColor: hasTextColorBorder ? segmentTextColor : 'transparent',
+                color: segmentTextColor,
             }}
-            title={`${dateText} ${segment.text}`}
+            onMouseEnter={(e) => {
+                onTooltipShow?.({
+                    text: `${dateText} · ${segment.text}`,
+                    x: e.clientX,
+                    y: e.clientY,
+                });
+            }}
+            onMouseLeave={onTooltipHide}
             onClick={(e) => {
                 e.stopPropagation();
                 onClickDate?.(segment.startDateKey);
@@ -407,6 +501,7 @@ function renderDiaryProperties(
     const propertyLineClass = isWeekly ? 'leading-[1.45]' : 'leading-[1.25]';
 
     const contentTextClass = '[color:color-mix(in_srgb,var(--color-text-main)_74%,var(--color-text-muted))]';
+    const textValueTypes = ['text', 'textarea', 'long_text', 'text_area'];
     const blockTextTypes = ['textarea', 'long_text', 'text_area'];
     const titleTextClass = isWeekly ? 'text-[14px]' : 'text-[11px]';
     const propertyTextClass = isWeekly ? 'text-[12px]' : 'text-[11px]';
@@ -427,7 +522,7 @@ function renderDiaryProperties(
         >
             {showTitle && diary.title && (
                 isWeekly ? (
-                    <div className="mb-3 border-b border-border-subtle pb-2">
+                    <div className="mb-[18px] border-b border-border-subtle pb-[10px]">
                         <p
                             className={[
                                 "flex items-center line-clamp-2 min-h-[38px] break-words font-semibold leading-snug text-[var(--color-text-main)]",
@@ -460,12 +555,15 @@ function renderDiaryProperties(
                 const hasSectionSeparator = index > 0 && prevSectionId !== currentSectionId;
 
                 const propertyType = item.property?.type;
-                const isTextProperty = blockTextTypes.includes(propertyType);
+                const isTextProperty = textValueTypes.includes(propertyType);
+                const isBlockTextProperty = blockTextTypes.includes(propertyType);
                 const hasPropertyHeader = (showIcon && item.property?.icon) || (showName && name);
-                const shouldRenderTextAsBlock = isTextProperty && hasPropertyHeader;
+                const shouldRenderTextAsBlock = isBlockTextProperty && hasPropertyHeader;
                 const textContentClass = isTextProperty
                     ? isWeekly
-                        ? 'leading-[1.65] text-justify'
+                        ? isBlockTextProperty
+                            ? 'leading-[1.7] text-justify'
+                            : 'leading-[1.65] text-justify'
                         : 'leading-[1.55] text-justify'
                     : '';
 
@@ -497,6 +595,8 @@ function renderDiaryProperties(
                                 propertyTextClass,
                                 propertyLineClass,
                                 !isWeekly && isOptionProperty ? 'pb-1' : '',
+                                isWeekly && !isOptionProperty ? 'pb-[2px]' : '' ,
+                                !isWeekly && !isOptionProperty ? 'pb-[1px]' : '',
                             ].join(' ')}
                         >
                         <div className="flex min-w-0 items-start gap-[3px]">
@@ -511,9 +611,11 @@ function renderDiaryProperties(
                                     'min-w-0 break-words',
                                     isOptionProperty
                                         ? isWeekly
-                                            ? 'relative -top-px'
+                                            ? 'relative -top-[2.5px]'
                                             : ''
-                                        : 'mt-[2px]',
+                                        : isWeekly && isTextProperty
+                                            ? 'relative -top-[1px]'
+                                            : 'mt-[2px]',
                                 ].join(' ')}
                             >
                                 {showName && name && (
@@ -561,7 +663,7 @@ function renderDiaryProperties(
                         {shouldRenderTextAsBlock && (
                             <div
                                 className={[
-                                    'mt-[3px] min-w-0 break-words',
+                                    isWeekly ? 'mt-0 relative top-[4px] min-w-0 break-words' : 'mt-[3px] min-w-0 break-words',
                                     blockTextIndentClass,
                                     contentTextClass,
                                     textContentClass,
@@ -668,14 +770,7 @@ function TimelineMonthHeader({ year }) {
     const daysInYear = getDaysInYear(year);
 
     return (
-        <div
-            className="relative h-10"
-            style={{
-                backgroundColor: 'var(--color-page-surface-2)',
-            }}
-        >
-            <div className="absolute inset-x-0 bottom-0 border-b border-border-subtle" />
-
+        <div className="relative h-9">
             {Array.from({ length: 12 }).map((_, index) => {
                 const month = index + 1;
                 const monthStart = new Date(year, index, 1);
@@ -692,7 +787,7 @@ function TimelineMonthHeader({ year }) {
                         style={{
                             left: `${left}%`,
                             width: `${width}%`,
-                            color: 'var(--color-text-main)',
+                            color: 'color-mix(in_srgb,var(--color-text-muted)_78%,transparent)',
                         }}
                     >
                         {month}월
@@ -700,6 +795,32 @@ function TimelineMonthHeader({ year }) {
                 );
             })}
         </div>
+    );
+}
+
+function TimelineMonthGuides({ year }) {
+    const daysInYear = getDaysInYear(year);
+
+    return (
+        <>
+            {Array.from({ length: 12 }).map((_, index) => {
+                const monthStart = new Date(year, index, 1);
+                const startDay = getDayOfYear(getDateKey(monthStart));
+                const left = ((startDay - 1) / daysInYear) * 100;
+
+                return (
+                    <span
+                        key={index}
+                        aria-hidden
+                        className="pointer-events-none absolute bottom-0 top-0 border-l border-dashed"
+                        style={{
+                            left: `${left}%`,
+                            borderLeftColor: 'rgba(100, 116, 139, 0.24)',
+                        }}
+                    />
+                );
+            })}
+        </>
     );
 }
 
@@ -777,22 +898,26 @@ function CalendarDropdown({ value, label, options, onChange, className = '' }) {
 
 export default function ActivityCalendar() {
     const navigate = useNavigate();
+    const user = useAuthStore((state) => state.user);
+    const userId = user?.id;
     const today = new Date();
     const [year, setYear] = useState(today.getFullYear());
     const [month, setMonth] = useState(today.getMonth() + 1); // 1~12
-    const [calendarView, setCalendarView] = useState('monthly');
+    const [calendarView, setCalendarView] = useState('weekly');
     const [editorDate, setEditorDate] = useState(null);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [weekDate, setWeekDate] = useState(
         () => new Date(today.getFullYear(), today.getMonth(), today.getDate()),
     );
+    const viewStorageLoadedRef = useRef(false);
+    const skipViewStorageSaveRef = useRef(false);
+    const viewStorageKey = userId ? `${CALENDAR_VIEW_STORAGE_KEY_PREFIX}.${userId}` : null;
     const { data: holidays } = useHolidays(year);
     const { data: properties } = useDiaryProperties();
     const { data: viewLayout } = useDiaryViewLayout(calendarView);
     const { data: viewSetting } = useDiaryViewSetting(calendarView);
     const { data: propertyOptions } = useDiaryPropertyOptions();
-    const { data: allDocs } = useAllDocuments();
-    const { data: categories } = useCategories();
+    const [timelineTooltip, setTimelineTooltip] = useState(null);
     const rootRef = useRef(null);
     const getRoot = useCallback(() => rootRef.current, []);
     const wikiLinkTooltip = useWikiLinkTooltip(getRoot, true);
@@ -823,6 +948,57 @@ export default function ActivityCalendar() {
 
     const holidayDateSet = new Set((holidays || []).map((holiday) => holiday.holiday_date));
 
+    useEffect(() => {
+        viewStorageLoadedRef.current = false;
+        skipViewStorageSaveRef.current = false;
+
+        if (!viewStorageKey) return;
+
+        try {
+            const saved = JSON.parse(localStorage.getItem(viewStorageKey) || 'null');
+            skipViewStorageSaveRef.current = !!saved;
+            if (CALENDAR_VIEWS.includes(saved?.calendarView)) {
+                setCalendarView(saved.calendarView);
+            }
+            if (Number.isInteger(saved?.year)) {
+                setYear(saved.year);
+            }
+            if (Number.isInteger(saved?.month) && saved.month >= 1 && saved.month <= 12) {
+                setMonth(saved.month);
+            }
+            if (saved?.weekDate) {
+                const nextWeekDate = parseDateKey(saved.weekDate);
+                if (!Number.isNaN(nextWeekDate.getTime())) {
+                    setWeekDate(nextWeekDate);
+                }
+            }
+        } catch {
+            // 저장값이 깨졌을 때는 기본 WEEKLY 상태로 둔다.
+        } finally {
+            viewStorageLoadedRef.current = true;
+        }
+    }, [viewStorageKey]);
+
+    useEffect(() => {
+        if (!viewStorageKey || !viewStorageLoadedRef.current) return;
+
+        if (skipViewStorageSaveRef.current) {
+            skipViewStorageSaveRef.current = false;
+            return;
+        }
+
+        try {
+            localStorage.setItem(viewStorageKey, JSON.stringify({
+                calendarView,
+                year,
+                month,
+                weekDate: getDateKey(weekDate),
+            }));
+        } catch {
+            // 저장할 수 없는 환경이면 현재 화면 상태만 유지한다.
+        }
+    }, [calendarView, month, viewStorageKey, weekDate, year]);
+
     const handleChangeCalendarView = (nextView) => {
         if (nextView === 'weekly' && calendarView !== 'weekly') {
             const isThisMonth =
@@ -837,20 +1013,22 @@ export default function ActivityCalendar() {
 
     const firstDay = new Date(year, month - 1, 1);
     const startWeekday = firstDay.getDay(); // 0(일)~6(토)
-    const daysInMonth = new Date(year, month, 0).getDate();
-
+    const monthCalendarStart = addDays(firstDay, -startWeekday);
     const weeks = [];
-    let day = 1 - startWeekday;
+    let currentDate = monthCalendarStart;
 
     for (let w = 0; w < 6; w++) {
         const week = [];
-        for (let i = 0; i < 7; i += 1, day += 1) {
-            if (day < 1 || day > daysInMonth) week.push(null);
-            else week.push(day);
+        for (let i = 0; i < 7; i += 1) {
+            week.push(currentDate);
+            currentDate = addDays(currentDate, 1);
         }
         weeks.push(week);
     }
-    const visibleWeeks = weeks.filter((week) => week.some((d) => d));
+    const visibleWeeks = weeks.filter((week) =>
+        week.some((date) => date.getFullYear() === year && date.getMonth() === month - 1),
+    );
+    const monthCalendarEndKey = getNextDateKey(getDateKey(visibleWeeks[visibleWeeks.length - 1][6]));
 
     const handlePrevMonth = () => {
         setMonth((m) => {
@@ -917,8 +1095,6 @@ export default function ActivityCalendar() {
     const weekStart = getWeekStart(weekDate);
     const weekDays = Array.from({ length: 7 }).map((_, index) => addDays(weekStart, index));
     const todayKey = getDateKey(today);
-    const monthStartKey = `${year}-${String(month).padStart(2, '0')}-01`;
-    const monthEndKey = getDateKey(new Date(year, month, 1));
     const yearStartKey = `${year}-01-01`;
     const yearEndKey = `${year + 1}-01-01`;
     const weekStartKey = getDateKey(weekStart);
@@ -928,21 +1104,56 @@ export default function ActivityCalendar() {
             ? weekStartKey
             : calendarView === 'timeline'
                 ? yearStartKey
-                : monthStartKey;
+                : getDateKey(visibleWeeks[0][0]);
     const rangeEndKey =
         calendarView === 'weekly'
             ? weekEndKey
             : calendarView === 'timeline'
                 ? yearEndKey
-                : monthEndKey;
+                : monthCalendarEndKey;
+    const viewItems = useMemo(
+        () => buildViewItems(properties || [], viewLayout || []),
+        [properties, viewLayout],
+    );
+    const visiblePropertyIds = useMemo(
+        () => viewItems.map((item) => item.propertyId),
+        [viewItems],
+    );
     const { data: diaries } = useDiariesByDateRange(
         rangeStartKey,
         rangeEndKey,
         calendarView === 'weekly' || calendarView === 'monthly' || calendarView === 'timeline',
+        visiblePropertyIds,
     );
-    const diaryMap = new Map((diaries || []).map((diary) => [diary.diary_date, diary]));
-    const viewItems = buildViewItems(properties || [], viewLayout || []);
+    const hasDiaryInternalLinks = (diaries || []).some(hasInternalLinkValue);
+    const { data: allDocs } = useAllDocuments(hasDiaryInternalLinks);
+    const { data: categories } = useCategories(hasDiaryInternalLinks);
+    const diaryMap = useMemo(
+        () => new Map((diaries || []).map((diary) => [diary.diary_date, diary])),
+        [diaries],
+    );
+    const diaryValueMapByDate = useMemo(
+        () => new Map((diaries || []).map((diary) => [diary.diary_date, getDiaryValueMap(diary)])),
+        [diaries],
+    );
     const showDiaryTitle = ['weekly', 'monthly'].includes(calendarView) && !!viewSetting?.show_title;
+    const timelineSegmentsByPropertyId = useMemo(() => {
+        if (calendarView !== 'timeline') return new Map();
+
+        return new Map(
+            viewItems.map((item) => {
+                const rawSegments = buildTimelineSegments({
+                    diaries: diaries || [],
+                    diaryValueMapByDate,
+                    property: item.property,
+                    propertyId: item.propertyId,
+                    optionMetaMap: optionMapByPropertyId.get(item.propertyId),
+                });
+
+                return [item.propertyId, assignTimelineLanes(rawSegments)];
+            }),
+        );
+    }, [calendarView, diaries, diaryValueMapByDate, optionMapByPropertyId, viewItems]);
 
     const yearOptions = [];
     const baseYear = today.getFullYear();
@@ -1115,9 +1326,9 @@ export default function ActivityCalendar() {
                 <div className="flex min-h-0 flex-1 flex-col overflow-auto pt-3">
                     {calendarView === 'timeline' ? (
                         <div className="min-h-0 flex-1 overflow-x-auto pb-2 text-[12px]">
-                            <div className="min-w-[1080px] border-l border-t border-border-subtle">
-                                <div className="grid grid-cols-[110px_minmax(900px,1fr)]">
-                                    <div className="border-b border-r border-border-subtle px-2 py-2" />
+                            <div className="min-w-[1080px]">
+                                <div className="grid grid-cols-[118px_minmax(900px,1fr)] gap-y-3">
+                                    <div className="px-2 py-2" />
                                     <TimelineMonthHeader year={year} />
 
                                     {viewItems.map((item) => {
@@ -1125,21 +1336,17 @@ export default function ActivityCalendar() {
                                         const showIcon = ['icon_name', 'icon'].includes(item.displayMode);
                                         const showName = ['icon_name', 'name'].includes(item.displayMode);
 
-                                        const rawSegments = buildTimelineSegments({
-                                            diaries: diaries || [],
-                                            property: item.property,
-                                            propertyId: item.propertyId,
-                                            optionMetaMap: optionMapByPropertyId.get(item.propertyId),
-                                        });
-
-                                        const segments = assignTimelineLanes(rawSegments);
-                                        const laneCount = Math.max(1, ...segments.map((segment) => segment.laneIndex + 1));
-                                        const rowHeight = Math.max(48, 16 + laneCount * 34);
+                                        const segments = timelineSegmentsByPropertyId.get(item.propertyId) || [];
+                                        const maxLaneOffset = Math.max(
+                                            0,
+                                            ...segments.map((segment) => Math.abs(getTimelineLaneOffset(segment.laneIndex || 0))),
+                                        );
+                                        const rowHeight = Math.max(54, 54 + maxLaneOffset * TIMELINE_LANE_GAP * 2);
 
                                         return (
                                             <div key={item.propertyId} className="contents">
                                                 <div
-                                                    className="flex min-w-0 items-center gap-1 border-b border-r border-border-subtle px-2 py-2 font-semibold text-[var(--color-text-main)]"
+                                                    className="flex min-w-0 items-center gap-1 px-2 py-2 font-semibold text-[var(--color-text-main)]"
                                                     style={{ height: rowHeight }}
                                                 >
                                                     {showIcon && item.property?.icon && (
@@ -1157,12 +1364,20 @@ export default function ActivityCalendar() {
                                                 </div>
 
                                                 <div
-                                                    className="relative border-b border-r border-border-subtle px-2"
-                                                    style={{height: rowHeight}}
+                                                    className="relative rounded-lg"
+                                                    style={{ height: rowHeight }}
                                                 >
+                                                    <TimelineMonthGuides year={year} />
+                                                    <span
+                                                        aria-hidden
+                                                        className="pointer-events-none absolute left-0 right-0 top-1/2 h-px -translate-y-1/2"
+                                                        style={{
+                                                            backgroundColor: 'rgba(100, 116, 139, 0.18)',
+                                                        }}
+                                                    />
                                                     {segments.length === 0 ? (
                                                         <span
-                                                            className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-[var(--color-text-muted)] opacity-60">
+                                                            className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-[var(--color-text-muted)] opacity-50">
             기록 없음
         </span>
                                                     ) : (
@@ -1172,6 +1387,8 @@ export default function ActivityCalendar() {
                                                                 segment={segment}
                                                                 year={year}
                                                                 onClickDate={handleOpenDiary}
+                                                                onTooltipShow={setTimelineTooltip}
+                                                                onTooltipHide={() => setTimelineTooltip(null)}
                                                             />
                                                         ))
                                                     )}
@@ -1210,20 +1427,9 @@ export default function ActivityCalendar() {
                             >
                                 {calendarView === 'monthly' ? (
                                     visibleWeeks.map((week, wi) =>
-                                        week.map((d, di) => {
-                                            if (!d) {
-                                                return (
-                                                    <div
-                                                        key={`${wi}-${di}`}
-                                                        className="h-[146px] border-b border-r border-border-subtle bg-transparent"
-                                                    />
-                                                );
-                                            }
-
-                                            const key = `${year}-${String(month).padStart(
-                                                2,
-                                                '0',
-                                            )}-${String(d).padStart(2, '0')}`;
+                                        week.map((date, di) => {
+                                            const key = getDateKey(date);
+                                            const isCurrentMonth = date.getFullYear() === year && date.getMonth() === month - 1;
                                             const isToday = key === todayKey;
                                             const isHoliday = holidayDateSet.has(key);
                                             const diary = diaryMap.get(key);
@@ -1237,6 +1443,7 @@ export default function ActivityCalendar() {
                                                         handleOpenDiary(key);
                                                     }}
                                                     className="flex h-[146px] flex-col overflow-hidden border-b border-r border-border-subtle px-2 py-1.5 text-left transition hover:bg-[var(--color-panel-bg)]"
+                                                    style={isCurrentMonth ? undefined : { backgroundColor: 'rgba(148, 163, 184, 0.08)' }}
                                                 >
                                                     <div className="flex items-start justify-end">
                                                         <span
@@ -1244,9 +1451,17 @@ export default function ActivityCalendar() {
                                                                 'inline-flex h-[20px] w-[20px] items-center justify-center rounded-full text-[12px] leading-none ' +
                                                                 (isToday ? 'bg-red-500 text-white' : '')
                                                             }
-                                                            style={isToday ? undefined : { color: getDayTextColor(di, isHoliday) }}
+                                                            style={
+                                                                isToday
+                                                                    ? undefined
+                                                                    : {
+                                                                        color: isCurrentMonth
+                                                                            ? getDayTextColor(di, isHoliday)
+                                                                            : 'color-mix(in_srgb,var(--color-text-muted)_64%,transparent)',
+                                                                    }
+                                                            }
                                                         >
-                                                            {d}
+                                                            {date.getDate()}
                                                         </span>
                                                     </div>
                                                     {diary && (
@@ -1261,6 +1476,7 @@ export default function ActivityCalendar() {
                                 ) : (
                                     weekDays.map((date) => {
                                         const key = getDateKey(date);
+                                        const isCurrentMonth = date.getFullYear() === year && date.getMonth() === month - 1;
                                         const isToday = key === todayKey;
                                         const isHoliday = holidayDateSet.has(key);
                                         const diary = diaryMap.get(key);
@@ -1274,6 +1490,7 @@ export default function ActivityCalendar() {
                                                     handleOpenDiary(key);
                                                 }}
                                                 className="flex min-h-[34rem] flex-col border-b border-r border-border-subtle px-2 py-2 text-left transition hover:bg-[var(--color-panel-bg)]"
+                                                style={isCurrentMonth ? undefined : { backgroundColor: 'rgba(148, 163, 184, 0.08)' }}
                                             >
                                                 <div className="flex items-start justify-end">
                                                     <span
@@ -1281,7 +1498,15 @@ export default function ActivityCalendar() {
                                                             'inline-flex h-[24px] w-[24px] items-center justify-center rounded-full text-[12px] leading-none ' +
                                                             (isToday ? 'bg-red-500 text-white' : '')
                                                         }
-                                                        style={isToday ? undefined : { color: getDayTextColor(date.getDay(), isHoliday) }}
+                                                        style={
+                                                            isToday
+                                                                ? undefined
+                                                                : {
+                                                                    color: isCurrentMonth
+                                                                        ? getDayTextColor(date.getDay(), isHoliday)
+                                                                        : 'color-mix(in_srgb,var(--color-text-muted)_64%,transparent)',
+                                                                }
+                                                        }
                                                     >
                                                         {date.getDate()}
                                                     </span>
@@ -1310,6 +1535,7 @@ export default function ActivityCalendar() {
                 onClose={() => setIsSettingsOpen(false)}
             />
             <WikiLinkTooltip tooltip={wikiLinkTooltip} />
+            <TimelineTooltip tooltip={timelineTooltip} />
         </div>
     );
 }

@@ -731,33 +731,45 @@ export async function fetchDiaryByDate({ userId, diaryDate }) {
     return data;
 }
 
-export async function fetchDiariesByDateRange({ userId, startDate, endDate }) {
+export async function fetchDiariesByDateRange({ userId, startDate, endDate, propertyIds = null }) {
     if (!userId || !startDate || !endDate) return [];
 
-    const { data, error } = await supabase
-        .from('diaries')
-        .select(`
-            *,
+    const hasPropertyIdFilter = Array.isArray(propertyIds);
+    const selectColumns = hasPropertyIdFilter && propertyIds.length === 0
+        ? `
+            user_id,
+            diary_date,
+            title
+        `
+        : `
+            user_id,
+            diary_date,
+            title,
             diary_property_values (
                 property_id,
-                value,
-                diary_properties (
-                    id,
-                    name,
-                    icon,
-                    type,
-                    section_id,
-                    sort_order
-                )
+                value
             )
-        `)
+        `;
+
+    let query = supabase
+        .from('diaries')
+        .select(selectColumns)
         .eq('user_id', userId)
         .gte('diary_date', startDate)
         .lt('diary_date', endDate)
         .order('diary_date', { ascending: true });
 
+    if (hasPropertyIdFilter && propertyIds.length > 0) {
+        query = query.in('diary_property_values.property_id', propertyIds);
+    }
+
+    const { data, error } = await query;
+
     if (error) throw error;
-    return data ?? [];
+    return (data ?? []).map((diary) => ({
+        ...diary,
+        diary_property_values: diary.diary_property_values || [],
+    }));
 }
 
 export async function fetchDiaryProperties(userId) {

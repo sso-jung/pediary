@@ -220,10 +220,19 @@ function SettingsDropdown({ value, options, onChange }) {
         const rect = buttonRef.current?.getBoundingClientRect();
         if (!rect) return;
 
+        const gap = 4;
+        const maxHeight = 288;
+        const estimatedHeight = Math.min(maxHeight, Math.max(40, (options.length * 32) + 8));
+        const bottomTop = rect.bottom + gap;
+        const top = bottomTop + estimatedHeight > window.innerHeight
+            ? Math.max(8, rect.top - estimatedHeight - gap)
+            : bottomTop;
+
         setMenuRect({
-            left: rect.left,
-            top: rect.bottom + 4,
+            left: Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 8)),
+            top,
             width: rect.width,
+            maxHeight,
         });
     };
 
@@ -311,6 +320,7 @@ function SettingsDropdown({ value, options, onChange }) {
                         left: menuRect.left,
                         top: menuRect.top,
                         width: menuRect.width,
+                        maxHeight: menuRect.maxHeight,
                         borderColor: 'var(--color-border-subtle)',
                         backgroundColor: 'var(--color-page-surface)',
                         color: 'var(--color-text-main)',

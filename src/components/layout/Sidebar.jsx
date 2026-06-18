@@ -395,8 +395,11 @@ export default function Sidebar() {
         });
     };
 
-    const handleDropOnRootLevel = () => {
+    const handleDropOnRootLevel = (event) => {
         if (!draggingCategoryId || !categories || !user) return;
+
+        event?.preventDefault();
+        event?.stopPropagation();
 
         const cat = categories.find((c) => c.id === draggingCategoryId);
         if (!cat) return;
@@ -574,13 +577,15 @@ export default function Sidebar() {
                             {/* ✅ 전체 */}
                             <li
                                 onClick={() => navigate('/docs')}
-                                onDragOver={(e) => handleDragOverCategory(root, e, true)}
-                                onDragLeave={() => {
-                                    setDropIndicator((prev) =>
-                                        prev?.targetId === root.id ? null : prev
-                                    );
+                                onDragOver={(e) => {
+                                    if (!draggingCategoryId) return;
+                                    e.preventDefault();
+                                    e.stopPropagation();
                                 }}
-                                onDrop={(e) => handleDropOnCategory(root, e, true)}
+                                onDragLeave={() => {
+                                    setDropIndicator(null);
+                                }}
+                                onDrop={handleDropOnRootLevel}
                                 className={[
                                     "ui-side-item",
                                     isAllActive ? "ui-side-item-active" : "",
@@ -627,14 +632,10 @@ export default function Sidebar() {
                                                         draggable={isMineRoot}
                                                         onDragStart={() => isMineRoot && handleDragStart(root.id)}
                                                         onDragEnd={handleDragEnd}
-                                                        onDragOver={(e) => {
-                                                            if (!draggingCategoryId) return;
-                                                            e.preventDefault();
-                                                        }}
+                                                        onDragOver={(e) => handleDragOverCategory(root, e, true)}
                                                         onDrop={(e) => {
                                                             if (!draggingCategoryId) return;
-                                                            e.preventDefault();
-                                                            handleDropOnRootCategory(root.id, e);
+                                                            handleDropOnCategory(root, e, true);
                                                         }}
                                                         className={[
                                                             "ui-side-item group",
