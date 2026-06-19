@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
     DEFAULT_OPTION_COLOR,
+    DEFAULT_OPTION_TEXT_COLOR,
     OPTION_COLOR_PRESETS,
     getOptionTextColor,
 } from './DiarySelectUtils';
@@ -20,6 +21,15 @@ function ColorDot({ color, selected, onClick }) {
             aria-label={color}
         />
     );
+}
+
+function getSavedTextColor(option, fallbackColor) {
+    return option?.textColor || option?.text_color || getOptionTextColor(fallbackColor);
+}
+
+function getColorInputValue(color, fallback) {
+    const value = String(color || '').trim();
+    return /^#[0-9a-fA-F]{6}$/.test(value) ? value : fallback;
 }
 
 export default function PropertyOptionsDialog({
@@ -76,7 +86,7 @@ export default function PropertyOptionsDialog({
 
     const editingOption = sortedOptions.find((option) => option.id === editingOptionId);
     const editingOptionBg = editingOption?.color || DEFAULT_OPTION_COLOR;
-    const editingOptionText = getOptionTextColor(editingOptionBg);
+    const editingOptionText = getSavedTextColor(editingOption, editingOptionBg);
     const editingOptionName = editingOption
         ? optionNames[editingOption.id] ?? editingOption.name ?? ''
         : '';
@@ -127,7 +137,7 @@ export default function PropertyOptionsDialog({
                     <div className="flex flex-wrap gap-1.5">
                         {sortedOptions.map((option) => {
                             const currentBg = option.color || DEFAULT_OPTION_COLOR;
-                            const currentText = getOptionTextColor(currentBg);
+                            const currentText = getSavedTextColor(option, currentBg);
                             const draftName = optionNames[option.id] ?? option.name ?? '';
 
                             return (
@@ -215,6 +225,40 @@ export default function PropertyOptionsDialog({
                                     }
                                 />
                             ))}
+                        </div>
+
+                        <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border-subtle pt-2">
+                            <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-muted)]">
+                                <span>배경</span>
+                                <input
+                                    type="color"
+                                    className="h-6 w-8 cursor-pointer rounded border border-border-subtle bg-transparent p-0"
+                                    value={getColorInputValue(editingOptionBg, DEFAULT_OPTION_COLOR)}
+                                    onChange={(e) =>
+                                        onUpdate({
+                                            optionId: editingOption.id,
+                                            color: e.target.value,
+                                            textColor: editingOptionText,
+                                        })
+                                    }
+                                />
+                            </label>
+
+                            <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-muted)]">
+                                <span>글자</span>
+                                <input
+                                    type="color"
+                                    className="h-6 w-8 cursor-pointer rounded border border-border-subtle bg-transparent p-0"
+                                    value={getColorInputValue(editingOptionText, DEFAULT_OPTION_TEXT_COLOR)}
+                                    onChange={(e) =>
+                                        onUpdate({
+                                            optionId: editingOption.id,
+                                            color: editingOptionBg,
+                                            textColor: e.target.value,
+                                        })
+                                    }
+                                />
+                            </label>
                         </div>
                     </div>
                 )}

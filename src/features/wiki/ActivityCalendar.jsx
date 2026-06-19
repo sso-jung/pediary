@@ -501,8 +501,8 @@ function renderDiaryProperties(
     const propertyLineClass = isWeekly ? 'leading-[1.45]' : 'leading-[1.25]';
 
     const contentTextClass = '[color:color-mix(in_srgb,var(--color-text-main)_74%,var(--color-text-muted))]';
-    const textValueTypes = ['text', 'textarea', 'long_text', 'text_area'];
-    const blockTextTypes = ['textarea', 'long_text', 'text_area'];
+    const textValueTypes = ['text', 'textarea', 'long_text', 'longText', 'text_area'];
+    const blockTextTypes = ['textarea', 'long_text', 'longText', 'text_area'];
     const titleTextClass = isWeekly ? 'text-[14px]' : 'text-[11px]';
     const propertyTextClass = isWeekly ? 'text-[12px]' : 'text-[11px]';
 
@@ -511,6 +511,8 @@ function renderDiaryProperties(
         : 'mt-[1px] flex h-4 w-4 shrink-0 items-center justify-center';
 
     const listItemGapClass = isWeekly ? 'gap-1' : 'gap-1';
+    const blockTextBottomPaddingPx = isWeekly ? 7 : 4;
+    const checkedListBottomPaddingPx = isWeekly ? 7 : 4;
 
     return (
         <div
@@ -557,12 +559,15 @@ function renderDiaryProperties(
                 const propertyType = item.property?.type;
                 const isTextProperty = textValueTypes.includes(propertyType);
                 const isBlockTextProperty = blockTextTypes.includes(propertyType);
+                const hasCheckListItem =
+                    item.property?.type === 'check_list' &&
+                    item.lines.length > 0;
                 const hasPropertyHeader = (showIcon && item.property?.icon) || (showName && name);
                 const shouldRenderTextAsBlock = isBlockTextProperty && hasPropertyHeader;
                 const textContentClass = isTextProperty
                     ? isWeekly
                         ? isBlockTextProperty
-                            ? 'leading-[1.7] text-justify'
+                            ? 'whitespace-pre-wrap leading-[1.7] text-justify'
                             : 'leading-[1.65] text-justify'
                         : 'leading-[1.55] text-justify'
                     : '';
@@ -598,8 +603,19 @@ function renderDiaryProperties(
                                 isWeekly && !isOptionProperty ? 'pb-[2px]' : '' ,
                                 !isWeekly && !isOptionProperty ? 'pb-[1px]' : '',
                             ].join(' ')}
+                            style={
+                                isBlockTextProperty
+                                    ? { paddingBottom: blockTextBottomPaddingPx }
+                                    : hasCheckListItem
+                                        ? { paddingBottom: checkedListBottomPaddingPx }
+                                        : undefined
+                            }
                         >
-                        <div className="flex min-w-0 items-start gap-[3px]">
+                        <div className={['flex min-w-0 items-start',
+                            isWeekly && isOptionProperty ? 'mb-2' : '',
+                            isWeekly ? 'gap-[5px]' : 'gap-[3px]',
+                        ].join(' ')}
+                        >
                             {showIcon && item.property?.icon && (
                                 <span className="flex h-4 w-4 shrink-0 items-center justify-center">
                                     <PropertyIcon icon={item.property.icon}/>
@@ -1489,7 +1505,7 @@ export default function ActivityCalendar() {
                                                     if (isInternalLinkClick(e)) return;
                                                     handleOpenDiary(key);
                                                 }}
-                                                className="flex min-h-[34rem] flex-col border-b border-r border-border-subtle px-2 py-2 text-left transition hover:bg-[var(--color-panel-bg)]"
+                                                className="flex min-h-[34rem] flex-col overflow-hidden border-b border-r border-border-subtle px-2 py-2 text-left transition hover:bg-[var(--color-panel-bg)]"
                                                 style={isCurrentMonth ? undefined : { backgroundColor: 'rgba(148, 163, 184, 0.08)' }}
                                             >
                                                 <div className="flex items-start justify-end">
@@ -1512,7 +1528,7 @@ export default function ActivityCalendar() {
                                                     </span>
                                                 </div>
                                                 {diary && (
-                                                    <div className="mt-3 min-w-0">
+                                                    <div className="mt-3 min-h-0 min-w-0 flex-1 overflow-y-auto pr-1">
                                                         {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'weekly', optionMapByPropertyId, allDocs || [], categories || [])}
                                                     </div>
                                                 )}

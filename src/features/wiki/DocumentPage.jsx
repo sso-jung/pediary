@@ -696,6 +696,7 @@ export default function DocumentPage() {
     const [visibility, setVisibility] = useState('private');
     const [exporting, setExporting] = useState(false);
     const [activeHeading, setActiveHeading] = useState(null);
+    const [isDocumentReady, setIsDocumentReady] = useState(false);
 
     const [autosaveStatus, setAutosaveStatus] = useState('idle');
     const lastSavedRef = useRef({
@@ -731,6 +732,11 @@ export default function DocumentPage() {
         documentId: null,
     });
 
+    useEffect(() => {
+        initializedRef.current = false;
+        setIsDocumentReady(false);
+    }, [slug]);
+
     // 문서 로딩 / 변경 시 기본 값 세팅
     useEffect(() => {
         if (!doc) return;
@@ -755,6 +761,7 @@ export default function DocumentPage() {
                 categoryId: baseCategoryId,
             };
             initializedRef.current = true;
+            setIsDocumentReady(true);
             return;
         }
 
@@ -769,6 +776,8 @@ export default function DocumentPage() {
                 categoryId: baseCategoryId,
             };
         }
+
+        setIsDocumentReady(true);
     }, [doc, isEditing]);
 
     // 최초 viewed 로그
@@ -1034,10 +1043,10 @@ export default function DocumentPage() {
         return () => clearTimeout(timer);
     }, [title, content, visibility, categoryId, isEditing, doc, saveDocument]);
 
-    if (isLoading || !doc) {
+    if (isLoading || !doc || !isDocumentReady) {
         return (
             <div className="text-sm page-text-muted">
-                {isLoading ? '문서를 불러오는 중...' : '문서를 찾을 수 없습니다.'}
+                {isLoading || (doc && !isDocumentReady) ? '문서를 불러오는 중...' : '문서를 찾을 수 없습니다.'}
             </div>
         );
     }

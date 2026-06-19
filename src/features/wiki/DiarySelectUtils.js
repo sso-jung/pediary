@@ -80,17 +80,20 @@ export function normalizeOptionValue(value) {
     if (!name) return null;
 
     const color = value.color || value.backgroundColor || DEFAULT_OPTION_COLOR;
-    const textColor =
+    const explicitTextColor =
         value.textColor ||
         value.text_color ||
         value.fontColor ||
-        value.font_color ||
+        value.font_color;
+    const textColor =
+        explicitTextColor ||
+        getOptionPresetTextColor(color) ||
         DEFAULT_OPTION_TEXT_COLOR;
 
     return {
         name,
         color,
-        textColor: getOptionPresetTextColor(color) || textColor,
+        textColor,
     };
 }
 
@@ -110,17 +113,20 @@ export function makeOptionValue(option) {
     const name = String(option?.name || '').trim();
 
     const color = option?.color || option?.backgroundColor || DEFAULT_OPTION_COLOR;
-    const textColor =
+    const explicitTextColor =
         option?.textColor ||
         option?.text_color ||
         option?.fontColor ||
-        option?.font_color ||
+        option?.font_color;
+    const textColor =
+        explicitTextColor ||
+        getOptionPresetTextColor(color) ||
         DEFAULT_OPTION_TEXT_COLOR;
 
     return {
         name,
         color,
-        textColor: getOptionPresetTextColor(color) || textColor,
+        textColor,
     };
 }
 

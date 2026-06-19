@@ -461,9 +461,26 @@ function DiaryInternalLinkField({
 
         const scrollParent = getScrollParent(field);
         const scrollTop = scrollParent?.scrollTop ?? 0;
+        const shouldKeepFieldVisible = document.activeElement === field;
 
         field.style.height = 'auto';
         field.style.height = `${field.scrollHeight}px`;
+
+        if (scrollParent && shouldKeepFieldVisible) {
+            requestAnimationFrame(() => {
+                const parentRect = scrollParent.getBoundingClientRect();
+                const fieldRect = field.getBoundingClientRect();
+                const bottomOffset = fieldRect.bottom - parentRect.bottom + 12;
+                const topOffset = fieldRect.top - parentRect.top - 12;
+
+                if (bottomOffset > 0) {
+                    scrollParent.scrollTop += bottomOffset;
+                } else if (topOffset < 0) {
+                    scrollParent.scrollTop += topOffset;
+                }
+            });
+            return;
+        }
 
         if (scrollParent) {
             scrollParent.scrollTop = scrollTop;
@@ -471,7 +488,7 @@ function DiaryInternalLinkField({
                 scrollParent.scrollTop = scrollTop;
             });
         }
-    }, [multiline, value]);
+    }, [isFocused, multiline, value]);
 
     useEffect(() => {
         if (!linkState.open) return;
@@ -1452,7 +1469,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
             onClickCapture={handleInternalLinkClickCapture}
         >
             <div
-                className="ui-dialog flex max-h-[86vh] w-[min(720px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl p-4"
+                className="ui-dialog flex max-h-[92vh] min-h-[82vh] w-[min(760px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl p-4"
                 onMouseDown={(e) => e.stopPropagation()}
                 >
                 <div className="flex items-start justify-between gap-3">

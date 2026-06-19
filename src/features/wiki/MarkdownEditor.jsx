@@ -147,6 +147,10 @@ function getSelectionReadElement(root) {
     return node instanceof Element && root.contains(node) ? node : null;
 }
 
+function normalizeHeadingNumber(value = '') {
+    return String(value || '').replace(/\.$/, '').trim();
+}
+
 function getAttrValue(attrs = '', name) {
     const re = new RegExp(`${name}=["']([^"']*)["']`, 'i');
     const match = attrs.match(re);
@@ -1710,6 +1714,7 @@ export default function MarkdownEditor({
             const headingEls = contents.querySelectorAll('h1,h2,h3,h4,h5,h6');
             if (!headingEls.length) return;
 
+            const targetNumber = normalizeHeadingNumber(activeHeading.number);
             const sameLevelEls = Array.from(headingEls).filter(
                 (el) => Number(el.tagName.slice(1)) === activeHeading.level,
             );
@@ -1719,6 +1724,8 @@ export default function MarkdownEditor({
             );
 
             const targetEl = sameLevelEls.find((el) => {
+                return normalizeHeadingNumber(el.getAttribute('data-wiki-heading-number')) === targetNumber;
+            }) || sameLevelEls.find((el) => {
                 const text = (el.textContent || '')
                     .replace(/\s+/g, ' ')
                     .trim();
