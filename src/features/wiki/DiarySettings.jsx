@@ -54,6 +54,7 @@ const DISPLAY_MODE_OPTIONS = [
     { value: 'name', label: '속성명만' },
     { value: 'content', label: '내용만' },
 ];
+const TIMELINE_PROPERTY_TYPES = ['select', 'multi_select'];
 
 function getPropertyDraftName(name) {
     const draftName = String(name || '').trim();
@@ -1163,7 +1164,11 @@ export default function DiarySettings({ open, onClose }) {
     };
 
     const renderViewSettings = (viewOption) => {
-        const viewItems = buildViewLayoutItems(properties || [], viewLayouts[viewOption.value]);
+        const viewItems = buildViewLayoutItems(properties || [], viewLayouts[viewOption.value])
+            .filter((item) =>
+                viewOption.value !== 'timeline' ||
+                TIMELINE_PROPERTY_TYPES.includes(item.property?.type),
+            );
         const canShowTitle = viewOption.value === 'weekly' || viewOption.value === 'monthly';
 
         return (
@@ -1234,7 +1239,9 @@ export default function DiarySettings({ open, onClose }) {
 
                 {viewItems.length === 0 && (
                     <p className="px-2 py-4 text-xs ui-dialog-message">
-                        아직 추가된 속성이 없어.
+                        {viewOption.value === 'timeline'
+                            ? '선택/다중선택 속성을 timeline에서 관리할 수 있어.'
+                            : '아직 추가된 속성이 없어.'}
                     </p>
                 )}
             </div>

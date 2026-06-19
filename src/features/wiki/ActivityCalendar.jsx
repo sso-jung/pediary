@@ -31,6 +31,9 @@ const VIEW_LABEL = {
 
 const TIMELINE_GROUP_GAP_DAYS = 31;
 const TIMELINE_LANE_GAP = 38;
+const TIMELINE_MIN_VISUAL_DAYS = 22;
+const TIMELINE_TEXT_MIN_WIDTH = 50;
+const TIMELINE_PROPERTY_TYPES = ['select', 'multi_select'];
 const CALENDAR_VIEW_STORAGE_KEY_PREFIX = 'pediary.diaryCalendar.viewState';
 const CALENDAR_VIEWS = ['weekly', 'monthly', 'timeline'];
 
@@ -326,7 +329,7 @@ function assignTimelineLanes(segments = []) {
         const startDay = getDayOfYear(segment.startDateKey);
         const endDay = getDayOfYear(segment.endDateKey);
         const isSingleDay = segment.startDateKey === segment.endDateKey;
-        const visualEndDay = isSingleDay ? startDay + 4 : endDay;
+        const visualEndDay = isSingleDay ? startDay + 4 : Math.max(endDay, startDay + TIMELINE_MIN_VISUAL_DAYS);
 
         let laneIndex = lanes.findIndex((laneEndDay) => startDay > laneEndDay);
 
@@ -362,7 +365,7 @@ function TimelineTooltip({ tooltip }) {
             style={{
                 left: tooltip.x,
                 top: tooltip.y,
-                transform: 'translate(-50%, 12px)',
+                transform: 'translate(-50%, 13px)',
                 backgroundColor: tooltip.backgroundColor || 'rgb(30 41 59)',
                 color: tooltip.color || '#fff',
                 whiteSpace: 'nowrap',
@@ -383,7 +386,7 @@ function TimelineTooltip({ tooltip }) {
     );
 }
 
-function TimelineSegmentBar({ segment, year, onClickDate, onTooltipShow, onTooltipHide }) {
+function TimelineSegmentBar({ segment, year, timelineWidth, onClickDate, onTooltipShow, onTooltipHide }) {
     const daysInYear = getDaysInYear(year);
 
     const startDay = segment.startDay ?? getDayOfYear(segment.startDateKey);
@@ -391,6 +394,7 @@ function TimelineSegmentBar({ segment, year, onClickDate, onTooltipShow, onToolt
 
     const left = ((startDay - 1) / daysInYear) * 100;
     const width = Math.max(((endDay - startDay + 1) / daysInYear) * 100, 0.7);
+    const showText = !timelineWidth || timelineWidth * width / 100 >= TIMELINE_TEXT_MIN_WIDTH;
 
     const isSingleDay = segment.startDateKey === segment.endDateKey;
     const dateText = isSingleDay
@@ -404,6 +408,17 @@ function TimelineSegmentBar({ segment, year, onClickDate, onTooltipShow, onToolt
     const hasTextColorBorder = isWhiteColor(segmentColor);
     const laneOffset = getTimelineLaneOffset(segment.laneIndex || 0);
     const laneY = `calc(50% + ${laneOffset * TIMELINE_LANE_GAP}px)`;
+    const handleTooltipShow = (e) => {
+        const rect = e.currentTarget.getBoundingClientRect();
+
+        onTooltipShow?.({
+            text: `${dateText} · ${segment.text}`,
+            x: rect.left + rect.width / 2,
+            y: rect.bottom + (isSingleDay ? 8 : 0),
+            backgroundColor: segmentColor,
+            color: segmentTextColor,
+        });
+    };
 
     if (isSingleDay) {
         return (
@@ -415,15 +430,7 @@ function TimelineSegmentBar({ segment, year, onClickDate, onTooltipShow, onToolt
                     top: laneY,
                     backgroundColor: segmentColor,
                 }}
-                onMouseEnter={(e) => {
-                    onTooltipShow?.({
-                        text: `${dateText} · ${segment.text}`,
-                        x: e.clientX,
-                        y: e.clientY,
-                        backgroundColor: segmentColor,
-                        color: segmentTextColor,
-                    });
-                }}
+                onMouseEnter={handleTooltipShow}
                 onMouseLeave={onTooltipHide}
                 onClick={(e) => {
                     e.stopPropagation();
@@ -444,27 +451,22 @@ function TimelineSegmentBar({ segment, year, onClickDate, onTooltipShow, onToolt
                 left: `${left}%`,
                 top: `calc(50% + ${laneOffset * TIMELINE_LANE_GAP}px - 12px)`,
                 width: `${width}%`,
-                minWidth: 56,
                 backgroundColor: segmentColor,
                 borderColor: hasTextColorBorder ? segmentTextColor : 'transparent',
                 color: segmentTextColor,
             }}
-            onMouseEnter={(e) => {
-                onTooltipShow?.({
-                    text: `${dateText} · ${segment.text}`,
-                    x: e.clientX,
-                    y: e.clientY,
-                });
-            }}
+            onMouseEnter={handleTooltipShow}
             onMouseLeave={onTooltipHide}
             onClick={(e) => {
                 e.stopPropagation();
                 onClickDate?.(segment.startDateKey);
             }}
         >
-            <span className="truncate">
-                {segment.text}
-            </span>
+            {showText && (
+                <span className="truncate">
+                    {segment.text}
+                </span>
+            )}
         </button>
     );
 }
@@ -934,7 +936,9 @@ export default function ActivityCalendar() {
     const { data: viewSetting } = useDiaryViewSetting(calendarView);
     const { data: propertyOptions } = useDiaryPropertyOptions();
     const [timelineTooltip, setTimelineTooltip] = useState(null);
+    const [timelineWidth, setTimelineWidth] = useState(0);
     const rootRef = useRef(null);
+    const timelineAreaRef = useRef(null);
     const getRoot = useCallback(() => rootRef.current, []);
     const wikiLinkTooltip = useWikiLinkTooltip(getRoot, true);
     const handleInternalLinkClickCapture = useCallback((e) => {
@@ -945,6 +949,25 @@ export default function ActivityCalendar() {
         e.stopPropagation();
         navigate(href);
     }, [navigate]);
+
+    useEffect(() => {
+        if (calendarView !== 'timeline') return;
+        const element = timelineAreaRef.current;
+        if (!element) return;
+
+        const updateTimelineWidth = () => {
+            setTimelineWidth(element.getBoundingClientRect().width);
+        };
+
+        updateTimelineWidth();
+
+        if (typeof ResizeObserver === 'undefined') return;
+
+        const observer = new ResizeObserver(updateTimelineWidth);
+        observer.observe(element);
+
+        return () => observer.disconnect();
+    }, [calendarView]);
 
     const optionMapByPropertyId = useMemo(() => {
         const grouped = new Map();
@@ -1128,8 +1151,14 @@ export default function ActivityCalendar() {
                 ? yearEndKey
                 : monthCalendarEndKey;
     const viewItems = useMemo(
-        () => buildViewItems(properties || [], viewLayout || []),
-        [properties, viewLayout],
+        () => {
+            const items = buildViewItems(properties || [], viewLayout || []);
+
+            if (calendarView !== 'timeline') return items;
+
+            return items.filter((item) => TIMELINE_PROPERTY_TYPES.includes(item.property?.type));
+        },
+        [calendarView, properties, viewLayout],
     );
     const visiblePropertyIds = useMemo(
         () => viewItems.map((item) => item.propertyId),
@@ -1345,7 +1374,9 @@ export default function ActivityCalendar() {
                             <div className="min-w-[1080px]">
                                 <div className="grid grid-cols-[118px_minmax(900px,1fr)] gap-y-3">
                                     <div className="px-2 py-2" />
-                                    <TimelineMonthHeader year={year} />
+                                    <div ref={timelineAreaRef}>
+                                        <TimelineMonthHeader year={year} />
+                                    </div>
 
                                     {viewItems.map((item) => {
                                         const name = getPropertyDisplayName(item.property?.name);
@@ -1402,6 +1433,7 @@ export default function ActivityCalendar() {
                                                                 key={`${segment.startDateKey}-${segment.endDateKey}-${segment.text}-${index}`}
                                                                 segment={segment}
                                                                 year={year}
+                                                                timelineWidth={timelineWidth}
                                                                 onClickDate={handleOpenDiary}
                                                                 onTooltipShow={setTimelineTooltip}
                                                                 onTooltipHide={() => setTimelineTooltip(null)}
