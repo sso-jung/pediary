@@ -50,6 +50,13 @@
     font-weight: 600;
 }
 
+.toastui-editor-contents .wiki-today-date,
+.toastui-editor-defaultUI .ProseMirror .wiki-today-date,
+.ProseMirror .wiki-today-date {
+    font-size: 20px !important;
+    font-weight: 700 !important;
+}
+
 /* ===========================
    Wiki Align
    - 정렬 class는 span에 저장됨
@@ -599,6 +606,13 @@
 .tui-viewer-wrapper .toastui-editor-contents th {
     color: var(--color-text-main) !important;
     line-height: var(--wiki-body-line-height) !important;
+}
+
+.wiki-doc-viewer-shell .toastui-editor-contents span[style*="background"],
+.wiki-doc-viewer-shell .toastui-editor-contents span[style*="background-color"],
+.wiki-doc-viewer-shell .toastui-editor-contents mark {
+    background: transparent !important;
+    background-color: transparent !important;
 }
 
 /* ===========================

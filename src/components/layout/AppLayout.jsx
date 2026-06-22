@@ -1,5 +1,5 @@
 // src/components/layout/AppLayout.jsx
-import { useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
@@ -8,39 +8,52 @@ import MyInfoPanel from '../../features/account/MyInfoPanel';
 
 const THEME_STORAGE_KEY = 'pediary-theme';
 
+function getOrbitTheme() {
+    const hour = new Date().getHours();
+
+    if (hour >= 8 && hour < 16) return 'noon';
+    if (hour >= 16) return 'dusk';
+    return 'midnight';
+}
+
+function normalizeThemeSetting(value) {
+    if (value === 'dusk') return 'sunset';
+    if (value === 'dark') return 'midnight';
+    if (value === 'light') return 'noon';
+    if (value === 'noon' || value === 'sunset' || value === 'midnight' || value === 'orbit') {
+        return value;
+    }
+    return 'noon';
+}
+
+function getEffectiveTheme(themeSetting) {
+    if (themeSetting === 'orbit') return getOrbitTheme();
+    if (themeSetting === 'sunset') return 'dusk';
+    return themeSetting;
+}
+
 export default function AppLayout({ children }) {
     const [activeSidePanel, setActiveSidePanel] = useState(null); // 'friends' | 'me' | null
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [orbitTick, setOrbitTick] = useState(() => Date.now());
 
-    const [theme, setTheme] = useState(() => {
+    const [themeSetting, setThemeSetting] = useState(() => {
         if (typeof window === 'undefined') return 'noon';
         const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
 
-        // ✅ 기존 light/dark 저장값이 남아있어도 자동 이관
-        if (stored === 'dark') return 'midnight';
-        if (stored === 'light') return 'noon';
-
-        // ✅ 신규 테마 값
-        if (stored === 'noon' || stored === 'midnight' || stored === 'twilight' || stored === 'dusk') {
-            return stored;
-        }
-
-        return 'noon';
+        return normalizeThemeSetting(stored);
     });
 
-    const toggleTheme = () => {
-        setTheme((prev) => {
-            // ✅ 순환 토글(원하면 noon<->midnight로만 바꿔도 됨)
-            const order = ['noon', 'dusk', 'midnight', 'twilight'];
-            const idx = order.indexOf(prev);
-            const next = order[(idx + 1) % order.length];
+    const theme = useMemo(() => getEffectiveTheme(themeSetting), [themeSetting, orbitTick]);
 
-            if (typeof window !== 'undefined') {
-                window.localStorage.setItem(THEME_STORAGE_KEY, next);
-            }
-            return next;
-        });
-    };
+    const handleSaveThemeSetting = useCallback((nextThemeSetting) => {
+        const normalized = normalizeThemeSetting(nextThemeSetting);
+
+        setThemeSetting(normalized);
+        if (typeof window !== 'undefined') {
+            window.localStorage.setItem(THEME_STORAGE_KEY, normalized);
+        }
+    }, []);
 
     const handleToggleFriends = () => {
         setActiveSidePanel((prev) => (prev === 'friends' ? null : 'friends'));
@@ -82,9 +95,16 @@ export default function AppLayout({ children }) {
 
     const sidePanelContent = useMemo(() => {
         if (activeSidePanel === 'friends') return <FriendsPage />;
-        if (activeSidePanel === 'me') return <MyInfoPanel />;
+        if (activeSidePanel === 'me') {
+            return (
+                <MyInfoPanel
+                    themeSetting={themeSetting}
+                    onSaveThemeSetting={handleSaveThemeSetting}
+                />
+            );
+        }
         return null;
-    }, [activeSidePanel]);
+    }, [activeSidePanel, handleSaveThemeSetting, themeSetting]);
 
     const homeLikeInnerClass = isMaterials
         ? `
@@ -101,6 +121,16 @@ export default function AppLayout({ children }) {
         document.documentElement.setAttribute("data-theme", theme);
     }, [theme]);
 
+    useEffect(() => {
+        if (themeSetting !== 'orbit') return;
+
+        const timer = window.setInterval(() => {
+            setOrbitTick(Date.now());
+        }, 60 * 1000);
+
+        return () => window.clearInterval(timer);
+    }, [themeSetting]);
+
 
     return (
         <div
@@ -115,7 +145,6 @@ export default function AppLayout({ children }) {
                     activeSidePanel={activeSidePanel}
                     isSidebarOpen={isSidebarOpen}
                     theme={theme}
-                    onToggleTheme={toggleTheme}
                 />
             </header>
 

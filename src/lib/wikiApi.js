@@ -1160,6 +1160,32 @@ export async function fetchDiaryPropertyValues({ userId, diaryDate }) {
     return data ?? [];
 }
 
+export async function upsertDiaryPropertyValue({ userId, diaryDate, propertyId, value }) {
+    if (!userId || !diaryDate || !propertyId) {
+        throw new Error('다이어리 속성 정보를 확인할 수 없어.');
+    }
+
+    const { data, error } = await supabase
+        .from('diary_property_values')
+        .upsert(
+            {
+                user_id: userId,
+                diary_date: diaryDate,
+                property_id: propertyId,
+                value,
+                updated_at: new Date().toISOString(),
+            },
+            {
+                onConflict: 'user_id,diary_date,property_id',
+            },
+        )
+        .select('*')
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
 export async function upsertDiary({ userId, diaryDate, title, contentMarkdown, propertyValues = [] }) {
     if (!userId || !diaryDate) {
         throw new Error('다이어리 날짜를 확인할 수 없어.');

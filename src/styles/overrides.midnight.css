@@ -33,3 +33,197 @@
 .app-shell[data-theme="midnight"] .tui-editor-defaultUI {
     border-color: var(--color-border-unified) !important;
 }
+
+/* 홈 캘린더/타임라인: 문서 화면과 border 톤 통일 */
+.app-shell[data-theme="midnight"] .diary-calendar-grid,
+.app-shell[data-theme="midnight"] .diary-calendar-cell {
+    border-color: color-mix(in srgb, var(--color-border-unified) 78%, transparent) !important;
+}
+
+.app-shell[data-theme="midnight"] .diary-calendar-toolbar-divider,
+.app-shell[data-theme="midnight"] .diary-calendar-title-divider {
+    border-color: color-mix(in srgb, var(--color-border-unified) 78%, transparent) !important;
+}
+
+.app-shell[data-theme="midnight"] .diary-calendar-section-divider {
+    border-color: color-mix(in srgb, var(--color-border-unified) 62%, transparent) !important;
+}
+
+.app-shell[data-theme="midnight"] .diary-calendar-cell:hover {
+    background-color: rgba(148, 163, 184, 0.08) !important;
+}
+
+.app-shell[data-theme="midnight"] .diary-timeline-row {
+    background-color: rgba(148, 163, 184, 0.025);
+}
+
+.app-shell[data-theme="midnight"] .diary-timeline-line {
+    background-color: color-mix(in srgb, var(--color-border-unified) 62%, transparent) !important;
+}
+
+.app-shell[data-theme="midnight"] .diary-timeline-month-guide {
+    border-left-color: color-mix(in srgb, var(--color-border-unified) 58%, transparent) !important;
+}
+
+/* 저장된 옵션 색상은 유지하되 midnight에서는 발광감을 낮춤 */
+.app-shell[data-theme="midnight"] .diary-calendar-link-weekly span[style*="background-color"],
+.app-shell[data-theme="midnight"] .diary-calendar-link-monthly span[style*="background-color"],
+.app-shell[data-theme="midnight"] .diary-timeline-segment {
+    box-shadow: inset 0 0 0 999px rgba(164, 164, 164, 0.34);
+    border-color: rgba(226, 232, 240, 0.18) !important;
+}
+
+.app-shell[data-theme="midnight"] .diary-calendar-link-monthly span[style*="background-color"] {
+    box-shadow: inset 0 0 0 999px rgba(152, 152, 152, 0.34);
+}
+
+.app-shell[data-theme="midnight"] .diary-timeline-segment-dot {
+    opacity: 0.82;
+}
+
+:root[data-theme="midnight"] .diary-timeline-tooltip,
+:root[data-theme="midnight"] .diary-timeline-tooltip-arrow {
+    box-shadow:
+            inset 0 0 0 999px rgba(2, 6, 23, 0.28),
+            0 12px 30px rgba(0, 0, 0, 0.38) !important;
+}
+
+:root[data-theme="midnight"] .diary-timeline-tooltip {
+    border: 1px solid rgba(226, 232, 240, 0.24);
+}
+
+/* 미체크 체크리스트 배경/체크박스 대비 보정 */
+.app-shell[data-theme="midnight"] .diary-check-unchecked-text {
+    background-color: rgba(248, 113, 113, 0.16) !important;
+    border: 1px solid rgba(248, 113, 113, 0.24);
+    color: color-mix(in srgb, #fecaca 26%, var(--color-text-main)) !important;
+}
+
+.app-shell[data-theme="midnight"] .diary-check-empty-icon {
+    color: rgba(248, 113, 113, 0.72);
+    filter: drop-shadow(0 0 2px rgba(2, 6, 23, 0.55));
+}
+
+/* 다이어리 편집 화면도 같은 midnight 톤으로 정리 */
+.app-shell[data-theme="midnight"] .diary-editor-property-row,
+.app-shell[data-theme="midnight"] .diary-editor-section-divider {
+    border-color: color-mix(in srgb, var(--color-border-unified) 78%, transparent) !important;
+}
+
+.app-shell[data-theme="midnight"] .diary-editor-property-row:hover {
+    background-color: rgba(148, 163, 184, 0.06) !important;
+}
+
+.app-shell[data-theme="midnight"] .diary-editor-textarea-wrap {
+    background-color: rgba(2, 6, 23, 0.28) !important;
+    border-color: color-mix(in srgb, var(--color-border-unified) 78%, transparent) !important;
+}
+
+.app-shell[data-theme="midnight"] .diary-editor-textarea-wrap:focus-within {
+    border-color: color-mix(in srgb, var(--color-accent) 52%, var(--color-border-unified)) !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 18%, transparent) !important;
+}
+
+.app-shell[data-theme="midnight"] .diary-editor-textarea {
+    color: var(--color-text-main);
+}
+
+.app-shell[data-theme="midnight"] .diary-editor-check-box {
+    background-color: rgba(2, 6, 23, 0.34) !important;
+    border-color: color-mix(in srgb, var(--color-border-unified) 82%, transparent) !important;
+}
+
+.app-shell[data-theme="midnight"] .diary-editor-check-row input:checked + .diary-editor-check-box {
+    background-color: color-mix(in srgb, var(--color-text-main) 70%, var(--color-page-surface)) !important;
+    border-color: color-mix(in srgb, var(--color-text-main) 82%, var(--color-border-unified)) !important;
+    color: var(--color-page-surface) !important;
+    box-shadow: 0 0 0 1px rgba(226, 232, 240, 0.18);
+}
+
+.app-shell[data-theme="midnight"] .diary-editor-check-row:focus-within .diary-editor-check-box {
+    border-color: color-mix(in srgb, var(--color-accent) 56%, var(--color-border-unified)) !important;
+}
+
+.app-shell[data-theme="midnight"] .diary-editor-property-name {
+    color: color-mix(in srgb, var(--color-text-main) 82%, var(--color-text-muted)) !important;
+}
+
+/* 카테고리 문서 목록의 삭제 액션 */
+.app-shell[data-theme="midnight"] .ui-doc-action-danger {
+    color: rgba(248, 113, 113, 0.92);
+}
+
+.app-shell[data-theme="midnight"] .ui-doc-action-danger:hover {
+    background-color: rgba(248, 113, 113, 0.12);
+    color: rgba(254, 202, 202, 0.98);
+}
+
+/* 로그아웃 후 인증 화면 */
+:root[data-theme="midnight"] .panel-surface,
+.app-shell[data-theme="midnight"] .panel-surface {
+    background-color: color-mix(in srgb, var(--color-page-surface) 92%, rgba(148, 163, 184, 0.08));
+    border-color: color-mix(in srgb, var(--color-border-unified) 78%, transparent);
+}
+
+/* 휴지통 미리보기 */
+.app-shell[data-theme="midnight"] .trash-preview-divider {
+    border-color: color-mix(in srgb, var(--color-border-unified) 72%, transparent) !important;
+}
+
+.app-shell[data-theme="midnight"] .trash-preview-viewer {
+    border: 0 !important;
+}
+
+/* 다이어리 속성 편집 화면 */
+:root[data-theme="midnight"] .diary-settings-dialog,
+:root[data-theme="midnight"] .property-options-dialog {
+    border-color: color-mix(in srgb, var(--color-border-unified) 82%, transparent) !important;
+}
+
+:root[data-theme="midnight"] .diary-settings-divider,
+:root[data-theme="midnight"] .diary-settings-row,
+:root[data-theme="midnight"] .diary-settings-panel,
+:root[data-theme="midnight"] .property-options-panel,
+:root[data-theme="midnight"] .property-options-divider {
+    border-color: color-mix(in srgb, var(--color-border-unified) 76%, transparent) !important;
+}
+
+:root[data-theme="midnight"] .diary-settings-row:hover {
+    background-color: rgba(148, 163, 184, 0.06) !important;
+}
+
+:root[data-theme="midnight"] .diary-settings-input {
+    border-color: color-mix(in srgb, var(--color-border-unified) 76%, transparent) !important;
+}
+
+:root[data-theme="midnight"] .diary-settings-input:hover,
+:root[data-theme="midnight"] .diary-settings-input:focus {
+    background-color: rgba(148, 163, 184, 0.08) !important;
+}
+
+:root[data-theme="midnight"] .diary-settings-menu {
+    border-color: color-mix(in srgb, var(--color-border-unified) 76%, transparent) !important;
+}
+
+:root[data-theme="midnight"] .diary-settings-delete {
+    color: rgba(248, 113, 113, 0.88) !important;
+}
+
+:root[data-theme="midnight"] .diary-settings-delete:hover {
+    background-color: rgba(248, 113, 113, 0.12) !important;
+    color: rgba(254, 202, 202, 0.98) !important;
+}
+
+:root[data-theme="midnight"] .diary-settings-dialog .diary-property-preset-svg-icon,
+:root[data-theme="midnight"] .diary-settings-menu .diary-property-preset-svg-icon,
+.app-shell[data-theme="midnight"] .diary-property-preset-svg-icon {
+    filter: brightness(0) invert(94%) sepia(6%) saturate(230%) hue-rotate(183deg);
+    opacity: 0.96;
+}
+
+.app-shell[data-theme="midnight"] .diary-today-marker.bg-red-500 {
+    background-color: rgba(244, 63, 94, 0.68) !important;
+    border: 1px solid rgba(254, 205, 211, 0.72);
+    color: rgba(255, 241, 242, 0.98) !important;
+    box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.16);
+}

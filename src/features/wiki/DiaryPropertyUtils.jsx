@@ -12,7 +12,7 @@ export const PROPERTY_TYPES = [
 
 function makePresetIcon(paths) {
     return [
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#5f5f5f">',
+        '<svg class="pediary-property-preset-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#5f5f5f">',
         paths,
         '</svg>',
     ].join('');
@@ -109,13 +109,25 @@ function getSvgIconSrc(icon = '') {
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(String(icon || ''))}`;
 }
 
+function isPresetSvgIcon(icon = '') {
+    const value = String(icon || '').trim();
+    if (value.includes('pediary-property-preset-icon')) return true;
+
+    return PROPERTY_ICON_PRESETS.some((preset) => preset.icon === value);
+}
+
 export function PropertyIcon({ icon }) {
     if (isSvgIcon(icon)) {
+        const isPreset = isPresetSvgIcon(icon);
+
         return (
             <img
                 src={getSvgIconSrc(icon)}
                 alt=""
-                className="h-[18px] w-[18px] object-contain"
+                className={[
+                    'diary-property-svg-icon h-[18px] w-[18px] object-contain',
+                    isPreset ? 'diary-property-preset-svg-icon' : '',
+                ].join(' ')}
             />
         );
     }

@@ -48,6 +48,11 @@
         color: var(--color-control-fg);
     }
     .ui-control:hover { background-color: var(--color-control-hover-bg); }
+    .ui-control[data-active="true"] {
+        background-color: color-mix(in srgb, var(--color-accent) 12%, var(--color-control-bg));
+        border-color: color-mix(in srgb, var(--color-accent) 44%, var(--color-control-border));
+        color: var(--color-text-main);
+    }
 
     /* Ghost */
     .ui-ghost {

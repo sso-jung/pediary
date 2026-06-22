@@ -802,6 +802,17 @@ export default function DocumentPage() {
 
     const { markdownWithAnchors, headings } = buildSectionTree(renderedForView);
 
+    const handleViewerClick = (e) => {
+        const link = e.target?.closest?.('a.wiki-internal-link');
+        if (!link) return;
+
+        const href = link.getAttribute('href');
+        if (!href) return;
+
+        e.preventDefault();
+        window.open(href, '_blank', 'noopener,noreferrer');
+    };
+
 // 사이드바 섹션 클릭 시 스크롤
     const handleClickHeading = (heading) => {
         if (!heading) return;
@@ -1135,6 +1146,7 @@ export default function DocumentPage() {
                     ) : (
                         <div
                             ref={viewerContainerRef}
+                            onClick={handleViewerClick}
                             className={
                                 'wiki-doc-viewer-shell tui-viewer-wrapper h-full overflow-y-auto p-2 lg:p-2 ' +
                                 (viewStartsWithPlainText ? 'wiki-view-starts-plain' : '')

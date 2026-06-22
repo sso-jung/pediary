@@ -13,7 +13,33 @@ import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useSnackbar } from '../../components/ui/SnackbarContext';
 
-export default function MyInfoPanel() {
+const THEME_OPTIONS = [
+    {
+        value: 'noon',
+        label: 'noon',
+        chips: ['#f3f4f8', '#ffffff', '#8599c4'],
+    },
+    {
+        value: 'sunset',
+        label: 'sunset',
+        chips: ['#fef7e5', '#fffcf8', '#ebeff6'],
+    },
+    {
+        value: 'midnight',
+        label: 'midnight',
+        chips: ['#0d1422', '#e2e4e8', '#5f648f'],
+    },
+    {
+        value: 'orbit',
+        label: 'orbit',
+        chips: ['#f3f4f8', '#fef7e5', '#5f648f'],
+    },
+];
+
+export default function MyInfoPanel({
+                                        themeSetting = 'noon',
+                                        onSaveThemeSetting,
+                                    }) {
     const user = useAuthStore((s) => s.user);
     const userId = user?.id;
     const queryClient = useQueryClient();
@@ -21,6 +47,7 @@ export default function MyInfoPanel() {
 
     const [nicknameInput, setNicknameInput] = useState('');
     const [sectionColor, setSectionColor] = useState('');
+    const [selectedTheme, setSelectedTheme] = useState(themeSetting);
     const [newPassword, setNewPassword] = useState('');
     const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
     const [pwLoading, setPwLoading] = useState(false);
@@ -50,7 +77,8 @@ export default function MyInfoPanel() {
                 email: user?.email,
                 sectionNumberColor, // ✅ 추가
             }),
-        onSuccess: () => {
+        onSuccess: (data, variables) => {
+            onSaveThemeSetting?.(variables.themeSetting);
             queryClient.invalidateQueries({ queryKey: ['myProfile', userId] });
             showSnackbar('저장했어.');
         },
@@ -67,6 +95,7 @@ export default function MyInfoPanel() {
         updateNicknameMutation.mutate({
             nickname: value || null,
             sectionNumberColor: sectionColor ? sectionColor : null, // ''이면 null로 저장(기본)
+            themeSetting: selectedTheme,
         });
     };
 
@@ -119,6 +148,10 @@ export default function MyInfoPanel() {
         setSectionColor(profile.section_number_color ?? '');
     }, [profile]);
 
+    useEffect(() => {
+        setSelectedTheme(themeSetting);
+    }, [themeSetting]);
+
     return (
         <div className="flex h-full flex-col text-xs">
             {/* 상단 헤더 */}
@@ -138,25 +171,27 @@ export default function MyInfoPanel() {
                     <h2 className="mb-1 text-[11px] font-semibold" style={{color: "var(--color-text-muted)"}}>
                         프로필
                     </h2>
-                    <div className="ui-panel rounded-xl px-3 py-2 space-y-2">
+                    <div className="ui-panel rounded-xl px-3 py-2 space-y-3">
                         <div>
                             <div className="text-[10px]" style={{color: "var(--color-text-muted)"}}>이메일</div>
                             <div className="text-[11px]" style={{color: "var(--color-text-main)"}}>{user?.email}</div>
                         </div>
 
-                        <form onSubmit={handleSaveNickname} className="space-y-1">
-                            <label className="block text-[9pt]" style={{color: "var(--color-text-muted)"}}>
-                                닉네임
-                            </label>
-                            <Input
-                                type="text"
-                                value={nicknameInput}
-                                onChange={(e) => setNicknameInput(e.target.value)}
-                                placeholder="표시할 닉네임"
-                                disabled={profileLoading || updateNicknameMutation.isLoading}
-                            />
+                        <form onSubmit={handleSaveNickname} className="space-y-4">
+                            <div>
+                                <label className="block text-[9pt] mb-1" style={{color: "var(--color-text-muted)"}}>
+                                    닉네임
+                                </label>
+                                <Input
+                                    type="text"
+                                    value={nicknameInput}
+                                    onChange={(e) => setNicknameInput(e.target.value)}
+                                    placeholder="표시할 닉네임"
+                                    disabled={profileLoading || updateNicknameMutation.isLoading}
+                                />
+                            </div>
                             <div className="mt-2">
-                                <label className="block text-[9pt] mb-1" style={{ color: "var(--color-text-muted)" }}>
+                                <label className="block text-[9pt] mb-1" style={{color: "var(--color-text-muted)"}}>
                                     섹션 번호 색상
                                 </label>
 
@@ -202,6 +237,37 @@ export default function MyInfoPanel() {
                                             <path d="M21 3v6h-6"/>
                                         </svg>
                                     </button>
+                                </div>
+                            </div>
+                            <div className="mt-2">
+                                <label className="block text-[9pt] mb-1" style={{ color: "var(--color-text-muted)" }}>
+                                    테마
+                                </label>
+                                <div className="grid grid-cols-2 gap-1.5">
+                                    {THEME_OPTIONS.map((option) => (
+                                        <button
+                                            key={option.value}
+                                            type="button"
+                                            onClick={() => setSelectedTheme(option.value)}
+                                            disabled={profileLoading || updateNicknameMutation.isLoading}
+                                            className="ui-control flex h-8 items-center justify-between gap-2 rounded-md px-2 text-[11px] disabled:opacity-60"
+                                            data-active={selectedTheme === option.value}
+                                        >
+                                            <span className="font-semibold">{option.label}</span>
+                                            <span className="flex shrink-0 -space-x-1">
+                                                {option.chips.map((color) => (
+                                                    <span
+                                                        key={color}
+                                                        className="h-3.5 w-3.5 rounded-full border"
+                                                        style={{
+                                                            backgroundColor: color,
+                                                            borderColor: 'rgba(127,127,127,0.25)',
+                                                        }}
+                                                    />
+                                                ))}
+                                            </span>
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
                             <div className="flex justify-end">

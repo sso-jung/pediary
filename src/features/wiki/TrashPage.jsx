@@ -135,7 +135,7 @@ export default function TrashPage() {
             {selectedDoc && (
                 <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 px-4 py-6">
                     <div className="ui-modal flex max-h-full w-full max-w-4xl flex-col rounded-2xl shadow-xl">
-                        <div className="flex items-start justify-between gap-3 border-b border-border-subtle px-4 py-3">
+                        <div className="trash-preview-divider flex items-start justify-between gap-3 border-b border-border-subtle px-4 py-3">
                             <div className="min-w-0">
                                 <p className="truncate text-sm font-semibold">
                                     {selectedDoc.title}
@@ -159,7 +159,7 @@ export default function TrashPage() {
 
                         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
                             {selectedDoc.content_markdown ? (
-                                <div className="tui-viewer-wrapper">
+                                <div className="trash-preview-viewer tui-viewer-wrapper">
                                     <Viewer
                                         key={selectedDoc.id}
                                         initialValue={renderFontWidgetsInMarkdown(
@@ -174,7 +174,7 @@ export default function TrashPage() {
                             )}
                         </div>
 
-                        <div className="flex justify-end gap-2 border-t border-border-subtle px-4 py-3 text-xs">
+                        <div className="trash-preview-divider flex justify-end gap-2 border-t border-border-subtle px-4 py-3 text-xs">
                             <button
                                 type="button"
                                 onClick={() => handleRestore(selectedDoc)}

@@ -781,8 +781,8 @@ function DiaryTextareaField({ value, onChangeValue, onBlur, disabled, linkCandid
             categories={categories}
             onNavigateLink={onNavigateLink}
             multiline
-            wrapperClassName="rounded-lg border border-border-subtle bg-[rgba(255,255,255,0.55)] p-1.5 shadow-sm focus-within:border-[rgba(120,145,255,0.55)] focus-within:ring-2 focus-within:ring-[rgba(120,145,255,0.18)]"
-            inputClassName="block min-h-[68px] w-full resize-none overflow-hidden rounded-md bg-transparent px-1 py-1 text-xs leading-5 outline-none"
+            wrapperClassName="diary-editor-textarea-wrap rounded-lg border border-border-subtle bg-[rgba(255,255,255,0.55)] p-1.5 shadow-sm focus-within:border-[rgba(120,145,255,0.55)] focus-within:ring-2 focus-within:ring-[rgba(120,145,255,0.18)]"
+            inputClassName="diary-editor-textarea block min-h-[68px] w-full resize-none overflow-hidden rounded-md bg-transparent px-1 py-1 text-xs leading-5 outline-none"
         />
     );
 }
@@ -1228,7 +1228,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
             return (
                 <div className="space-y-1">
                     {items.map((item, index) => (
-                        <div key={index} className="flex items-center gap-1.5">
+                        <div key={index} className="diary-editor-check-row flex items-center gap-1.5">
                             <label className="relative flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center">
                                 <input
                                     type="checkbox"
@@ -1244,7 +1244,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
                                     }
                                     disabled={loading}
                                 />
-                                <span className="flex h-4 w-4 items-center justify-center rounded border border-border-subtle bg-[var(--color-page-surface)] text-white transition peer-checked:border-[var(--color-accent)] peer-checked:bg-[var(--color-accent)] [&>svg]:peer-checked:opacity-100">
+                                <span className="diary-editor-check-box flex h-4 w-4 items-center justify-center rounded border border-border-subtle bg-[var(--color-page-surface)] text-white transition peer-checked:border-[var(--color-accent)] peer-checked:bg-[var(--color-accent)] [&>svg]:peer-checked:opacity-100">
                                     <svg
                                         viewBox="0 0 16 16"
                                         className="h-3 w-3 opacity-0 transition"
@@ -1411,7 +1411,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
     const renderPropertyRow = (property, position = 'visible') => (
         <div
             key={property.id}
-            className="grid grid-cols-[28px_minmax(0,120px)_minmax(0,1fr)] items-start border-b border-border-subtle px-2 py-1 text-xs hover:bg-[rgba(127,127,127,0.04)]"
+            className="diary-editor-property-row grid grid-cols-[28px_minmax(0,120px)_minmax(0,1fr)] items-start border-b border-border-subtle px-2 py-1 text-xs hover:bg-[rgba(127,127,127,0.04)]"
             onFocusCapture={() => keepPropertyPosition(property.id, position)}
             onBlurCapture={(e) => {
                 if (e.currentTarget.contains(e.relatedTarget)) return;
@@ -1421,7 +1421,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
             <span className="flex h-7 w-7 shrink-0 items-center justify-center text-center">
                 <PropertyIcon icon={property.icon}/>
             </span>
-            <span className="flex min-h-7 min-w-0 items-center break-words px-2 font-medium leading-4 text-[var(--color-text-muted)]">
+            <span className="diary-editor-property-name flex min-h-7 min-w-0 items-center break-words px-2 font-medium leading-4 text-[var(--color-text-muted)]">
                 {getPropertyDisplayName(property.name)}
             </span>
             <div className="min-w-0 self-center">
@@ -1445,7 +1445,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
 
         return (
             <div key={section.id} className={depth > 0 ? "ml-6" : ""}>
-                <div className="mt-3 border-b border-border-subtle px-2 py-2 text-[13px] font-bold text-[var(--color-text-main)]">
+                <div className="diary-editor-section-divider mt-3 border-b border-border-subtle px-2 py-2 text-[13px] font-bold text-[var(--color-text-main)]">
                     {section.name}
                 </div>
                 {sectionProperties.map((property) => renderPropertyRow(property, 'visible'))}
@@ -1513,7 +1513,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
                     <div className="space-y-1">
                         {(unclassifiedProperties.length > 0 || collapsedUnclassifiedProperties.length > 0) && (
                             <div>
-                                <div className="border-b border-border-subtle px-2 py-1.5 text-xs font-semibold text-[var(--color-text-muted)]">
+                                <div className="diary-editor-section-divider border-b border-border-subtle px-2 py-1.5 text-xs font-semibold text-[var(--color-text-muted)]">
                                     미분류
                                 </div>
                                 {unclassifiedProperties.map((property) => renderPropertyRow(property, 'visible'))}

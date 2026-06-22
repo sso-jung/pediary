@@ -94,6 +94,7 @@ export function normalizeOptionValue(value) {
         name,
         color,
         textColor,
+        link: String(value.link || '').trim(),
     };
 }
 
@@ -127,6 +128,7 @@ export function makeOptionValue(option) {
         name,
         color,
         textColor,
+        link: String(option?.link || '').trim(),
     };
 }
 
@@ -157,5 +159,6 @@ export function mergeLatestOptionMeta(value, optionMetaMap) {
         ...normalized,
         color: latest?.color || normalized.color,
         textColor: latest?.textColor || normalized.textColor,
+        link: normalized.link || '',
     };
 }

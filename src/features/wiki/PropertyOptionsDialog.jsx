@@ -121,7 +121,7 @@ export default function PropertyOptionsDialog({
             }}
         >
             <div
-                className="ui-dialog w-[min(520px,calc(100vw-32px))] rounded-2xl p-4"
+                className="property-options-dialog ui-dialog w-[min(520px,calc(100vw-32px))] rounded-2xl p-4"
                 onMouseDown={(e) => e.stopPropagation()}
             >
                 <div className="mb-3">
@@ -172,7 +172,7 @@ export default function PropertyOptionsDialog({
                 </div>
 
                 {editingOption && (
-                    <div className="mt-3 rounded-lg border border-border-subtle px-3 py-2">
+                    <div className="property-options-panel mt-3 rounded-lg border border-border-subtle px-3 py-2">
                         <div className="mb-2 flex items-center justify-between gap-2">
                             <OptionBadge
                                 option={{
@@ -227,7 +227,7 @@ export default function PropertyOptionsDialog({
                             ))}
                         </div>
 
-                        <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-border-subtle pt-2">
+                        <div className="property-options-divider mt-2 flex flex-wrap items-center gap-2 border-t border-border-subtle pt-2">
                             <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-muted)]">
                                 <span>배경</span>
                                 <input
@@ -263,7 +263,7 @@ export default function PropertyOptionsDialog({
                     </div>
                 )}
 
-                <div className="mt-3 flex items-center gap-2 border-t border-border-subtle pt-3">
+                <div className="property-options-divider mt-3 flex items-center gap-2 border-t border-border-subtle pt-3">
                     <input
                         className="ui-input !h-8 !rounded-md !px-2 !py-0 text-xs"
                         value={newOptionName}

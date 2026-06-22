@@ -460,6 +460,17 @@ function lineHeightCodeToValue(code) {
     return Number(code) / 100;
 }
 
+function getTodayDateText() {
+    const date = new Date();
+    const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const weekday = weekdays[date.getDay()];
+
+    return `${year}-${month}-${day}(${weekday})`;
+}
+
 function mergeClassName(existing = '', next = '') {
     const set = new Set(
         `${existing} ${next}`
@@ -1869,6 +1880,43 @@ export default function MarkdownEditor({
         });
     }, [onChange, updateRecentTextColor]);
 
+    const insertTodayDate = useCallback(() => {
+        const instance = editorRef.current?.getInstance();
+        const root = editorRef.current?.getRootElement?.();
+        if (!instance || !root) return;
+
+        const active = document.activeElement;
+        if (!active || !root.contains(active)) return;
+
+        const text = getTodayDateText();
+        const html = `<span class="wiki-font-custom wiki-today-date" style="font-size:20px; font-weight:700">${escapeHtmlText(text)}</span>`;
+        const view = instance?.wwEditor?.view;
+        const schema = view?.state?.schema;
+        const spanMarkType = view?.state?.schema?.marks?.span;
+
+        if (view && schema && spanMarkType) {
+            const mark = spanMarkType.create({
+                htmlAttrs: {
+                    class: 'wiki-font-custom wiki-today-date',
+                    style: 'font-size:20px; font-weight:700',
+                },
+            });
+            const from = view.state.selection.from;
+            const node = schema.text(text);
+            const tr = view.state.tr.replaceSelectionWith(node);
+
+            tr.addMark(from, from + text.length, mark);
+            view.dispatch(tr);
+        } else {
+            instance.replaceSelection(html);
+        }
+
+        requestAnimationFrame(() => {
+            const nextMarkdown = getMarkdownForSave(instance);
+            onChange(nextMarkdown);
+        });
+    }, [onChange]);
+
     // 🔹 부분 폰트 크기 변경 커맨드 등록
     useEffect(() => {
         const instance = editorRef.current?.getInstance();
@@ -1954,6 +2002,42 @@ export default function MarkdownEditor({
         window.addEventListener('keydown', handleUnderlineShortcut, true);
         return () => window.removeEventListener('keydown', handleUnderlineShortcut, true);
     }, [applyUnderline]);
+
+    // 🔹 Ctrl+O / Cmd+O → 오늘 날짜 삽입, Ctrl+L / Cmd+L → 숫자 목록
+    useEffect(() => {
+        const handleDateAndListShortcut = (e) => {
+            const isMac = navigator.platform.toUpperCase().includes('MAC');
+            const isCtrlOrMeta = isMac ? e.metaKey : e.ctrlKey;
+
+            if (!isCtrlOrMeta || e.altKey || e.shiftKey) return;
+
+            const isTodayKey = e.key === 'o' || e.key === 'O';
+            const isOrderedListKey = e.key === 'l' || e.key === 'L';
+
+            if (!isTodayKey && !isOrderedListKey) return;
+
+            const instance = editorRef.current?.getInstance();
+            const root = editorRef.current?.getRootElement?.();
+            if (!instance || !root) return;
+
+            const active = document.activeElement;
+            if (!active || !root.contains(active)) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation?.();
+
+            if (isTodayKey) {
+                insertTodayDate();
+                return;
+            }
+
+            instance.exec('orderedList');
+        };
+
+        window.addEventListener('keydown', handleDateAndListShortcut, true);
+        return () => window.removeEventListener('keydown', handleDateAndListShortcut, true);
+    }, [insertTodayDate]);
 
     // =========================
     // 폰트 팝업 위치/열림 상태
@@ -2225,19 +2309,25 @@ export default function MarkdownEditor({
             applyUnderline();
         };
 
+        const handleInsertTodayDate = () => {
+            insertTodayDate();
+        };
+
         window.addEventListener('pediary:open-font-picker', handleOpenFontPicker);
         window.addEventListener('pediary:open-line-height-picker', handleOpenLineHeightPicker);
         window.addEventListener('pediary:open-internal-link', handleOpenInternalLink);
         window.addEventListener('pediary:paragraph-align', handleParagraphAlign);
         window.addEventListener('pediary:underline', handleUnderline);
+        window.addEventListener('pediary:insert-today-date', handleInsertTodayDate);
         return () => {
             window.removeEventListener('pediary:open-font-picker', handleOpenFontPicker);
             window.removeEventListener('pediary:open-line-height-picker', handleOpenLineHeightPicker);
             window.removeEventListener('pediary:open-internal-link', handleOpenInternalLink);
             window.removeEventListener('pediary:paragraph-align', handleParagraphAlign);
             window.removeEventListener('pediary:underline', handleUnderline);
+            window.removeEventListener('pediary:insert-today-date', handleInsertTodayDate);
         };
-    }, [openFontPicker, openLineHeightPicker, openInternalLinkPalette, applyParagraphAlign, applyUnderline]);
+    }, [openFontPicker, openLineHeightPicker, openInternalLinkPalette, applyParagraphAlign, applyUnderline, insertTodayDate]);
 
     // 🔹 아무것도 수정 안 한 상태에서 Ctrl+Z 누르면 전체 삭제되는 것 + 초기 내용보다 더 뒤로 가는 것 방지
     useEffect(() => {
@@ -2289,6 +2379,16 @@ export default function MarkdownEditor({
                 <path d="M8.75 4.75H6.25C5.45 4.75 4.75 5.45 4.75 6.25V17.75C4.75 18.55 5.45 19.25 6.25 19.25H8.75" style="stroke-width: 1.6" />
                 <path d="M15.25 4.75H17.75C18.55 4.75 19.25 5.45 19.25 6.25V17.75C19.25 18.55 18.55 19.25 17.75 19.25H15.25" style="stroke-width: 1.6" />
                 <path d="M10 12H14" style="stroke-width: 1.6" />
+            </svg>
+        `;
+        const todayDateIcon = `
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="4.75" y="5.75" width="14.5" height="13.5" rx="2" />
+                <path d="M8 4.75V7.75" />
+                <path d="M16 4.75V7.75" />
+                <path d="M4.75 10H19.25" />
+                <path d="M8.5 14H10.5" />
+                <path d="M13.5 14H15.5" />
             </svg>
         `;
         const underlineIcon = `
@@ -2481,6 +2581,11 @@ export default function MarkdownEditor({
                     name: 'internalLink',
                     tooltip: '내부 링크',
                     el: makeButton(internalLinkIcon, '내부 링크', 'pediary:open-internal-link'),
+                },
+                {
+                    name: 'todayDate',
+                    tooltip: '오늘 날짜',
+                    el: makeButton(todayDateIcon, '오늘 날짜', 'pediary:insert-today-date'),
                 },
             ],
             [

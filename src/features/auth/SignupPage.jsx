@@ -1,9 +1,29 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { useAuthStore } from '../../store/authStore';
 import { supabase } from '../../lib/supabaseClient';
+
+const THEME_STORAGE_KEY = 'pediary-theme';
+
+function getOrbitTheme() {
+    const hour = new Date().getHours();
+
+    if (hour >= 8 && hour < 16) return 'noon';
+    if (hour >= 16) return 'dusk';
+    return 'midnight';
+}
+
+function getAuthTheme() {
+    if (typeof window === 'undefined') return 'noon';
+
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === 'orbit') return getOrbitTheme();
+    if (stored === 'sunset' || stored === 'dusk') return 'dusk';
+    if (stored === 'midnight' || stored === 'dark') return 'midnight';
+    return 'noon';
+}
 
 export default function SignupPage() {
     const [email, setEmail] = useState('');
@@ -14,6 +34,11 @@ export default function SignupPage() {
 
     const signUp = useAuthStore((s) => s.signUp);
     const navigate = useNavigate();
+    const authTheme = getAuthTheme();
+
+    useEffect(() => {
+        document.documentElement.setAttribute('data-theme', authTheme);
+    }, [authTheme]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -58,18 +83,18 @@ export default function SignupPage() {
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-softbg px-4">
-            <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-soft">
-                <h1 className="text-xl font-semibold text-slate-800 text-center">
+        <div data-theme={authTheme} className="app-shell flex min-h-screen items-center justify-center px-4">
+            <div className="panel-surface w-full max-w-md rounded-2xl border p-6 shadow-soft">
+                <h1 className="text-xl font-semibold text-center" style={{ color: 'var(--color-text-main)' }}>
                     Pediary 회원가입
                 </h1>
-                <p className="mt-1 text-sm text-slate-500 text-center">
+                <p className="mt-1 text-sm text-center" style={{ color: 'var(--color-text-muted)' }}>
                     나만의 위키 다이어리를 지금 시작해볼까?
                 </p>
 
                 <form onSubmit={handleSubmit} className="mt-6 space-y-4">
                     <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                        <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>
                             이메일
                         </label>
                         <Input
@@ -82,7 +107,7 @@ export default function SignupPage() {
                     </div>
 
                     <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                        <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>
                             비밀번호
                         </label>
                         <Input
@@ -95,7 +120,7 @@ export default function SignupPage() {
                     </div>
 
                     <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                        <label className="block text-xs font-medium mb-1" style={{ color: 'var(--color-text-muted)' }}>
                             비밀번호 확인
                         </label>
                         <Input
@@ -121,11 +146,12 @@ export default function SignupPage() {
                         {loading ? '회원가입 중...' : '회원가입'}
                     </Button>
 
-                    <p className="mt-3 text-xs text-slate-500 text-center">
+                    <p className="mt-3 text-xs text-center" style={{ color: 'var(--color-text-muted)' }}>
                         이미 계정이 있다면{' '}
                         <Link
                             to="/login"
-                            className="text-primary-500 hover:text-primary-600 font-medium"
+                            className="font-medium"
+                            style={{ color: 'var(--color-accent)' }}
                         >
                             로그인
                         </Link>

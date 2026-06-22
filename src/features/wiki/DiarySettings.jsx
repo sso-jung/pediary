@@ -279,7 +279,7 @@ function SettingsDropdown({ value, options, onChange }) {
             <button
                 ref={buttonRef}
                 type="button"
-                className="ui-input flex h-[30px] w-full items-center justify-between gap-2 !rounded-md !px-2.5 !py-0 !text-left !text-[12px]"
+                className="diary-settings-input ui-input flex h-[30px] w-full items-center justify-between gap-2 !rounded-md !px-2.5 !py-0 !text-left !text-[12px]"
                 onClick={(e) => {
                     e.stopPropagation();
                     updateMenuRect();
@@ -316,7 +316,7 @@ function SettingsDropdown({ value, options, onChange }) {
             {isOpen && menuRect && createPortal(
                 <div
                     ref={menuRef}
-                    className="fixed z-50 max-h-72 overflow-y-auto rounded-md border py-1 text-[12px] shadow-lg"
+                    className="diary-settings-menu fixed z-50 max-h-72 overflow-y-auto rounded-md border py-1 text-[12px] shadow-lg"
                     style={{
                         left: menuRect.left,
                         top: menuRect.top,
@@ -1198,7 +1198,7 @@ export default function DiarySettings({ open, onClose }) {
                 {viewItems.map((item) => (
                     <div
                         key={item.propertyId}
-                        className="grid grid-cols-[minmax(0,1fr)_112px_132px] items-center border-b border-border-subtle px-2 py-1.5 text-xs last:border-b-0"
+                        className="diary-settings-row grid grid-cols-[minmax(0,1fr)_112px_132px] items-center border-b border-border-subtle px-2 py-1.5 text-xs last:border-b-0"
                     >
                         <div className="flex min-w-0 items-center gap-2">
                             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md">
@@ -1256,7 +1256,7 @@ export default function DiarySettings({ open, onClose }) {
             <div
                 key={property.id}
                 className={[
-                    "relative grid grid-cols-[28px_40px_repeat(3,minmax(0,1fr))_32px] items-center border-b border-border-subtle px-2 py-1 text-xs hover:bg-[rgba(127,127,127,0.06)]",
+                    "diary-settings-row relative grid grid-cols-[28px_40px_repeat(3,minmax(0,1fr))_32px] items-center border-b border-border-subtle px-2 py-1 text-xs hover:bg-[rgba(127,127,127,0.06)]",
                     draggingPropertyId === property.id ? "opacity-60" : "",
                 ].join(" ")}
                 onDragOver={(e) => handleDragOverProperty(e, property.id)}
@@ -1322,7 +1322,7 @@ export default function DiarySettings({ open, onClose }) {
 
                 <div className="flex min-w-0 items-center gap-1 pr-2">
                     <input
-                        className="h-8 min-w-0 flex-1 rounded-md bg-transparent px-2 outline-none hover:bg-[rgba(127,127,127,0.08)] focus:bg-[rgba(127,127,127,0.10)]"
+                        className="diary-settings-input h-8 min-w-0 flex-1 rounded-md bg-transparent px-2 outline-none hover:bg-[rgba(127,127,127,0.08)] focus:bg-[rgba(127,127,127,0.10)]"
                         value={draft.name}
                         onChange={(e) =>
                             handleChangePropertyDraft(
@@ -1385,7 +1385,7 @@ export default function DiarySettings({ open, onClose }) {
 
                 <button
                     type="button"
-                    className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] hover:text-red-500 disabled:opacity-30"
+                    className="diary-settings-delete flex h-7 w-7 items-center justify-center rounded-md text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] hover:text-red-500 disabled:opacity-30"
                     onClick={() => handleDeleteProperty(property.id)}
                     disabled={deleteProperty.isPending}
                     aria-label="속성 삭제"
@@ -1427,7 +1427,7 @@ export default function DiarySettings({ open, onClose }) {
             <div key={section.id} className={depth > 0 ? "ml-6" : ""}>
                 <div
                     className={[
-                        "relative mt-0 flex items-center gap-1 border-b border-border-subtle px-2 py-1.5 text-xs",
+                        "diary-settings-row relative mt-0 flex items-center gap-1 border-b border-border-subtle px-2 py-1.5 text-xs",
                         draggingSectionId === section.id ? "opacity-60" : "",
                     ].join(" ")}
                     onDragOver={(e) => {
@@ -1488,7 +1488,7 @@ export default function DiarySettings({ open, onClose }) {
                     </button>
 
                     <input
-                        className="h-8 min-w-0 flex-1 rounded-md bg-transparent px-2 font-semibold outline-none hover:bg-[rgba(127,127,127,0.08)] focus:bg-[rgba(127,127,127,0.10)]"
+                        className="diary-settings-input h-8 min-w-0 flex-1 rounded-md bg-transparent px-2 font-semibold outline-none hover:bg-[rgba(127,127,127,0.08)] focus:bg-[rgba(127,127,127,0.10)]"
                         value={draft.name}
                         onChange={(e) => handleChangeSectionDraft(section.id, e.target.value)}
                         onBlur={() => flushSectionSave(section.id)}
@@ -1510,7 +1510,7 @@ export default function DiarySettings({ open, onClose }) {
 
                     <button
                         type="button"
-                        className="rounded-md px-2 py-1 text-[11px] font-medium text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] hover:text-red-500 disabled:opacity-30"
+                        className="diary-settings-delete rounded-md px-2 py-1 text-[11px] font-medium text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] hover:text-red-500 disabled:opacity-30"
                         onClick={() => handleDeleteSection(section.id)}
                         disabled={deleteSection.isPending}
                         aria-label="섹션 삭제"
@@ -1542,13 +1542,13 @@ export default function DiarySettings({ open, onClose }) {
             onMouseDown={handleBackdropMouseDown}
         >
             <div
-                className="ui-dialog flex max-h-[86vh] w-[min(760px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl p-0"
+                className="diary-settings-dialog ui-dialog flex max-h-[86vh] w-[min(760px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl p-0"
                 onMouseDown={(e) => e.stopPropagation()}
                 onMouseMove={handleTooltipMouseMove}
                 onMouseLeave={() => setTitleTooltip(null)}
                 onMouseOut={handleTooltipMouseLeave}
             >
-                <div className="flex items-center justify-between border-b border-border-subtle px-5 py-3">
+                <div className="diary-settings-divider flex items-center justify-between border-b border-border-subtle px-5 py-3">
                     <div className="flex flex-wrap items-center gap-1">
                         {SETTINGS_TABS.map((tab) => (
                             <button
@@ -1572,7 +1572,7 @@ export default function DiarySettings({ open, onClose }) {
                     {activeSettingsTab === 'properties' ? (
                         <>
                             <div
-                                className="mt-1 rounded-md border border-dashed border-border-subtle"
+                                className="diary-settings-panel mt-1 rounded-md border border-dashed border-border-subtle"
                                 onDragOver={(e) => {
                                     if (!draggingPropertyId) return;
                                     e.preventDefault();
@@ -1581,7 +1581,7 @@ export default function DiarySettings({ open, onClose }) {
                             >
                                 <div
                                     className={[
-                                        "flex items-center justify-between border-border-subtle px-2 py-1.5 text-xs font-semibold text-[var(--color-text-muted)]",
+                                        "diary-settings-divider flex items-center justify-between border-border-subtle px-2 py-1.5 text-xs font-semibold text-[var(--color-text-muted)]",
                                         unclassifiedItems.length > 0 ? "border-b" : "",
                                     ].join(" ")}
                                 >

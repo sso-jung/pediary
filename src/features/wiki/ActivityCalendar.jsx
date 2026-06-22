@@ -2,6 +2,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import DiaryEditor from './DiaryEditor';
 import DiarySettings from './DiarySettings';
 import { PropertyIcon } from './DiaryPropertyUtils';
@@ -22,6 +23,7 @@ import { useDiaryPropertyOptions } from './hooks/useDiaryPropertyOptions';
 import { parseInternalLinks } from '../../lib/internalLinkParser';
 import { useWikiLinkTooltip, WikiLinkTooltip } from './WikiLinkTooltip';
 import { useAuthStore } from '../../store/authStore';
+import { upsertDiaryPropertyValue } from '../../lib/wikiApi';
 
 const VIEW_LABEL = {
     weekly: 'WEEKLY',
@@ -265,6 +267,53 @@ function getTimelineDisplayValues(property, value, optionMetaMap) {
     return text ? [{ text }] : [];
 }
 
+function getTimelineOptionLink(option) {
+    return String(option?.link || '').trim();
+}
+
+function getPopupLinkHref(link) {
+    const value = String(link || '').trim();
+    if (!value) return '';
+    if (/^(https?:\/\/|mailto:|tel:|\/|#)/i.test(value)) return value;
+    return `https://${value}`;
+}
+
+function setTimelineOptionLink(value, propertyType, optionName, link) {
+    const nextLink = String(link || '').trim();
+
+    const updateOption = (option) => {
+        const normalized = normalizeOptionValue(option);
+        if (!normalized) return option;
+        if (normalized.name !== optionName) return option;
+
+        const nextOption = { ...normalized };
+
+        if (nextLink) {
+            nextOption.link = nextLink;
+        } else {
+            delete nextOption.link;
+        }
+
+        return nextOption;
+    };
+
+    if (propertyType === 'select') {
+        return {
+            ...(value || {}),
+            option: updateOption(value?.option),
+        };
+    }
+
+    if (propertyType === 'multi_select') {
+        return {
+            ...(value || {}),
+            options: normalizeOptionValues(value?.options).map(updateOption),
+        };
+    }
+
+    return value;
+}
+
 function buildTimelineSegments({
                                    diaries = [],
                                    diaryValueMapByDate = new Map(),
@@ -283,6 +332,9 @@ function buildTimelineSegments({
                 dateKey: diary.diary_date,
                 text: display.text,
                 option: display.option,
+                link: getTimelineOptionLink(display.option),
+                propertyId,
+                propertyType: property?.type,
             }));
         })
         .sort((a, b) => String(a.dateKey).localeCompare(String(b.dateKey)));
@@ -300,15 +352,21 @@ function buildTimelineSegments({
         ) {
             last.endDateKey = point.dateKey;
             last.lastSeenDateKey = point.dateKey;
+            last.dateKeys = [...(last.dateKeys || []), point.dateKey];
+            last.link = last.link || point.link;
             return;
         }
 
         segments.push({
             text: point.text,
             option: point.option,
+            link: point.link,
+            propertyId: point.propertyId,
+            propertyType: point.propertyType,
             startDateKey: point.dateKey,
             endDateKey: point.dateKey,
             lastSeenDateKey: point.dateKey,
+            dateKeys: [point.dateKey],
         });
 
         segmentsByText.set(key, segments);
@@ -361,7 +419,7 @@ function TimelineTooltip({ tooltip }) {
 
     return createPortal(
         <div
-            className="pointer-events-none fixed z-[9999] rounded-lg px-3 py-2 text-[11px] font-semibold leading-snug text-white shadow-xl"
+            className="diary-timeline-tooltip pointer-events-none fixed z-[9999] rounded-lg px-3 py-2 text-[11px] font-semibold leading-snug text-white shadow-xl"
             style={{
                 left: tooltip.x,
                 top: tooltip.y,
@@ -375,7 +433,7 @@ function TimelineTooltip({ tooltip }) {
             {tooltip.text}
             <span
                 aria-hidden
-                className="absolute left-1/2 h-2 w-2 -translate-x-1/2 rotate-45"
+                className="diary-timeline-tooltip-arrow absolute left-1/2 h-2 w-2 -translate-x-1/2 rotate-45"
                 style={{
                     top: -4,
                     backgroundColor: tooltip.backgroundColor || 'rgb(30 41 59)',
@@ -386,7 +444,7 @@ function TimelineTooltip({ tooltip }) {
     );
 }
 
-function TimelineSegmentBar({ segment, year, timelineWidth, onClickDate, onTooltipShow, onTooltipHide }) {
+function TimelineSegmentBar({ segment, year, timelineWidth, onOpenLink, onOpenLinkDialog, onTooltipShow, onTooltipHide }) {
     const daysInYear = getDaysInYear(year);
 
     const startDay = segment.startDay ?? getDayOfYear(segment.startDateKey);
@@ -424,7 +482,7 @@ function TimelineSegmentBar({ segment, year, timelineWidth, onClickDate, onToolt
         return (
             <button
                 type="button"
-                className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full transition hover:scale-125"
+                className="diary-timeline-segment diary-timeline-segment-dot absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full transition hover:scale-125"
                 style={{
                     left: `${left}%`,
                     top: laneY,
@@ -434,7 +492,12 @@ function TimelineSegmentBar({ segment, year, timelineWidth, onClickDate, onToolt
                 onMouseLeave={onTooltipHide}
                 onClick={(e) => {
                     e.stopPropagation();
-                    onClickDate?.(segment.startDateKey);
+                    onOpenLink?.(segment);
+                }}
+                onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onOpenLinkDialog?.(segment);
                 }}
                 aria-label={`${dateText} ${segment.text}`}
             >
@@ -446,7 +509,7 @@ function TimelineSegmentBar({ segment, year, timelineWidth, onClickDate, onToolt
     return (
         <button
             type="button"
-            className="absolute flex h-6 items-center justify-center overflow-hidden rounded-full border px-2 text-[11px] font-semibold transition hover:-translate-y-px hover:brightness-95"
+            className="diary-timeline-segment absolute flex h-6 items-center justify-center overflow-hidden rounded-full border px-2 text-[11px] font-semibold transition hover:-translate-y-px hover:brightness-95"
             style={{
                 left: `${left}%`,
                 top: `calc(50% + ${laneOffset * TIMELINE_LANE_GAP}px - 12px)`,
@@ -459,7 +522,12 @@ function TimelineSegmentBar({ segment, year, timelineWidth, onClickDate, onToolt
             onMouseLeave={onTooltipHide}
             onClick={(e) => {
                 e.stopPropagation();
-                onClickDate?.(segment.startDateKey);
+                onOpenLink?.(segment);
+            }}
+            onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onOpenLinkDialog?.(segment);
             }}
         >
             {showText && (
@@ -526,7 +594,7 @@ function renderDiaryProperties(
         >
             {showTitle && diary.title && (
                 isWeekly ? (
-                    <div className="mb-[18px] border-b border-border-subtle pb-[10px]">
+                    <div className="diary-calendar-title-divider mb-[18px] border-b border-border-subtle pb-[10px]">
                         <p
                             className={[
                                 "flex items-center line-clamp-2 min-h-[38px] break-words font-semibold leading-snug text-[var(--color-text-main)]",
@@ -566,6 +634,14 @@ function renderDiaryProperties(
                     item.lines.length > 0;
                 const hasPropertyHeader = (showIcon && item.property?.icon) || (showName && name);
                 const shouldRenderTextAsBlock = isBlockTextProperty && hasPropertyHeader;
+                const hasVisibleName = showName && !!name;
+                const isMonthlyIconOnlyText =
+                    !isWeekly &&
+                    showIcon &&
+                    item.property?.icon &&
+                    !hasVisibleName &&
+                    isTextProperty &&
+                    !isBlockTextProperty;
                 const textContentClass = isTextProperty
                     ? isWeekly
                         ? isBlockTextProperty
@@ -591,8 +667,8 @@ function renderDiaryProperties(
                 return (
                     <Fragment key={item.propertyId}>
                         {hasSectionSeparator && isWeekly && (
-                            <div className="py-3" aria-hidden="true">
-                                <div className="border-t border-dashed border-[rgba(127,127,127,0.22)]" />
+                            <div className="pt-2 pb-3" aria-hidden="true">
+                                <div className="diary-calendar-section-divider border-t border-dashed border-[rgba(127,127,127,0.22)]" />
                             </div>
                         )}
 
@@ -604,6 +680,7 @@ function renderDiaryProperties(
                                 !isWeekly && isOptionProperty ? 'pb-1' : '',
                                 isWeekly && !isOptionProperty ? 'pb-[2px]' : '' ,
                                 !isWeekly && !isOptionProperty ? 'pb-[1px]' : '',
+                                isMonthlyIconOnlyText ? 'mb-1' : '',
                             ].join(' ')}
                             style={
                                 isBlockTextProperty
@@ -631,6 +708,8 @@ function renderDiaryProperties(
                                         ? isWeekly
                                             ? 'relative -top-[2.5px]'
                                             : ''
+                                        : isMonthlyIconOnlyText
+                                            ? 'relative -top-[1px]'
                                         : isWeekly && isTextProperty
                                             ? 'relative -top-[1px]'
                                             : 'mt-[2px]',
@@ -709,7 +788,7 @@ function renderDiaryProperties(
                                                 <svg
                                                     xmlns="http://www.w3.org/2000/svg"
                                                     viewBox="0 0 24 24"
-                                                    className="h-[18px] w-[18px]"
+                                                    className="diary-check-empty-icon h-[18px] w-[18px]"
                                                     fill="currentColor"
                                                     aria-hidden="true"
                                                 >
@@ -754,7 +833,7 @@ function renderDiaryProperties(
                                                 'min-w-0 break-words',
                                                 contentTextClass,
                                                 item.property?.type === 'check_list' && line.checked === false
-                                                    ? 'rounded bg-red-100 px-1 py-[1px]'
+                                                    ? 'diary-check-unchecked-text rounded bg-red-100 px-1 py-[1px]'
                                                     : '',
                                                 isWeekly ? '' : 'mt-[2px]',
                                             ].join(' ')}
@@ -830,7 +909,7 @@ function TimelineMonthGuides({ year }) {
                     <span
                         key={index}
                         aria-hidden
-                        className="pointer-events-none absolute bottom-0 top-0 border-l border-dashed"
+                        className="diary-timeline-month-guide pointer-events-none absolute bottom-0 top-0 border-l border-dashed"
                         style={{
                             left: `${left}%`,
                             borderLeftColor: 'rgba(100, 116, 139, 0.24)',
@@ -916,6 +995,7 @@ function CalendarDropdown({ value, label, options, onChange, className = '' }) {
 
 export default function ActivityCalendar() {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const user = useAuthStore((state) => state.user);
     const userId = user?.id;
     const today = new Date();
@@ -936,6 +1016,8 @@ export default function ActivityCalendar() {
     const { data: viewSetting } = useDiaryViewSetting(calendarView);
     const { data: propertyOptions } = useDiaryPropertyOptions();
     const [timelineTooltip, setTimelineTooltip] = useState(null);
+    const [timelineLinkDialog, setTimelineLinkDialog] = useState(null);
+    const [timelineLinkInput, setTimelineLinkInput] = useState('');
     const [timelineWidth, setTimelineWidth] = useState(0);
     const rootRef = useRef(null);
     const timelineAreaRef = useRef(null);
@@ -947,8 +1029,13 @@ export default function ActivityCalendar() {
 
         e.preventDefault();
         e.stopPropagation();
+        if (calendarView === 'weekly' || calendarView === 'monthly') {
+            window.open(href, '_blank', 'noopener,noreferrer');
+            return;
+        }
+
         navigate(href);
-    }, [navigate]);
+    }, [calendarView, navigate]);
 
     useEffect(() => {
         if (calendarView !== 'timeline') return;
@@ -1131,6 +1218,65 @@ export default function ActivityCalendar() {
         setEditorDate(dateKey);
     };
 
+    const saveTimelineLinkMutation = useMutation({
+        mutationFn: async ({ segment, link }) => {
+            const dateKeys = segment?.dateKeys?.length
+                ? segment.dateKeys
+                : [segment?.startDateKey].filter(Boolean);
+
+            await Promise.all(
+                dateKeys.map((dateKey) => {
+                    const value = diaryValueMapByDate.get(dateKey)?.get(segment.propertyId);
+                    const nextValue = setTimelineOptionLink(
+                        value,
+                        segment.propertyType,
+                        segment.text,
+                        link,
+                    );
+
+                    return upsertDiaryPropertyValue({
+                        userId,
+                        diaryDate: dateKey,
+                        propertyId: segment.propertyId,
+                        value: nextValue,
+                    });
+                }),
+            );
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['diaries', userId] });
+        },
+    });
+
+    const handleOpenTimelineLink = (segment) => {
+        const href = getPopupLinkHref(segment?.link);
+        if (!href) return;
+
+        window.open(href, '_blank', 'noopener,noreferrer');
+    };
+
+    const handleOpenTimelineLinkDialog = (segment) => {
+        setTimelineTooltip(null);
+        setTimelineLinkDialog(segment);
+        setTimelineLinkInput(segment?.link || '');
+    };
+
+    const handleSaveTimelineLink = async () => {
+        if (!timelineLinkDialog) return;
+
+        try {
+            await saveTimelineLinkMutation.mutateAsync({
+                segment: timelineLinkDialog,
+                link: timelineLinkInput,
+            });
+
+            setTimelineLinkDialog(null);
+            setTimelineLinkInput('');
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
     const weekStart = getWeekStart(weekDate);
     const weekDays = Array.from({ length: 7 }).map((_, index) => addDays(weekStart, index));
     const todayKey = getDateKey(today);
@@ -1215,7 +1361,7 @@ export default function ActivityCalendar() {
             onClickCapture={handleInternalLinkClickCapture}
         >
             <div className="flex h-full min-h-0 flex-col">
-                <div className="shrink-0 border-b border-border-subtle pb-3">
+                <div className="diary-calendar-toolbar-divider shrink-0 border-b border-border-subtle pb-3">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-2">
                             {['weekly', 'monthly', 'timeline'].map((view) => (
@@ -1411,13 +1557,13 @@ export default function ActivityCalendar() {
                                                 </div>
 
                                                 <div
-                                                    className="relative rounded-lg"
+                                                    className="diary-timeline-row relative rounded-lg"
                                                     style={{ height: rowHeight }}
                                                 >
                                                     <TimelineMonthGuides year={year} />
                                                     <span
                                                         aria-hidden
-                                                        className="pointer-events-none absolute left-0 right-0 top-1/2 h-px -translate-y-1/2"
+                                                        className="diary-timeline-line pointer-events-none absolute left-0 right-0 top-1/2 h-px -translate-y-1/2"
                                                         style={{
                                                             backgroundColor: 'rgba(100, 116, 139, 0.18)',
                                                         }}
@@ -1434,7 +1580,8 @@ export default function ActivityCalendar() {
                                                                 segment={segment}
                                                                 year={year}
                                                                 timelineWidth={timelineWidth}
-                                                                onClickDate={handleOpenDiary}
+                                                                onOpenLink={handleOpenTimelineLink}
+                                                                onOpenLinkDialog={handleOpenTimelineLinkDialog}
                                                                 onTooltipShow={setTimelineTooltip}
                                                                 onTooltipHide={() => setTimelineTooltip(null)}
                                                             />
@@ -1469,7 +1616,7 @@ export default function ActivityCalendar() {
 
                             <div
                                 className={
-                                    'grid grid-cols-7 border-l border-t border-border-subtle text-[11px] ' +
+                                    'diary-calendar-grid grid grid-cols-7 border-l border-t border-border-subtle text-[11px] ' +
                                     (calendarView === 'weekly' ? 'min-h-0 flex-1' : '')
                                 }
                             >
@@ -1490,13 +1637,13 @@ export default function ActivityCalendar() {
                                                         if (isInternalLinkClick(e)) return;
                                                         handleOpenDiary(key);
                                                     }}
-                                                    className="flex h-[146px] flex-col overflow-hidden border-b border-r border-border-subtle px-2 py-1.5 text-left transition hover:bg-[var(--color-panel-bg)]"
+                                                    className="diary-calendar-cell flex h-[146px] flex-col overflow-hidden border-b border-r border-border-subtle px-2 py-1.5 text-left transition hover:bg-[var(--color-panel-bg)]"
                                                     style={isCurrentMonth ? undefined : { backgroundColor: 'rgba(148, 163, 184, 0.08)' }}
                                                 >
                                                     <div className="flex items-start justify-end">
                                                         <span
                                                             className={
-                                                                'inline-flex h-[20px] w-[20px] items-center justify-center rounded-full text-[12px] leading-none ' +
+                                                                'diary-today-marker inline-flex h-[20px] w-[20px] items-center justify-center rounded-full text-[12px] leading-none ' +
                                                                 (isToday ? 'bg-red-500 text-white' : '')
                                                             }
                                                             style={
@@ -1537,13 +1684,13 @@ export default function ActivityCalendar() {
                                                     if (isInternalLinkClick(e)) return;
                                                     handleOpenDiary(key);
                                                 }}
-                                                className="flex min-h-[34rem] flex-col overflow-hidden border-b border-r border-border-subtle px-2 py-2 text-left transition hover:bg-[var(--color-panel-bg)]"
+                                                className="diary-calendar-cell flex min-h-[34rem] flex-col overflow-hidden border-b border-r border-border-subtle px-2 py-2 text-left transition hover:bg-[var(--color-panel-bg)]"
                                                 style={isCurrentMonth ? undefined : { backgroundColor: 'rgba(148, 163, 184, 0.08)' }}
                                             >
                                                 <div className="flex items-start justify-end">
                                                     <span
                                                         className={
-                                                            'inline-flex h-[24px] w-[24px] items-center justify-center rounded-full text-[12px] leading-none ' +
+                                                            'diary-today-marker inline-flex h-[24px] w-[24px] items-center justify-center rounded-full text-[12px] leading-none ' +
                                                             (isToday ? 'bg-red-500 text-white' : '')
                                                         }
                                                         style={
@@ -1582,6 +1729,64 @@ export default function ActivityCalendar() {
                 open={isSettingsOpen}
                 onClose={() => setIsSettingsOpen(false)}
             />
+            {timelineLinkDialog && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center ui-dialog-backdrop px-4"
+                    onMouseDown={(e) => {
+                        if (e.target === e.currentTarget) {
+                            setTimelineLinkDialog(null);
+                            setTimelineLinkInput('');
+                        }
+                    }}
+                >
+                    <form
+                        className="ui-dialog w-full max-w-[22rem] rounded-2xl border border-border-subtle p-4 shadow-xl"
+                        onSubmit={(e) => {
+                            e.preventDefault();
+                            handleSaveTimelineLink();
+                        }}
+                    >
+                        <div className="mb-3">
+                            <p className="text-sm font-semibold text-[var(--color-text-main)]">
+                                링크 저장
+                            </p>
+                            <p className="mt-1 text-[11px] text-[var(--color-text-muted)]">
+                                {timelineLinkDialog.text} · {formatShortDate(timelineLinkDialog.startDateKey)}~{formatShortDate(timelineLinkDialog.endDateKey)}
+                            </p>
+                        </div>
+
+                        <input
+                            type="text"
+                            className="ui-input h-8 w-full !rounded-md !px-2 text-xs"
+                            value={timelineLinkInput}
+                            onChange={(e) => setTimelineLinkInput(e.target.value)}
+                            placeholder="https://..."
+                            autoFocus
+                        />
+
+                        <div className="mt-4 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                className="ui-control h-7 rounded-md px-3 text-[11px]"
+                                onClick={() => {
+                                    setTimelineLinkDialog(null);
+                                    setTimelineLinkInput('');
+                                }}
+                                disabled={saveTimelineLinkMutation.isPending}
+                            >
+                                취소
+                            </button>
+                            <button
+                                type="submit"
+                                className="ui-btn-success h-7 rounded-md px-3 text-[11px]"
+                                disabled={saveTimelineLinkMutation.isPending}
+                            >
+                                {saveTimelineLinkMutation.isPending ? '저장 중...' : '저장'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
             <WikiLinkTooltip tooltip={wikiLinkTooltip} />
             <TimelineTooltip tooltip={timelineTooltip} />
         </div>

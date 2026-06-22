@@ -16,7 +16,6 @@ export default function Header({
                                    activeSidePanel,
                                    isSidebarOpen,
                                    theme,
-                                   onToggleTheme,
                                }) {
     const user = useAuthStore((s) => s.user);
     const signOut = useAuthStore((s) => s.signOut);
@@ -173,23 +172,8 @@ export default function Header({
                 )}
             </div>
 
-            {/* 오른쪽: 유저 정보 + 테마 + 내정보/친구/로그아웃 */}
+            {/* 오른쪽: 유저 정보 + 내정보/친구/로그아웃 */}
             <div className="flex items-center gap-1.5">
-                {user && (
-                    <button
-                        type="button"
-                        onClick={onToggleTheme}
-                        className="ui-control h-7 w-7 sm:h-8 sm:w-8 text-[11px] sm:text-[13px]"
-                        aria-label="테마 전환"
-                        title={theme}
-                    >
-                        {theme === 'noon' && '☀️'}
-                        {theme === 'midnight' && '🌙'}
-                        {theme === 'twilight' && '🌅'}
-                        {theme === 'dusk' && '🌆'}
-                    </button>
-                )}
-
                 {user && (
                     <>
                         {/* 이메일은 여전히 sm 이상에서만 */}
