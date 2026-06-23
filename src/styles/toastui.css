@@ -615,6 +615,13 @@
     background-color: transparent !important;
 }
 
+.wiki-doc-editor-shell .toastui-editor-defaultUI .ProseMirror span[style*="background"],
+.wiki-doc-editor-shell .toastui-editor-defaultUI .ProseMirror span[style*="background-color"],
+.wiki-doc-editor-shell .toastui-editor-defaultUI .ProseMirror mark {
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
 /* ===========================
    Wiki Document: edit/view width sync
    =========================== */

@@ -120,12 +120,12 @@
 
 /* inputs */
 .app-shell[data-theme="midnight"] .toastui-editor-defaultUI textarea,
-.app-shell[data-theme="midnight"] .toastui-editor-defaultUI input {
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI input:not(.tui-colorpicker-palette-button) {
     background-color: transparent !important;
     color: var(--color-text-main) !important;
 }
 .app-shell[data-theme="midnight"] .toastui-editor-defaultUI textarea::placeholder,
-.app-shell[data-theme="midnight"] .toastui-editor-defaultUI input::placeholder {
+.app-shell[data-theme="midnight"] .toastui-editor-defaultUI input:not(.tui-colorpicker-palette-button)::placeholder {
     color: var(--color-text-muted) !important;
     opacity: 0.8 !important;
 }
@@ -133,7 +133,6 @@
 /* Popup / Dropdown */
 .app-shell[data-theme="midnight"] .toastui-editor-popup,
 .app-shell[data-theme="midnight"] .toastui-editor-dropdown-toolbar,
-.app-shell[data-theme="midnight"] .tui-colorpicker-container,
 .app-shell[data-theme="midnight"] .tui-popup-wrapper {
     background-color: var(--color-page-surface) !important;
     color: var(--color-text-main) !important;
@@ -144,6 +143,43 @@
 /* Popup 내부 텍스트 */
 .app-shell[data-theme="midnight"] .toastui-editor-popup * {
     color: var(--color-text-main) !important;
+}
+
+.app-shell[data-theme="midnight"] .toastui-editor-popup-color .tui-colorpicker-palette-button,
+.app-shell[data-theme="midnight"] .toastui-editor-popup-color .tui-colorpicker-palette-preview {
+    color: transparent !important;
+    font-size: 0 !important;
+}
+
+.app-shell[data-theme="midnight"] .toastui-editor-popup-color .tui-colorpicker-palette-button {
+    appearance: none;
+    -webkit-appearance: none;
+    border-color: rgba(226, 232, 240, 0.18) !important;
+}
+
+.app-shell[data-theme="midnight"] .toastui-editor-popup-color .tui-colorpicker-palette-button.tui-colorpicker-selected {
+    border-color: rgba(226, 232, 240, 0.92) !important;
+}
+
+.app-shell[data-theme="midnight"] .toastui-editor-popup-color .tui-colorpicker-color-transparent {
+    background-color: transparent !important;
+}
+
+.app-shell[data-theme="midnight"] .toastui-editor-popup-body input[type='text'].tui-colorpicker-palette-hex {
+    background-color: rgba(2, 6, 23, 0.28) !important;
+    border-color: rgba(226, 232, 240, 0.26) !important;
+    color: var(--color-text-main) !important;
+}
+
+.app-shell[data-theme="midnight"] .toastui-editor-popup-color button {
+    background-color: rgba(226, 232, 240, 0.92) !important;
+    border-color: rgba(226, 232, 240, 0.72) !important;
+    color: #0b1220 !important;
+}
+
+.app-shell[data-theme="midnight"] .toastui-editor-popup-color button:hover {
+    background-color: #ffffff !important;
+    border-color: #ffffff !important;
 }
 
 /* 편집 모드 code */

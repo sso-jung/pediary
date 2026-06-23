@@ -492,6 +492,14 @@ function mergeStyleProperty(style = '', prop, value) {
     return cleaned.join('; ');
 }
 
+function removeStyleProperty(style = '', prop) {
+    return style
+        .split(';')
+        .map((part) => part.trim())
+        .filter((part) => part && !new RegExp(`^${prop}\\s*:`, 'i').test(part))
+        .join('; ');
+}
+
 function getSpanHtmlAttrs(node, spanMarkType) {
     const spanMark = node.marks?.find((mark) => mark.type === spanMarkType);
     return spanMark?.attrs?.htmlAttrs || {};
@@ -521,12 +529,15 @@ function applyMergedSpanMarkToTextRange({
 
         const nextHtmlAttrs = mergeHtmlAttrs(oldAttrs);
 
-        const nextMark = spanMarkType.create({
-            htmlAttrs: nextHtmlAttrs,
-        });
-
         tr.removeMark(start, end, spanMarkType);
-        tr.addMark(start, end, nextMark);
+
+        if (Object.keys(nextHtmlAttrs).length > 0) {
+            const nextMark = spanMarkType.create({
+                htmlAttrs: nextHtmlAttrs,
+            });
+
+            tr.addMark(start, end, nextMark);
+        }
 
         applied = true;
     });
@@ -772,6 +783,48 @@ function underlineSyntaxPlugin() {
                         ...oldAttrs,
                         class: mergeClassName(oldAttrs.class || '', 'wiki-underline'),
                     }),
+                });
+
+                if (!applied) return false;
+
+                dispatch(tr);
+                return true;
+            },
+        },
+    };
+}
+
+function clearTextColorSyntaxPlugin() {
+    return {
+        wysiwygCommands: {
+            clearTextColor(_, { tr, selection, schema }, dispatch) {
+                const { from, to } = selection;
+                if (from === to) return false;
+
+                const applied = applyMergedSpanMarkToTextRange({
+                    tr,
+                    doc: tr.doc,
+                    schema,
+                    from,
+                    to,
+                    mergeHtmlAttrs: (oldAttrs) => {
+                        const nextStyle = removeStyleProperty(
+                            removeStyleProperty(
+                                removeStyleProperty(oldAttrs.style || '', 'color'),
+                                'background-color'
+                            ),
+                            'background'
+                        );
+                        const nextAttrs = { ...oldAttrs };
+
+                        if (nextStyle) {
+                            nextAttrs.style = nextStyle;
+                        } else {
+                            delete nextAttrs.style;
+                        }
+
+                        return nextAttrs;
+                    },
                 });
 
                 if (!applied) return false;
@@ -1859,6 +1912,18 @@ export default function MarkdownEditor({
         });
     }, [onChange]);
 
+    const clearTextColor = useCallback(() => {
+        const instance = editorRef.current?.getInstance();
+        if (!instance) return;
+
+        instance.exec('clearTextColor');
+
+        requestAnimationFrame(() => {
+            const nextMarkdown = getMarkdownForSave(instance);
+            onChange(nextMarkdown);
+        });
+    }, [onChange]);
+
     const applyRecentTextColor = useCallback(() => {
         const instance = editorRef.current?.getInstance();
 
@@ -2329,6 +2394,29 @@ export default function MarkdownEditor({
         };
     }, [openFontPicker, openLineHeightPicker, openInternalLinkPalette, applyParagraphAlign, applyUnderline, insertTodayDate]);
 
+    useEffect(() => {
+        const handleTransparentColorClick = (e) => {
+            const button = e.target?.closest?.('.toastui-editor-popup-color .tui-colorpicker-palette-button');
+            if (!button || button.value !== '') return;
+
+            const root = editorRef.current?.getRootElement?.();
+            if (!root || !root.contains(button)) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation?.();
+
+            clearTextColor();
+
+            const instance = editorRef.current?.getInstance?.();
+            instance?.eventEmitter?.emit?.('closePopup');
+            instance?.focus?.();
+        };
+
+        window.addEventListener('click', handleTransparentColorClick, true);
+        return () => window.removeEventListener('click', handleTransparentColorClick, true);
+    }, [clearTextColor]);
+
     // 🔹 아무것도 수정 안 한 상태에서 Ctrl+Z 누르면 전체 삭제되는 것 + 초기 내용보다 더 뒤로 가는 것 방지
     useEffect(() => {
         const handleUndo = (e) => {
@@ -2639,12 +2727,14 @@ export default function MarkdownEditor({
                     headingNumberDecorationPlugin,
                     fontSizeSyntaxPlugin,
                     underlineSyntaxPlugin,
+                    clearTextColorSyntaxPlugin,
                     paragraphAlignSyntaxPlugin,
                     lineHeightSyntaxPlugin,
                     [
                         colorSyntax,
                         {
                             preset: [
+                                '',
                                 '#333333',
                                 '#666666',
                                 '#FFFFFF',
