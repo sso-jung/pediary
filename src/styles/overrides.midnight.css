@@ -65,6 +65,10 @@
     border-left-color: color-mix(in srgb, var(--color-border-unified) 58%, transparent) !important;
 }
 
+.app-shell[data-theme="midnight"] .diary-timeline-section-divider {
+    border-top-color: rgba(180, 93, 109, 0) !important;
+}
+
 /* 저장된 옵션 색상은 유지하되 midnight에서는 발광감을 낮춤 */
 .app-shell[data-theme="midnight"] .diary-calendar-link-weekly span[style*="background-color"],
 .app-shell[data-theme="midnight"] .diary-calendar-link-monthly span[style*="background-color"],

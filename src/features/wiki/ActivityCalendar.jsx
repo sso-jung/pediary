@@ -450,11 +450,12 @@ function TimelineSegmentBar({ segment, year, timelineWidth, onOpenLink, onOpenLi
     const startDay = segment.startDay ?? getDayOfYear(segment.startDateKey);
     const endDay = segment.endDay ?? getDayOfYear(segment.endDateKey);
 
-    const left = ((startDay - 1) / daysInYear) * 100;
-    const width = Math.max(((endDay - startDay + 1) / daysInYear) * 100, 0.7);
-    const showText = !timelineWidth || timelineWidth * width / 100 >= TIMELINE_TEXT_MIN_WIDTH;
-
     const isSingleDay = segment.startDateKey === segment.endDateKey;
+    const left = ((startDay - 0.5) / daysInYear) * 100;
+    const width = Math.max(((endDay - startDay) / daysInYear) * 100, 0.25);
+    const segmentWidth = timelineWidth * width / 100;
+    const showText = segmentWidth >= TIMELINE_TEXT_MIN_WIDTH;
+
     const dateText = isSingleDay
         ? formatShortDate(segment.startDateKey)
         : `${formatShortDate(segment.startDateKey)}~${formatShortDate(segment.endDateKey)}`;
@@ -482,7 +483,7 @@ function TimelineSegmentBar({ segment, year, timelineWidth, onOpenLink, onOpenLi
         return (
             <button
                 type="button"
-                className="diary-timeline-segment diary-timeline-segment-dot absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full transition hover:scale-125"
+                className="diary-timeline-segment diary-timeline-segment-dot absolute h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full transition hover:scale-125"
                 style={{
                     left: `${left}%`,
                     top: laneY,
@@ -509,11 +510,16 @@ function TimelineSegmentBar({ segment, year, timelineWidth, onOpenLink, onOpenLi
     return (
         <button
             type="button"
-            className="diary-timeline-segment absolute flex h-6 items-center justify-center overflow-hidden rounded-full border px-2 text-[11px] font-semibold transition hover:-translate-y-px hover:brightness-95"
+            className={[
+                'diary-timeline-segment absolute flex min-w-0 items-center justify-center overflow-hidden rounded-full border text-[11px] font-semibold transition hover:-translate-y-px hover:brightness-95',
+                'h-6',
+                showText ? 'px-2' : 'px-0',
+            ].join(' ')}
             style={{
                 left: `${left}%`,
                 top: `calc(50% + ${laneOffset * TIMELINE_LANE_GAP}px - 12px)`,
                 width: `${width}%`,
+                minWidth: showText ? undefined : 6,
                 backgroundColor: segmentColor,
                 borderColor: hasTextColorBorder ? segmentTextColor : 'transparent',
                 color: segmentTextColor,
@@ -918,6 +924,42 @@ function TimelineMonthGuides({ year }) {
                 );
             })}
         </>
+    );
+}
+
+function TimelineTodayGuide({ year, showMarker = false }) {
+    const today = new Date();
+
+    if (today.getFullYear() !== year) return null;
+
+    const daysInYear = getDaysInYear(year);
+    const todayDay = getDayOfYear(getDateKey(today));
+    const left = ((todayDay - 0.5) / daysInYear) * 100;
+
+    return (
+        <span
+            aria-hidden
+            className="diary-timeline-today-guide pointer-events-none absolute bottom-0 top-0 z-30 w-3 -translate-x-1/2"
+            style={{
+                left: `${left}%`,
+            }}
+        >
+            <span
+                className="absolute bottom-0 left-1/2 top-0 w-px -translate-x-1/2"
+                style={{
+                    background: 'repeating-linear-gradient(to bottom, rgba(226, 154, 170, 1) 0px, rgba(202, 95, 120, 0.92) 64px, rgba(226, 154, 170, 1) 128px, rgba(202, 95, 120, 0.92) 192px, rgba(226, 154, 170, 1) 256px)',
+                }}
+            />
+            {showMarker && (
+                <span
+                    className="absolute left-1/2 top-1 h-2.5 w-2.5 -translate-x-1/2 rounded-full border-2 bg-white"
+                    style={{
+                        borderColor: 'rgba(226, 154, 170, 1)',
+                        boxShadow: '0 0 0 4px rgba(226, 154, 170, 0.24)',
+                    }}
+                />
+            )}
+        </span>
     );
 }
 
@@ -1517,14 +1559,17 @@ export default function ActivityCalendar() {
                 <div className="flex min-h-0 flex-1 flex-col overflow-auto pt-3">
                     {calendarView === 'timeline' ? (
                         <div className="min-h-0 flex-1 overflow-x-auto pb-2 text-[12px]">
-                            <div className="min-w-[1080px]">
-                                <div className="grid grid-cols-[118px_minmax(900px,1fr)] gap-y-3">
+                            <div className="relative min-w-[1080px]">
+                                <div className="pointer-events-none absolute bottom-[-10px] left-[118px] right-0 top-0 z-30">
+                                    <TimelineTodayGuide year={year} showMarker />
+                                </div>
+                                <div className="grid grid-cols-[118px_minmax(900px,1fr)]">
                                     <div className="px-2 py-2" />
-                                    <div ref={timelineAreaRef}>
+                                    <div ref={timelineAreaRef} className="relative">
                                         <TimelineMonthHeader year={year} />
                                     </div>
 
-                                    {viewItems.map((item) => {
+                                    {viewItems.map((item, index) => {
                                         const name = getPropertyDisplayName(item.property?.name);
                                         const showIcon = ['icon_name', 'icon'].includes(item.displayMode);
                                         const showName = ['icon_name', 'name'].includes(item.displayMode);
@@ -1539,8 +1584,11 @@ export default function ActivityCalendar() {
                                         return (
                                             <div key={item.propertyId} className="contents">
                                                 <div
-                                                    className="flex min-w-0 items-center gap-1 px-2 py-2 font-semibold text-[var(--color-text-main)]"
-                                                    style={{ height: rowHeight }}
+                                                    className="diary-timeline-section-divider flex min-w-0 items-center gap-1 px-2 py-2 font-semibold text-[var(--color-text-main)]"
+                                                    style={{
+                                                        height: rowHeight,
+                                                        borderTop: index > 0 ? '3px double rgba(232, 184, 194, 0) ' : undefined,
+                                                    }}
                                                 >
                                                     {showIcon && item.property?.icon && (
                                                         <span
@@ -1557,8 +1605,11 @@ export default function ActivityCalendar() {
                                                 </div>
 
                                                 <div
-                                                    className="diary-timeline-row relative rounded-lg"
-                                                    style={{ height: rowHeight }}
+                                                    className="diary-timeline-row diary-timeline-section-divider relative rounded-lg"
+                                                    style={{
+                                                        height: rowHeight,
+                                                        borderTop: index > 0 ? '3px double rgba(232, 184, 194, 0) ' : undefined,
+                                                    }}
                                                 >
                                                     <TimelineMonthGuides year={year} />
                                                     <span
