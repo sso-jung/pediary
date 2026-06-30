@@ -781,8 +781,8 @@ function DiaryTextareaField({ value, onChangeValue, onBlur, disabled, linkCandid
             categories={categories}
             onNavigateLink={onNavigateLink}
             multiline
-            wrapperClassName="diary-editor-textarea-wrap rounded-lg border border-border-subtle bg-[rgba(255,255,255,0.55)] p-1.5 shadow-sm focus-within:border-[rgba(120,145,255,0.55)] focus-within:ring-2 focus-within:ring-[rgba(120,145,255,0.18)]"
-            inputClassName="diary-editor-textarea block min-h-[68px] w-full resize-none overflow-hidden rounded-md bg-transparent px-1 py-1 text-xs leading-5 outline-none"
+            wrapperClassName="diary-editor-textarea-wrap rounded-lg border border-border-subtle bg-[rgba(255,255,255,0.55)] p-1 shadow-sm focus-within:border-[rgba(120,145,255,0.55)] focus-within:ring-2 focus-within:ring-[rgba(120,145,255,0.18)] sm:p-1.5"
+            inputClassName="diary-editor-textarea block min-h-[28px] w-full resize-none overflow-hidden rounded-md bg-transparent px-1 py-1 text-xs leading-5 outline-none sm:min-h-[68px]"
         />
     );
 }
@@ -1411,20 +1411,21 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
     const renderPropertyRow = (property, position = 'visible') => (
         <div
             key={property.id}
-            className="diary-editor-property-row grid grid-cols-[28px_minmax(0,120px)_minmax(0,1fr)] items-start border-b border-border-subtle px-2 py-1 text-xs hover:bg-[rgba(127,127,127,0.04)]"
+            className="diary-editor-property-row grid grid-cols-[28px_minmax(0,1fr)] items-start border-b border-border-subtle px-2 py-1.5 text-xs hover:bg-[rgba(127,127,127,0.04)] sm:grid-cols-[28px_minmax(0,120px)_minmax(0,1fr)] sm:py-1"
+            style={{ borderColor: 'color-mix(in srgb, var(--color-border-subtle) 58%, transparent)' }}
             onFocusCapture={() => keepPropertyPosition(property.id, position)}
             onBlurCapture={(e) => {
                 if (e.currentTarget.contains(e.relatedTarget)) return;
                 releasePropertyPosition(property.id);
             }}
         >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center text-center">
+            <span className="flex h-6 w-7 shrink-0 items-center justify-center text-center sm:h-7">
                 <PropertyIcon icon={property.icon}/>
             </span>
-            <span className="diary-editor-property-name flex min-h-7 min-w-0 items-center break-words px-2 font-medium leading-4 text-[var(--color-text-muted)]">
+            <span className="diary-editor-property-name flex min-h-6 min-w-0 items-center break-words px-2 font-medium leading-4 text-[var(--color-text-muted)] sm:min-h-7">
                 {getPropertyDisplayName(property.name)}
             </span>
-            <div className="min-w-0 self-center">
+            <div className="col-start-2 min-w-0 self-center px-2 pb-0.5 sm:col-start-auto sm:px-0 sm:pb-0">
                 {renderPropertyInput(property)}
             </div>
         </div>
@@ -1445,7 +1446,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
 
         return (
             <div key={section.id} className={depth > 0 ? "ml-6" : ""}>
-                <div className="diary-editor-section-divider mt-3 border-b border-border-subtle px-2 py-2 text-[13px] font-bold text-[var(--color-text-main)]">
+                <div className="diary-editor-section-divider mt-2 border-b border-border-subtle px-2 py-1.5 text-[13px] font-bold text-[var(--color-text-main)] sm:mt-3 sm:py-2">
                     {section.name}
                 </div>
                 {sectionProperties.map((property) => renderPropertyRow(property, 'visible'))}
@@ -1463,13 +1464,13 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
     const dialog = (
         <div
             ref={dialogRootRef}
-            className="diary-view-link-muted fixed inset-0 z-40 flex items-center justify-center ui-dialog-backdrop"
+            className="diary-view-link-muted fixed inset-0 z-40 flex items-end justify-center ui-dialog-backdrop sm:items-center"
             onMouseDownCapture={handleInternalLinkClickCapture}
             onMouseDown={handleBackdropMouseDown}
             onClickCapture={handleInternalLinkClickCapture}
         >
             <div
-                className="ui-dialog flex max-h-[92vh] min-h-[82vh] w-[min(760px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl p-4"
+                className="ui-dialog flex max-h-[94vh] min-h-[88vh] w-full flex-col overflow-hidden rounded-t-2xl p-3 sm:max-h-[92vh] sm:min-h-[82vh] sm:w-[min(760px,calc(100vw-32px))] sm:rounded-2xl sm:p-4"
                 onMouseDown={(e) => e.stopPropagation()}
                 >
                 <div className="flex items-start justify-between gap-3">
@@ -1509,7 +1510,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
                     )}
                 </div>
 
-                <div className="mt-0 min-h-0 flex-1 overflow-y-auto p-1">
+                <div className="mt-0 min-h-0 flex-1 overflow-y-auto p-0.5 sm:p-1">
                     <div className="space-y-1">
                         {(unclassifiedProperties.length > 0 || collapsedUnclassifiedProperties.length > 0) && (
                             <div>

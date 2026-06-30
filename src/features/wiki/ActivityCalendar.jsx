@@ -33,11 +33,14 @@ const VIEW_LABEL = {
 
 const TIMELINE_GROUP_GAP_DAYS = 31;
 const TIMELINE_LANE_GAP = 38;
+const TIMELINE_MOBILE_LANE_GAP = 30;
 const TIMELINE_MIN_VISUAL_DAYS = 22;
 const TIMELINE_TEXT_MIN_WIDTH = 50;
 const TIMELINE_PROPERTY_TYPES = ['select', 'multi_select'];
 const CALENDAR_VIEW_STORAGE_KEY_PREFIX = 'pediary.diaryCalendar.viewState';
 const CALENDAR_VIEWS = ['weekly', 'monthly', 'timeline'];
+const MOBILE_MEDIA_QUERY = '(max-width: 639px)';
+const MOBILE_TIMELINE_MONTH_COUNT = 4;
 
 function addDays(date, amount) {
     const next = new Date(date);
@@ -49,6 +52,14 @@ function getWeekStart(date) {
     const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     start.setDate(start.getDate() - start.getDay());
     return start;
+}
+
+function getTimelineWindowStartMonth(month) {
+    return Math.floor((month - 1) / MOBILE_TIMELINE_MONTH_COUNT) * MOBILE_TIMELINE_MONTH_COUNT + 1;
+}
+
+function getMobileTimelineStartDate(date) {
+    return new Date(date.getFullYear(), date.getMonth() - 2, 1);
 }
 
 function getDateKey(date) {
@@ -444,15 +455,35 @@ function TimelineTooltip({ tooltip }) {
     );
 }
 
-function TimelineSegmentBar({ segment, year, timelineWidth, onOpenLink, onOpenLinkDialog, onTooltipShow, onTooltipHide }) {
+function TimelineSegmentBar({ segment, year, timelineWidth, timelineRange, isMobileView, onOpenLink, onOpenLinkDialog, onTooltipShow, onTooltipHide }) {
+    const longPressTimerRef = useRef(null);
+    const longPressTriggeredRef = useRef(false);
     const daysInYear = getDaysInYear(year);
+    const rangeStartKey = timelineRange?.startKey;
+    const rangeEndKey = timelineRange?.endKey;
+    const rangeDays = rangeStartKey && rangeEndKey
+        ? getDateDiffDays(rangeStartKey, rangeEndKey)
+        : daysInYear;
 
-    const startDay = segment.startDay ?? getDayOfYear(segment.startDateKey);
-    const endDay = segment.endDay ?? getDayOfYear(segment.endDateKey);
+    const startDay = rangeStartKey
+        ? Math.max(getDateDiffDays(rangeStartKey, segment.startDateKey), 0)
+        : segment.startDay ?? getDayOfYear(segment.startDateKey);
+    const endDay = rangeStartKey && rangeEndKey
+        ? Math.min(getDateDiffDays(rangeStartKey, segment.endDateKey), rangeDays)
+        : segment.endDay ?? getDayOfYear(segment.endDateKey);
+
+    if (rangeStartKey && rangeEndKey) {
+        const segmentEndBeforeRange = getDateDiffDays(segment.endDateKey, rangeStartKey) > 0;
+        const segmentStartAfterRange = getDateDiffDays(rangeEndKey, segment.startDateKey) >= 0;
+
+        if (segmentEndBeforeRange || segmentStartAfterRange) return null;
+    }
 
     const isSingleDay = segment.startDateKey === segment.endDateKey;
-    const left = ((startDay - 0.5) / daysInYear) * 100;
-    const width = Math.max(((endDay - startDay) / daysInYear) * 100, 0.25);
+    const left = rangeStartKey
+        ? ((startDay + 0.5) / rangeDays) * 100
+        : ((startDay - 0.5) / daysInYear) * 100;
+    const width = Math.max(((endDay - startDay) / rangeDays) * 100, 0.25);
     const segmentWidth = timelineWidth * width / 100;
     const showText = segmentWidth >= TIMELINE_TEXT_MIN_WIDTH;
 
@@ -466,9 +497,10 @@ function TimelineSegmentBar({ segment, year, timelineWidth, onOpenLink, onOpenLi
         'var(--color-text-main)';
     const hasTextColorBorder = isWhiteColor(segmentColor);
     const laneOffset = getTimelineLaneOffset(segment.laneIndex || 0);
-    const laneY = `calc(50% + ${laneOffset * TIMELINE_LANE_GAP}px)`;
-    const handleTooltipShow = (e) => {
-        const rect = e.currentTarget.getBoundingClientRect();
+    const laneGap = isMobileView ? TIMELINE_MOBILE_LANE_GAP : TIMELINE_LANE_GAP;
+    const laneY = `calc(50% + ${laneOffset * laneGap}px)`;
+    const handleTooltipShow = (target) => {
+        const rect = target.getBoundingClientRect();
 
         onTooltipShow?.({
             text: `${dateText} · ${segment.text}`,
@@ -477,6 +509,48 @@ function TimelineSegmentBar({ segment, year, timelineWidth, onOpenLink, onOpenLi
             backgroundColor: segmentColor,
             color: segmentTextColor,
         });
+    };
+    const handleTouchStart = (e) => {
+        if (!isMobileView) return;
+
+        longPressTriggeredRef.current = false;
+        window.clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = window.setTimeout(() => {
+            longPressTriggeredRef.current = true;
+            onTooltipHide?.();
+            onOpenLink?.(segment);
+        }, 520);
+    };
+    const handleTouchEnd = () => {
+        if (!isMobileView) return;
+
+        window.clearTimeout(longPressTimerRef.current);
+    };
+    const handleSegmentClick = (e) => {
+        e.stopPropagation();
+
+        if (isMobileView) {
+            if (longPressTriggeredRef.current) {
+                longPressTriggeredRef.current = false;
+                return;
+            }
+
+            handleTooltipShow(e.currentTarget);
+            return;
+        }
+
+        onOpenLink?.(segment);
+    };
+    const handleSegmentContextMenu = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (isMobileView) {
+            onOpenLink?.(segment);
+            return;
+        }
+
+        onOpenLinkDialog?.(segment);
     };
 
     if (isSingleDay) {
@@ -489,17 +563,13 @@ function TimelineSegmentBar({ segment, year, timelineWidth, onOpenLink, onOpenLi
                     top: laneY,
                     backgroundColor: segmentColor,
                 }}
-                onMouseEnter={handleTooltipShow}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+                onTouchCancel={handleTouchEnd}
+                onMouseEnter={(e) => !isMobileView && handleTooltipShow(e.currentTarget)}
                 onMouseLeave={onTooltipHide}
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenLink?.(segment);
-                }}
-                onContextMenu={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    onOpenLinkDialog?.(segment);
-                }}
+                onClick={handleSegmentClick}
+                onContextMenu={handleSegmentContextMenu}
                 aria-label={`${dateText} ${segment.text}`}
             >
                 <span className="sr-only">{segment.text}</span>
@@ -517,24 +587,20 @@ function TimelineSegmentBar({ segment, year, timelineWidth, onOpenLink, onOpenLi
             ].join(' ')}
             style={{
                 left: `${left}%`,
-                top: `calc(50% + ${laneOffset * TIMELINE_LANE_GAP}px - 12px)`,
+                top: `calc(50% + ${laneOffset * laneGap}px - 12px)`,
                 width: `${width}%`,
                 minWidth: showText ? undefined : 6,
                 backgroundColor: segmentColor,
                 borderColor: hasTextColorBorder ? segmentTextColor : 'transparent',
                 color: segmentTextColor,
             }}
-            onMouseEnter={handleTooltipShow}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchEnd}
+            onMouseEnter={(e) => !isMobileView && handleTooltipShow(e.currentTarget)}
             onMouseLeave={onTooltipHide}
-            onClick={(e) => {
-                e.stopPropagation();
-                onOpenLink?.(segment);
-            }}
-            onContextMenu={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onOpenLinkDialog?.(segment);
-            }}
+            onClick={handleSegmentClick}
+            onContextMenu={handleSegmentContextMenu}
         >
             {showText && (
                 <span className="truncate">
@@ -732,7 +798,7 @@ function renderDiaryProperties(
                                         className={[
                                             showName && name ? 'ml-1.5' : '',
                                             'inline-flex max-w-full flex-wrap items-center overflow-hidden align-middle',
-                                            isWeekly ? 'gap-x-1 gap-y-1.5' : 'gap-[3px]',
+                                            isWeekly ? 'gap-x-0.5 gap-y-0.5 sm:gap-x-1 sm:gap-y-1.5' : 'gap-[3px]',
                                         ].join(' ')}
                                     >
                                     {item.lines.map((option, index) => (
@@ -869,19 +935,24 @@ function getDayTextColor(dayIndex, isHoliday = false) {
     return 'var(--color-text-main)';
 }
 
-function TimelineMonthHeader({ year }) {
-    const daysInYear = getDaysInYear(year);
+function TimelineMonthHeader({ year, startMonth = 1, monthCount = 12 }) {
+    const rangeStartKey = getDateKey(new Date(year, startMonth - 1, 1));
+    const rangeEndKey = getDateKey(new Date(year, startMonth - 1 + monthCount, 1));
+    const rangeDays = getDateDiffDays(rangeStartKey, rangeEndKey);
 
     return (
         <div className="relative h-9">
-            {Array.from({ length: 12 }).map((_, index) => {
-                const month = index + 1;
+            {Array.from({ length: monthCount }).map((_, index) => {
+                const month = startMonth + index;
                 const monthStart = new Date(year, index, 1);
-                const monthDays = new Date(year, month, 0).getDate();
-                const startDay = getDayOfYear(getDateKey(monthStart));
+                monthStart.setMonth(month - 1);
+                const monthEnd = new Date(year, month, 1);
+                const displayMonth = monthStart.getMonth() + 1;
+                const monthDays = getDateDiffDays(getDateKey(monthStart), getDateKey(monthEnd));
+                const startDay = getDateDiffDays(rangeStartKey, getDateKey(monthStart));
 
-                const left = ((startDay - 1) / daysInYear) * 100;
-                const width = (monthDays / daysInYear) * 100;
+                const left = (startDay / rangeDays) * 100;
+                const width = (monthDays / rangeDays) * 100;
 
                 return (
                     <div
@@ -893,7 +964,7 @@ function TimelineMonthHeader({ year }) {
                             color: 'color-mix(in_srgb,var(--color-text-muted)_78%,transparent)',
                         }}
                     >
-                        {month}월
+                        {displayMonth}월
                     </div>
                 );
             })}
@@ -901,15 +972,19 @@ function TimelineMonthHeader({ year }) {
     );
 }
 
-function TimelineMonthGuides({ year }) {
-    const daysInYear = getDaysInYear(year);
+function TimelineMonthGuides({ year, startMonth = 1, monthCount = 12 }) {
+    const rangeStartKey = getDateKey(new Date(year, startMonth - 1, 1));
+    const rangeEndKey = getDateKey(new Date(year, startMonth - 1 + monthCount, 1));
+    const rangeDays = getDateDiffDays(rangeStartKey, rangeEndKey);
 
     return (
         <>
-            {Array.from({ length: 12 }).map((_, index) => {
+            {Array.from({ length: monthCount }).map((_, index) => {
+                const month = startMonth + index;
                 const monthStart = new Date(year, index, 1);
-                const startDay = getDayOfYear(getDateKey(monthStart));
-                const left = ((startDay - 1) / daysInYear) * 100;
+                monthStart.setMonth(month - 1);
+                const startDay = getDateDiffDays(rangeStartKey, getDateKey(monthStart));
+                const left = (startDay / rangeDays) * 100;
 
                 return (
                     <span
@@ -923,18 +998,32 @@ function TimelineMonthGuides({ year }) {
                     />
                 );
             })}
+            <span
+                aria-hidden
+                className="diary-timeline-month-guide pointer-events-none absolute bottom-0 top-0 border-l border-dashed"
+                style={{
+                    left: 'calc(100% - 1px)',
+                    borderLeftColor: 'rgba(100, 116, 139, 0.24)',
+                }}
+            />
         </>
     );
 }
 
-function TimelineTodayGuide({ year, showMarker = false }) {
+function TimelineTodayGuide({ year, showMarker = false, startMonth = 1, monthCount = 12 }) {
     const today = new Date();
 
     if (today.getFullYear() !== year) return null;
 
-    const daysInYear = getDaysInYear(year);
-    const todayDay = getDayOfYear(getDateKey(today));
-    const left = ((todayDay - 0.5) / daysInYear) * 100;
+    const rangeStartKey = getDateKey(new Date(year, startMonth - 1, 1));
+    const rangeEndKey = getDateKey(new Date(year, startMonth - 1 + monthCount, 1));
+    const todayKey = getDateKey(today);
+    const todayOffset = getDateDiffDays(rangeStartKey, todayKey);
+    const rangeDays = getDateDiffDays(rangeStartKey, rangeEndKey);
+
+    if (todayOffset < 0 || todayOffset >= rangeDays) return null;
+
+    const left = ((todayOffset + 0.5) / rangeDays) * 100;
 
     return (
         <span
@@ -1061,8 +1150,17 @@ export default function ActivityCalendar() {
     const [timelineLinkDialog, setTimelineLinkDialog] = useState(null);
     const [timelineLinkInput, setTimelineLinkInput] = useState('');
     const [timelineWidth, setTimelineWidth] = useState(0);
+    const [timelineStartDate, setTimelineStartDate] = useState(() =>
+        getMobileTimelineStartDate(today),
+    );
+    const [isMobileView, setIsMobileView] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        return window.matchMedia(MOBILE_MEDIA_QUERY).matches;
+    });
     const rootRef = useRef(null);
     const timelineAreaRef = useRef(null);
+    const swipeTouchRef = useRef(null);
+    const swipeBlockClickRef = useRef(false);
     const getRoot = useCallback(() => rootRef.current, []);
     const wikiLinkTooltip = useWikiLinkTooltip(getRoot, true);
     const handleInternalLinkClickCapture = useCallback((e) => {
@@ -1078,6 +1176,20 @@ export default function ActivityCalendar() {
 
         navigate(href);
     }, [calendarView, navigate]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const media = window.matchMedia(MOBILE_MEDIA_QUERY);
+        const handleChange = () => {
+            setIsMobileView(media.matches);
+        };
+
+        handleChange();
+        media.addEventListener('change', handleChange);
+
+        return () => media.removeEventListener('change', handleChange);
+    }, []);
 
     useEffect(() => {
         if (calendarView !== 'timeline') return;
@@ -1176,6 +1288,12 @@ export default function ActivityCalendar() {
             setWeekDate(new Date(year, month - 1, day));
         }
 
+        if (nextView === 'timeline' && calendarView !== 'timeline' && isMobileView) {
+            const next = getMobileTimelineStartDate(today);
+            setYear(next.getFullYear());
+            setTimelineStartDate(next);
+        }
+
         setCalendarView(nextView);
     };
 
@@ -1225,12 +1343,22 @@ export default function ActivityCalendar() {
         setMonth(next.getMonth() + 1);
     };
 
+    const handleMoveTimelineWindow = (amount) => {
+        const next = new Date(timelineStartDate.getFullYear(), timelineStartDate.getMonth() + amount, 1);
+        setYear(next.getFullYear());
+        setTimelineStartDate(next);
+    };
+
     const handlePrev = () => {
         if (calendarView === 'weekly') {
-            handleMoveWeek(-7);
+            handleMoveWeek(isMobileView ? -1 : -7);
             return;
         }
         if (calendarView === 'timeline') {
+            if (isMobileView) {
+                handleMoveTimelineWindow(-1);
+                return;
+            }
             setYear((y) => y - 1);
             return;
         }
@@ -1239,10 +1367,14 @@ export default function ActivityCalendar() {
 
     const handleNext = () => {
         if (calendarView === 'weekly') {
-            handleMoveWeek(7);
+            handleMoveWeek(isMobileView ? 1 : 7);
             return;
         }
         if (calendarView === 'timeline') {
+            if (isMobileView) {
+                handleMoveTimelineWindow(1);
+                return;
+            }
             setYear((y) => y + 1);
             return;
         }
@@ -1254,6 +1386,56 @@ export default function ActivityCalendar() {
         setYear(next.getFullYear());
         setMonth(next.getMonth() + 1);
         setWeekDate(next);
+        setTimelineStartDate(getMobileTimelineStartDate(next));
+    };
+
+    const handleCalendarTouchStart = (e) => {
+        if (!isMobileView) return;
+        if (calendarView !== 'weekly' && calendarView !== 'monthly' && calendarView !== 'timeline') return;
+
+        const touch = e.touches?.[0];
+        if (!touch) return;
+
+        swipeTouchRef.current = {
+            x: touch.clientX,
+            y: touch.clientY,
+        };
+    };
+
+    const handleCalendarTouchEnd = (e) => {
+        if (!isMobileView) return;
+        if (calendarView !== 'weekly' && calendarView !== 'monthly' && calendarView !== 'timeline') return;
+
+        const start = swipeTouchRef.current;
+        swipeTouchRef.current = null;
+        const touch = e.changedTouches?.[0];
+        if (!start || !touch) return;
+
+        const diffX = touch.clientX - start.x;
+        const diffY = touch.clientY - start.y;
+        const absX = Math.abs(diffX);
+        const absY = Math.abs(diffY);
+
+        if (absX < 54 || absX < absY * 1.3) return;
+
+        swipeBlockClickRef.current = true;
+        window.setTimeout(() => {
+            swipeBlockClickRef.current = false;
+        }, 0);
+
+        if (diffX > 0) {
+            handlePrev();
+            return;
+        }
+
+        handleNext();
+    };
+
+    const handleCalendarClickCapture = (e) => {
+        if (!swipeBlockClickRef.current) return;
+
+        e.preventDefault();
+        e.stopPropagation();
     };
 
     const handleOpenDiary = (dateKey) => {
@@ -1326,17 +1508,37 @@ export default function ActivityCalendar() {
     const yearEndKey = `${year + 1}-01-01`;
     const weekStartKey = getDateKey(weekStart);
     const weekEndKey = getNextDateKey(getDateKey(weekDays[6]));
+    const timelineMonthCount = isMobileView ? MOBILE_TIMELINE_MONTH_COUNT : 12;
+    const timelineRangeStartDate = isMobileView
+        ? timelineStartDate
+        : new Date(year, 0, 1);
+    const timelineRangeEndDate = new Date(
+        timelineRangeStartDate.getFullYear(),
+        timelineRangeStartDate.getMonth() + timelineMonthCount,
+        1,
+    );
+    const timelineRangeStartMonth = timelineRangeStartDate.getMonth() + 1;
+    const timelineRange = useMemo(() => ({
+        startKey: getDateKey(timelineRangeStartDate),
+        endKey: getDateKey(timelineRangeEndDate),
+    }), [timelineRangeEndDate, timelineRangeStartDate]);
+    const timelineRangeEndMonthDate = addDays(timelineRangeEndDate, -1);
+    const timelineRangeLabel = isMobileView
+        ? timelineRangeStartDate.getFullYear() === timelineRangeEndMonthDate.getFullYear()
+            ? `${timelineRangeStartDate.getFullYear()}년 ${timelineRangeStartMonth}월~${timelineRangeEndMonthDate.getMonth() + 1}월`
+            : `${timelineRangeStartDate.getFullYear()}년 ${timelineRangeStartMonth}월~${timelineRangeEndMonthDate.getFullYear()}년 ${timelineRangeEndMonthDate.getMonth() + 1}월`
+        : `${year}년`;
     const rangeStartKey =
         calendarView === 'weekly'
             ? weekStartKey
             : calendarView === 'timeline'
-                ? yearStartKey
+                ? timelineRange.startKey
                 : getDateKey(visibleWeeks[0][0]);
     const rangeEndKey =
         calendarView === 'weekly'
             ? weekEndKey
             : calendarView === 'timeline'
-                ? yearEndKey
+                ? timelineRange.endKey
                 : monthCalendarEndKey;
     const viewItems = useMemo(
         () => {
@@ -1405,14 +1607,14 @@ export default function ActivityCalendar() {
             <div className="flex h-full min-h-0 flex-col">
                 <div className="diary-calendar-toolbar-divider shrink-0 border-b border-border-subtle pb-3">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex flex-nowrap items-center gap-1 sm:gap-2">
                             {['weekly', 'monthly', 'timeline'].map((view) => (
                                 <button
                                     key={view}
                                     type="button"
                                     onClick={() => handleChangeCalendarView(view)}
                                     className={
-                                        'rounded-full border px-3.5 py-1 text-[13px] font-semibold tracking-[0.02em] transition ' +
+                                        'rounded-full border px-2.5 py-1 text-[12px] font-semibold tracking-[0.02em] transition sm:px-3.5 sm:text-[13px] ' +
                                         (calendarView === view
                                             ? 'text-[var(--color-text-main)]'
                                             : 'text-[var(--color-text-muted)] hover:bg-[var(--color-panel-bg)]')
@@ -1428,13 +1630,13 @@ export default function ActivityCalendar() {
                                             }
                                     }
                                 >
-                                    {VIEW_LABEL[view]}
+                                    {view === 'weekly' && isMobileView ? 'TODAY' : VIEW_LABEL[view]}
                                 </button>
                             ))}
                             <button
                                 type="button"
                                 onClick={() => handleOpenDiary(todayKey)}
-                                className="ui-control flex h-8 w-8 items-center justify-center rounded-full"
+                                className="ui-control flex h-7 w-7 items-center justify-center rounded-full sm:h-8 sm:w-8"
                                 aria-label="작성"
                                 title="작성"
                             >
@@ -1456,7 +1658,7 @@ export default function ActivityCalendar() {
                             <button
                                 type="button"
                                 onClick={() => setIsSettingsOpen(true)}
-                                className="ui-control flex h-8 w-8 items-center justify-center rounded-full"
+                                className="ui-control flex h-7 w-7 items-center justify-center rounded-full sm:h-8 sm:w-8"
                                 aria-label="다이어리 설정"
                                 title="다이어리 설정"
                             >
@@ -1503,7 +1705,7 @@ export default function ActivityCalendar() {
                                         color: 'var(--color-text-main)',
                                     }}
                                 >
-                                    {calendarView === 'timeline' ? `${year}년` : `${year}년 ${month}월`}
+                                    {calendarView === 'timeline' ? timelineRangeLabel : `${year}년 ${month}월`}
                                 </span>
                             )}
                             <button
@@ -1558,33 +1760,54 @@ export default function ActivityCalendar() {
 
                 <div className="flex min-h-0 flex-1 flex-col overflow-auto pt-3">
                     {calendarView === 'timeline' ? (
-                        <div className="min-h-0 flex-1 overflow-x-auto pb-2 text-[12px]">
-                            <div className="relative min-w-[1080px]">
-                                <div className="pointer-events-none absolute bottom-[-10px] left-[118px] right-0 top-0 z-30">
-                                    <TimelineTodayGuide year={year} showMarker />
+                        <div
+                            className="min-h-0 flex-1 overflow-x-hidden pb-2 text-[12px] sm:overflow-x-auto"
+                            onTouchStart={handleCalendarTouchStart}
+                            onTouchEnd={handleCalendarTouchEnd}
+                            onClickCapture={handleCalendarClickCapture}
+                        >
+                            <div className="relative min-w-0 sm:min-w-[1080px]">
+                                <div className="pointer-events-none absolute bottom-[-10px] left-[70px] right-0 top-0 z-30 overflow-hidden sm:left-[118px] sm:overflow-visible">
+                                    <TimelineTodayGuide
+                                        year={year}
+                                        showMarker
+                                        startMonth={timelineRangeStartMonth}
+                                        monthCount={timelineMonthCount}
+                                    />
                                 </div>
-                                <div className="grid grid-cols-[118px_minmax(900px,1fr)]">
-                                    <div className="px-2 py-2" />
-                                    <div ref={timelineAreaRef} className="relative">
-                                        <TimelineMonthHeader year={year} />
+                                <div className="grid grid-cols-[60px_minmax(0,1fr)] sm:grid-cols-[118px_minmax(900px,1fr)]">
+                                    <div className="py-2 pr-1 sm:px-2" />
+                                    <div ref={timelineAreaRef} className="relative ml-2.5 sm:ml-0">
+                                        <TimelineMonthHeader
+                                            year={year}
+                                            startMonth={timelineRangeStartMonth}
+                                            monthCount={timelineMonthCount}
+                                        />
                                     </div>
 
                                     {viewItems.map((item, index) => {
                                         const name = getPropertyDisplayName(item.property?.name);
                                         const showIcon = ['icon_name', 'icon'].includes(item.displayMode);
                                         const showName = ['icon_name', 'name'].includes(item.displayMode);
+                                        const timelineLaneGap = isMobileView ? TIMELINE_MOBILE_LANE_GAP : TIMELINE_LANE_GAP;
 
                                         const segments = timelineSegmentsByPropertyId.get(item.propertyId) || [];
+                                        const visibleSegments = segments.filter((segment) => {
+                                            const segmentEndBeforeRange = getDateDiffDays(segment.endDateKey, timelineRange.startKey) > 0;
+                                            const segmentStartAfterRange = getDateDiffDays(timelineRange.endKey, segment.startDateKey) >= 0;
+
+                                            return !segmentEndBeforeRange && !segmentStartAfterRange;
+                                        });
                                         const maxLaneOffset = Math.max(
                                             0,
-                                            ...segments.map((segment) => Math.abs(getTimelineLaneOffset(segment.laneIndex || 0))),
+                                            ...visibleSegments.map((segment) => Math.abs(getTimelineLaneOffset(segment.laneIndex || 0))),
                                         );
-                                        const rowHeight = Math.max(54, 54 + maxLaneOffset * TIMELINE_LANE_GAP * 2);
+                                        const rowHeight = Math.max(54, 54 + maxLaneOffset * timelineLaneGap * 2);
 
                                         return (
                                             <div key={item.propertyId} className="contents">
                                                 <div
-                                                    className="diary-timeline-section-divider flex min-w-0 items-center gap-1 px-2 py-2 font-semibold text-[var(--color-text-main)]"
+                                                    className="diary-timeline-section-divider flex min-w-0 items-center gap-1 py-2 pr-1 font-semibold text-[var(--color-text-main)] sm:px-2"
                                                     style={{
                                                         height: rowHeight,
                                                         borderTop: index > 0 ? '3px double rgba(232, 184, 194, 0) ' : undefined,
@@ -1598,20 +1821,24 @@ export default function ActivityCalendar() {
                                                     )}
 
                                                     {showName && (
-                                                        <span className="min-w-0 break-words">
+                                                        <span className="min-w-0 break-keep text-[11px] leading-tight sm:break-words sm:text-[12px]">
                                         {name || '속성명 없음'}
                                     </span>
                                                     )}
                                                 </div>
 
                                                 <div
-                                                    className="diary-timeline-row diary-timeline-section-divider relative rounded-lg"
+                                                    className="diary-timeline-row diary-timeline-section-divider relative ml-2.5 rounded-lg sm:ml-0"
                                                     style={{
                                                         height: rowHeight,
                                                         borderTop: index > 0 ? '3px double rgba(232, 184, 194, 0) ' : undefined,
                                                     }}
                                                 >
-                                                    <TimelineMonthGuides year={year} />
+                                                    <TimelineMonthGuides
+                                                        year={year}
+                                                        startMonth={timelineRangeStartMonth}
+                                                        monthCount={timelineMonthCount}
+                                                    />
                                                     <span
                                                         aria-hidden
                                                         className="diary-timeline-line pointer-events-none absolute left-0 right-0 top-1/2 h-px -translate-y-1/2"
@@ -1619,18 +1846,20 @@ export default function ActivityCalendar() {
                                                             backgroundColor: 'rgba(100, 116, 139, 0.18)',
                                                         }}
                                                     />
-                                                    {segments.length === 0 ? (
+                                                    {visibleSegments.length === 0 ? (
                                                         <span
                                                             className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] text-[var(--color-text-muted)] opacity-50">
             기록 없음
         </span>
                                                     ) : (
-                                                        segments.map((segment, index) => (
+                                                        visibleSegments.map((segment, index) => (
                                                             <TimelineSegmentBar
                                                                 key={`${segment.startDateKey}-${segment.endDateKey}-${segment.text}-${index}`}
                                                                 segment={segment}
                                                                 year={year}
                                                                 timelineWidth={timelineWidth}
+                                                                timelineRange={timelineRange}
+                                                                isMobileView={isMobileView}
                                                                 onOpenLink={handleOpenTimelineLink}
                                                                 onOpenLinkDialog={handleOpenTimelineLinkDialog}
                                                                 onTooltipShow={setTimelineTooltip}
@@ -1652,25 +1881,89 @@ export default function ActivityCalendar() {
                             </div>
                         </div>
                     ) : (
-                        <>
-                            <div className="grid shrink-0 grid-cols-7 pb-[7px] text-[11.5px]">
-                                {['일', '월', '화', '수', '목', '금', '토'].map((d) => (
-                                    <div
-                                        key={d}
-                                        className="px-2 py-1 text-center font-medium"
-                                        style={{ color: 'var(--color-text-main)' }}
-                                    >
-                                        {d}
-                                    </div>
-                                ))}
-                            </div>
+                        <div
+                            className="min-h-0 flex-1 overflow-x-auto pb-2"
+                            onTouchStart={handleCalendarTouchStart}
+                            onTouchEnd={handleCalendarTouchEnd}
+                            onClickCapture={handleCalendarClickCapture}
+                        >
+                            <div className={calendarView === 'weekly' ? (isMobileView ? 'flex h-full min-w-0 flex-col' : 'flex h-full min-w-[720px] flex-col sm:min-w-0') : 'min-w-0'}>
+                                {calendarView === 'weekly' && isMobileView ? (
+                                    (() => {
+                                        const key = getDateKey(weekDate);
+                                        const isCurrentMonth = weekDate.getFullYear() === year && weekDate.getMonth() === month - 1;
+                                        const isToday = key === todayKey;
+                                        const isHoliday = holidayDateSet.has(key);
+                                        const diary = diaryMap.get(key);
+                                        const dayLabel = ['일', '월', '화', '수', '목', '금', '토'][weekDate.getDay()];
 
-                            <div
-                                className={
-                                    'diary-calendar-grid grid grid-cols-7 border-l border-t border-border-subtle text-[11px] ' +
-                                    (calendarView === 'weekly' ? 'min-h-0 flex-1' : '')
-                                }
-                            >
+                                        return (
+                                            <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                    if (isInternalLinkClick(e)) return;
+                                                    handleOpenDiary(key);
+                                                }}
+                                                className="diary-calendar-cell flex min-h-[28rem] flex-col overflow-hidden border border-border-subtle px-3 py-3 text-left transition hover:bg-[var(--color-panel-bg)] sm:hidden"
+                                                style={isCurrentMonth ? undefined : { backgroundColor: 'rgba(148, 163, 184, 0.08)' }}
+                                            >
+                                                <div className="mb-3 flex items-center justify-between border-b border-border-subtle pb-2">
+                                                    <span
+                                                        className="text-[13px] font-semibold"
+                                                        style={{ color: isCurrentMonth ? getDayTextColor(weekDate.getDay(), isHoliday) : 'color-mix(in_srgb,var(--color-text-muted)_64%,transparent)' }}
+                                                    >
+                                                        {`${weekDate.getFullYear()}년 ${weekDate.getMonth() + 1}월 ${weekDate.getDate()}일 (${dayLabel})`}
+                                                    </span>
+                                                    <span
+                                                        className={
+                                                            'diary-today-marker inline-flex h-[24px] w-[24px] items-center justify-center rounded-full text-[12px] leading-none ' +
+                                                            (isToday ? 'bg-red-500 text-white' : '')
+                                                        }
+                                                        style={
+                                                            isToday
+                                                                ? undefined
+                                                                : {
+                                                                    color: isCurrentMonth
+                                                                        ? getDayTextColor(weekDate.getDay(), isHoliday)
+                                                                        : 'color-mix(in_srgb,var(--color-text-muted)_64%,transparent)',
+                                                                }
+                                                        }
+                                                    >
+                                                        {weekDate.getDate()}
+                                                    </span>
+                                                </div>
+                                                {diary ? (
+                                                    <div className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-1">
+                                                        {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'weekly', optionMapByPropertyId, allDocs || [], categories || [])}
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-1 items-center justify-center text-[12px] text-[var(--color-text-muted)]">
+                                                        작성된 다이어리가 없어.
+                                                    </div>
+                                                )}
+                                            </button>
+                                        );
+                                    })()
+                                ) : (
+                                    <>
+                                <div className="grid shrink-0 grid-cols-7 pb-[7px] text-[11.5px]">
+                                    {['일', '월', '화', '수', '목', '금', '토'].map((d) => (
+                                        <div
+                                            key={d}
+                                            className="px-2 py-1 text-center font-medium"
+                                            style={{ color: 'var(--color-text-main)' }}
+                                        >
+                                            {d}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div
+                                    className={
+                                        'diary-calendar-grid grid grid-cols-7 border-l border-t border-border-subtle text-[11px] ' +
+                                        (calendarView === 'weekly' ? 'min-h-0 flex-1' : '')
+                                    }
+                                >
                                 {calendarView === 'monthly' ? (
                                     visibleWeeks.map((week, wi) =>
                                         week.map((date, di) => {
@@ -1688,7 +1981,7 @@ export default function ActivityCalendar() {
                                                         if (isInternalLinkClick(e)) return;
                                                         handleOpenDiary(key);
                                                     }}
-                                                    className="diary-calendar-cell flex h-[146px] flex-col overflow-hidden border-b border-r border-border-subtle px-2 py-1.5 text-left transition hover:bg-[var(--color-panel-bg)]"
+                                                    className="diary-calendar-cell flex h-[64px] flex-col overflow-hidden border-b border-r border-border-subtle px-1 py-1 text-left transition hover:bg-[var(--color-panel-bg)] sm:h-[146px] sm:px-2 sm:py-1.5"
                                                     style={isCurrentMonth ? undefined : { backgroundColor: 'rgba(148, 163, 184, 0.08)' }}
                                                 >
                                                     <div className="flex items-start justify-end">
@@ -1711,9 +2004,24 @@ export default function ActivityCalendar() {
                                                         </span>
                                                     </div>
                                                     {diary && (
-                                                        <div className="diary-monthly-cell-scroll mt-2 min-h-0 min-w-0 flex-1 overflow-y-auto pr-1">
-                                                            {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'monthly', optionMapByPropertyId, allDocs || [], categories || [])}
-                                                        </div>
+                                                        <>
+                                                            {diary.title ? (
+                                                                <p
+                                                                    className="mt-1 line-clamp-2 min-w-0 break-words text-[9px] font-semibold leading-tight text-[var(--color-text-main)] sm:hidden"
+                                                                    title={diary.title}
+                                                                >
+                                                                    {diary.title}
+                                                                </p>
+                                                            ) : (
+                                                                <div
+                                                                    className="mx-auto mt-2 h-1.5 w-1.5 rounded-full sm:hidden"
+                                                                    style={{ backgroundColor: 'var(--color-accent)' }}
+                                                                />
+                                                            )}
+                                                            <div className="diary-monthly-cell-scroll mt-2 hidden min-h-0 min-w-0 flex-1 overflow-y-auto pr-1 sm:block">
+                                                                {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'monthly', optionMapByPropertyId, allDocs || [], categories || [])}
+                                                            </div>
+                                                        </>
                                                     )}
                                                 </button>
                                             );
@@ -1766,8 +2074,11 @@ export default function ActivityCalendar() {
                                         );
                                     })
                                 )}
+                                </div>
+                                    </>
+                                )}
                             </div>
-                        </>
+                        </div>
                     )}
                 </div>
             </div>

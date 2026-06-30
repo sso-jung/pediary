@@ -139,7 +139,7 @@ export default function DiaryOptionSelectField({
         <div ref={rootRef} className="relative">
             <div
                 className={[
-                    'ui-input flex min-h-7 w-full flex-wrap items-center gap-1 !rounded-md !px-1.5 !py-1 text-xs',
+                    'ui-input flex min-h-7 w-full flex-wrap items-center gap-0.5 !rounded-md !px-1.5 !py-0.5 text-xs sm:gap-1 sm:!py-1',
                     disabled ? 'opacity-60' : '',
                 ].join(' ')}
                 onClick={() => {
@@ -158,7 +158,7 @@ export default function DiaryOptionSelectField({
 
                 <input
                     ref={inputRef}
-                    className="min-w-[72px] flex-1 bg-transparent px-1 py-0.5 text-xs outline-none"
+                    className="min-w-[20px] flex-1 bg-transparent px-1 py-0.5 text-xs outline-none sm:min-w-[72px]"
                     value={keyword}
                     onChange={(e) => {
                         setKeyword(e.target.value);

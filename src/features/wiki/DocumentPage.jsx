@@ -1128,7 +1128,7 @@ export default function DocumentPage() {
                 />
 
                 <div
-                    className="wiki-doc-main-card h-full min-w-0 w-full max-w-[var(--wiki-doc-content-max)] justify-self-start rounded-2xl shadow-soft overflow-x-hidden ui-surface">
+                    className="wiki-doc-main-card h-full min-w-0 w-full max-w-[var(--wiki-doc-content-max)] justify-self-start rounded-2xl shadow-soft overflow-x-auto ui-surface">
                     {isEditing ? (
                         <div className="wiki-doc-editor-shell h-full w-full p-2 lg:p-2 box-border">
                             <div className="h-full">

@@ -538,6 +538,7 @@
     .wiki-doc-main-card {
         width: 100% !important;
         max-width: 100% !important;
+        overflow-x: auto !important;
         box-sizing: border-box;
     }
 
@@ -571,6 +572,47 @@
 
     .toastui-editor-defaultUI-toolbar .toastui-editor-toolbar-group {
         flex-wrap: wrap;
+    }
+
+    .toastui-editor-defaultUI .ProseMirror h1,
+    .toastui-editor-contents h1,
+    .tui-editor-contents h1 {
+        font-size: 24px !important;
+    }
+
+    .toastui-editor-defaultUI .ProseMirror h2,
+    .toastui-editor-contents h2,
+    .tui-editor-contents h2 {
+        font-size: 21px !important;
+    }
+
+    .toastui-editor-defaultUI .ProseMirror h3,
+    .toastui-editor-contents h3,
+    .tui-editor-contents h3 {
+        font-size: 18px !important;
+    }
+
+    .toastui-editor-contents table,
+    .tui-editor-contents table,
+    .toastui-editor-ww-container table,
+    .toastui-editor-ww-container .ProseMirror table {
+        display: block;
+        width: 100% !important;
+        overflow-x: auto;
+    }
+
+    .toastui-editor-contents pre,
+    .tui-editor-contents pre,
+    .toastui-editor-defaultUI pre {
+        max-width: 100%;
+        overflow-x: auto;
+    }
+
+    .toastui-editor-contents img,
+    .tui-editor-contents img,
+    .toastui-editor-defaultUI img {
+        max-width: 100%;
+        height: auto;
     }
 }
 

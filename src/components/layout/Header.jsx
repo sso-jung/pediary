@@ -129,7 +129,7 @@ export default function Header({
                         type="button"
                         onClick={handleExportExcel}
                         disabled={exporting}
-                        className="ui-btn-success inline-flex items-center gap-1 rounded-full border px-2.5 py-[5px] text-[10px] font-medium shadow-sm disabled:opacity-60 sm:px-3 sm:py-1.5 sm:text-xs"
+                        className="ui-btn-success hidden items-center gap-1 rounded-full border px-2.5 py-[5px] text-[10px] font-medium shadow-sm disabled:opacity-60 sm:inline-flex sm:px-3 sm:py-1.5 sm:text-xs"
                     >
                         <svg
                             className="h-4 w-4"
@@ -182,17 +182,15 @@ export default function Header({
                           {user.email}
                         </span>
 
-                        {/* 내정보 / 친구 버튼 (모바일에서는 숨김) */}
-                        <Button
+                        {/* 내정보 / 친구 버튼 (친구는 모바일에서는 숨김) */}
+                        <button
                             type="button"
-                            size="xs"
-                            variant="ghost"
-                            className="hidden sm:inline-flex rounded-full px-[7px] py-[5px] text-xs"
+                            className="ui-control px-2 py-[3px] text-[10px] sm:px-[7px] sm:py-[5px] sm:text-xs"
                             data-active={isMyInfoOpen}
                             onClick={onToggleMyInfo}
                         >
                             내정보
-                        </Button>
+                        </button>
 
                         <Button
                             type="button"

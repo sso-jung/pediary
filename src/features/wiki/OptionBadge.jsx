@@ -13,7 +13,9 @@ export default function OptionBadge({ option, compact = false, onRemove }) {
         <span
             className={[
                 'inline-flex max-w-full items-center gap-1 overflow-hidden rounded-full border font-medium leading-none',
-                compact ? 'px-1.5 py-[3px] text-[11px]' : 'px-2 py-1 text-[12px]',
+                compact
+                    ? 'px-1 py-[2px] text-[10px] sm:px-1.5 sm:py-[3px] sm:text-[11px]'
+                    : 'px-1.5 py-[3px] text-[11px] sm:px-2 sm:py-1 sm:text-[12px]',
             ].join(' ')}
             style={{
                 backgroundColor,
@@ -26,7 +28,7 @@ export default function OptionBadge({ option, compact = false, onRemove }) {
             {onRemove && (
                 <button
                     type="button"
-                    className="ml-0.5 text-[12px] opacity-60 hover:opacity-100"
+                    className="ml-0.5 text-[11px] opacity-60 hover:opacity-100 sm:text-[12px]"
                     onClick={onRemove}
                     aria-label="선택 해제"
                 >
