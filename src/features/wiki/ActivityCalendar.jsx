@@ -1907,7 +1907,7 @@ export default function ActivityCalendar() {
 
                                                     const rect = e.currentTarget.getBoundingClientRect();
                                                     const x = e.clientX - rect.left;
-                                                    const edgeWidth = rect.width * 0.32;
+                                                    const edgeWidth = rect.width * 0.24;
 
                                                     if (x < edgeWidth) {
                                                         handlePrev();

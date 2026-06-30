@@ -43,11 +43,11 @@ function getDiaryDateText(dateKey) {
 
 function getInitialPropertyValue(property) {
     const value = property?.default_value;
-   if (!value) {
-       if (property.type === 'multi_select') return [];
-       if (property.type === 'select') return null;
-       return '';
-   }
+    if (!value) {
+        if (property.type === 'multi_select') return [];
+        if (property.type === 'select') return null;
+        return '';
+    }
 
     if (property.type === 'period') {
         return {
@@ -901,6 +901,15 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
     const hydratedRef = useRef(false);
     const dirtyRef = useRef(false);
     const dialogRootRef = useRef(null);
+    const dialogScrollRef = useRef(null);
+    const pullCloseRef = useRef({
+        active: false,
+        startX: 0,
+        startY: 0,
+        offset: 0,
+        canClose: false,
+    });
+    const [pullOffset, setPullOffset] = useState(0);
 
     const getDialogRoot = useCallback(() => dialogRootRef.current, []);
     const wikiLinkTooltip = useWikiLinkTooltip(getDialogRoot, open);
@@ -953,6 +962,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
             setIsCollapsedPropertiesOpen(false);
             setForceVisiblePropertyIds(new Set());
             setForceCollapsedPropertyIds(new Set());
+            setPullOffset(0);
             latestDraftRef.current = {
                 title: '다이어리',
                 propertyValues: {},
@@ -1047,6 +1057,88 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
         }
 
         await saveDraft();
+    };
+
+    const resetPullClose = () => {
+        pullCloseRef.current = {
+            active: false,
+            startX: 0,
+            startY: 0,
+            offset: 0,
+            canClose: false,
+        };
+        setPullOffset(0);
+    };
+
+    const isMobileViewport = () => {
+        if (typeof window === 'undefined') return false;
+        return window.matchMedia('(max-width: 639px)').matches;
+    };
+
+    const isPullCloseIgnoredTarget = (target) =>
+        !!target?.closest?.('input, textarea, select, button, a, [contenteditable="true"]');
+
+    const handleDialogTouchStart = (e) => {
+        if (!isMobileViewport()) return;
+        if (e.touches.length !== 1) return;
+        if (isPullCloseIgnoredTarget(e.target)) return;
+
+        const scrollEl = dialogScrollRef.current;
+        const hasScrollableContent = scrollEl
+            ? scrollEl.scrollHeight > scrollEl.clientHeight + 1
+            : false;
+        const isAtTop = !hasScrollableContent || (scrollEl?.scrollTop ?? 0) <= 1;
+        const touch = e.touches[0];
+
+        pullCloseRef.current = {
+            active: true,
+            startX: touch.clientX,
+            startY: touch.clientY,
+            offset: 0,
+            canClose: isAtTop,
+        };
+    };
+
+    const handleDialogTouchMove = (e) => {
+        const state = pullCloseRef.current;
+        if (!state.active || !state.canClose) return;
+        if (e.touches.length !== 1) return;
+
+        const scrollEl = dialogScrollRef.current;
+        if ((scrollEl?.scrollTop ?? 0) > 1) {
+            resetPullClose();
+            return;
+        }
+
+        const touch = e.touches[0];
+        const deltaX = touch.clientX - state.startX;
+        const deltaY = touch.clientY - state.startY;
+
+        if (Math.abs(deltaX) > Math.abs(deltaY)) return;
+        if (deltaY <= 0) {
+            state.offset = 0;
+            setPullOffset(0);
+            return;
+        }
+
+        if (e.cancelable) e.preventDefault();
+
+        const nextOffset = Math.min(deltaY * 0.55, 128);
+        state.offset = nextOffset;
+        setPullOffset(nextOffset);
+    };
+
+    const handleDialogTouchEnd = () => {
+        const state = pullCloseRef.current;
+        const shouldClose = state.active && state.canClose && state.offset >= 72;
+
+        resetPullClose();
+
+        if (!shouldClose) return;
+
+        void flushSave().finally(() => {
+            onClose();
+        });
     };
 
     const handleChangeTitle = (value) => {
@@ -1464,15 +1556,23 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
     const dialog = (
         <div
             ref={dialogRootRef}
-            className="diary-view-link-muted fixed inset-0 z-40 flex items-end justify-center ui-dialog-backdrop sm:items-center"
+            className="diary-view-link-muted fixed inset-0 z-40 flex items-end justify-center overscroll-contain ui-dialog-backdrop sm:items-center"
             onMouseDownCapture={handleInternalLinkClickCapture}
             onMouseDown={handleBackdropMouseDown}
             onClickCapture={handleInternalLinkClickCapture}
         >
             <div
-                className="ui-dialog flex max-h-[88vh] min-h-[61vh] w-full flex-col overflow-hidden rounded-t-2xl p-3 sm:max-h-[92vh] sm:min-h-[82vh] sm:w-[min(760px,calc(100vw-32px))] sm:rounded-2xl sm:p-4"
+                className="ui-dialog flex h-[96dvh] max-h-[96dvh] min-h-[96dvh] w-full flex-col overflow-hidden rounded-t-2xl p-2.5 transition-transform duration-200 will-change-transform sm:h-auto sm:max-h-[92vh] sm:min-h-[82vh] sm:w-[min(760px,calc(100vw-32px))] sm:rounded-2xl sm:p-4"
                 onMouseDown={(e) => e.stopPropagation()}
-                >
+                onTouchStart={handleDialogTouchStart}
+                onTouchMove={handleDialogTouchMove}
+                onTouchEnd={handleDialogTouchEnd}
+                onTouchCancel={resetPullClose}
+                style={{
+                    transform: pullOffset ? `translate3d(0, ${pullOffset}px, 0)` : undefined,
+                    transitionDuration: pullOffset ? '0ms' : undefined,
+                }}
+            >
                 <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
                         <input
@@ -1510,7 +1610,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
                     )}
                 </div>
 
-                <div className="mt-0 min-h-0 flex-1 overflow-y-auto p-0.5 sm:p-1">
+                <div ref={dialogScrollRef} className="mt-0 min-h-0 flex-1 overflow-y-auto overscroll-y-contain p-0 sm:p-1">
                     <div className="space-y-1">
                         {(unclassifiedProperties.length > 0 || collapsedUnclassifiedProperties.length > 0) && (
                             <div>
