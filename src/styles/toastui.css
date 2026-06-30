@@ -614,6 +614,20 @@
         max-width: 100%;
         height: auto;
     }
+
+    .wiki-doc-viewer-shell .toastui-editor-contents {
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+        font-size: 15px !important;
+    }
+
+    .wiki-doc-viewer-shell .toastui-editor-contents p,
+    .wiki-doc-viewer-shell .toastui-editor-contents li,
+    .wiki-doc-viewer-shell .toastui-editor-contents blockquote,
+    .wiki-doc-viewer-shell .toastui-editor-contents td,
+    .wiki-doc-viewer-shell .toastui-editor-contents th {
+        line-height: 1.72 !important;
+    }
 }
 
 /* ===========================
@@ -688,6 +702,18 @@
 /* 읽기모드에서 첫 내용이 일반 텍스트일 때만 살짝 내려줌 */
 .wiki-doc-viewer-shell.wiki-view-starts-plain .toastui-editor-contents > p:first-of-type {
     margin-top: 20px !important;
+}
+
+@media (max-width: 640px) {
+    .wiki-doc-viewer-shell .toastui-editor-contents {
+        padding-left: 8px !important;
+        padding-right: 8px !important;
+    }
+
+    .wiki-doc-viewer-shell .toastui-editor-contents > :first-child,
+    .wiki-doc-viewer-shell.wiki-view-starts-plain .toastui-editor-contents > p:first-of-type {
+        margin-top: 8px !important;
+    }
 }
 
 /* ===========================

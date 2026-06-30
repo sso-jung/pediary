@@ -1802,12 +1802,13 @@ export default function ActivityCalendar() {
                                             0,
                                             ...visibleSegments.map((segment) => Math.abs(getTimelineLaneOffset(segment.laneIndex || 0))),
                                         );
-                                        const rowHeight = Math.max(54, 54 + maxLaneOffset * timelineLaneGap * 2);
+                                        const baseRowHeight = isMobileView ? 18 : 54;
+                                        const rowHeight = Math.max(baseRowHeight, baseRowHeight + maxLaneOffset * timelineLaneGap * 2);
 
                                         return (
                                             <div key={item.propertyId} className="contents">
                                                 <div
-                                                    className="diary-timeline-section-divider flex min-w-0 items-center gap-1 py-2 pr-1 font-semibold text-[var(--color-text-main)] sm:px-2"
+                                                    className="diary-timeline-section-divider flex min-w-0 items-center gap-1 py-1 pr-1 font-semibold text-[var(--color-text-main)] sm:px-2 sm:py-2"
                                                     style={{
                                                         height: rowHeight,
                                                         borderTop: index > 0 ? '3px double rgba(232, 184, 194, 0) ' : undefined,
@@ -1907,7 +1908,7 @@ export default function ActivityCalendar() {
                                                 className="diary-calendar-cell flex min-h-[28rem] flex-col overflow-hidden border border-border-subtle px-3 py-3 text-left transition hover:bg-[var(--color-panel-bg)] sm:hidden"
                                                 style={isCurrentMonth ? undefined : { backgroundColor: 'rgba(148, 163, 184, 0.08)' }}
                                             >
-                                                <div className="mb-3 flex items-center justify-between border-b border-border-subtle pb-2">
+                                                <div className="mb-1 flex items-center justify-between pb-0">
                                                     <span
                                                         className="text-[13px] font-semibold"
                                                         style={{ color: isCurrentMonth ? getDayTextColor(weekDate.getDay(), isHoliday) : 'color-mix(in_srgb,var(--color-text-muted)_64%,transparent)' }}

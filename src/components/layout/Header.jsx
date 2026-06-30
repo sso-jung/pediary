@@ -97,7 +97,7 @@ export default function Header({
                 </Link>
 
                 {/* 상단 탭 (홈 / 문서 / 자료 분석) */}
-                <div className="header-pill">
+                <div className="header-pill h-7 items-center">
                     <button
                         type="button"
                         onClick={() => navigate('/')}
@@ -150,26 +150,6 @@ export default function Header({
                     </button>
                 )}
 
-                {/* 모바일/태블릿용 카테고리 토글 버튼 (문서 화면에서만) */}
-                {isDocs && onToggleSidebar && (
-                    <button
-                        type="button"
-                        onClick={onToggleSidebar}
-                        className={`
-              inline-flex items-center rounded-full border border-slate-200
-              px-2 py-[2px] text-[9px]
-              bg-slate-100 transition shrink-0
-              basic:hidden
-              ${
-                            isSidebarOpen
-                                ? 'bg-slate-100 text-slate-800'
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }
-            `}
-                    >
-                        카테고리
-                    </button>
-                )}
             </div>
 
             {/* 오른쪽: 유저 정보 + 내정보/친구/로그아웃 */}
@@ -185,7 +165,7 @@ export default function Header({
                         {/* 내정보 / 친구 버튼 (친구는 모바일에서는 숨김) */}
                         <button
                             type="button"
-                            className="ui-control px-2 py-[3px] text-[10px] sm:px-[7px] sm:py-[5px] sm:text-xs"
+                            className="ui-control h-7 px-2 py-0 text-[10px] sm:px-[7px] sm:text-xs"
                             data-active={isMyInfoOpen}
                             onClick={onToggleMyInfo}
                         >
@@ -207,7 +187,7 @@ export default function Header({
                         <button
                             type="button"
                             onClick={signOut}
-                            className="ui-control px-2 py-[3px] text-[10px] sm:px-[7px] sm:py-[5px] sm:text-xs"
+                            className="ui-control h-7 px-2 py-0 text-[10px] sm:px-[7px] sm:text-xs"
                         >
                             로그아웃
                         </button>

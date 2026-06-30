@@ -1,5 +1,5 @@
 // src/components/layout/AppLayout.jsx
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
@@ -36,6 +36,7 @@ export default function AppLayout({ children }) {
     const [activeSidePanel, setActiveSidePanel] = useState(null); // 'friends' | 'me' | null
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [orbitTick, setOrbitTick] = useState(() => Date.now());
+    const sidebarSwipeRef = useRef(null);
 
     const [themeSetting, setThemeSetting] = useState(() => {
         if (typeof window === 'undefined') return 'noon';
@@ -65,6 +66,41 @@ export default function AppLayout({ children }) {
 
     const handleToggleSidebar = () => {
         setIsSidebarOpen((prev) => !prev);
+    };
+
+    const handleSidebarTouchStart = (e) => {
+        if (!showSidebarLayout) return;
+
+        const touch = e.touches?.[0];
+        if (!touch) return;
+        if (!isSidebarOpen && touch.clientX > 28) return;
+
+        sidebarSwipeRef.current = {
+            x: touch.clientX,
+            y: touch.clientY,
+        };
+    };
+
+    const handleSidebarTouchEnd = (e) => {
+        if (!showSidebarLayout) return;
+
+        const start = sidebarSwipeRef.current;
+        sidebarSwipeRef.current = null;
+        const touch = e.changedTouches?.[0];
+        if (!start || !touch) return;
+
+        const diffX = touch.clientX - start.x;
+        const diffY = touch.clientY - start.y;
+        if (Math.abs(diffX) < 64 || Math.abs(diffX) < Math.abs(diffY) * 1.4) return;
+
+        if (diffX > 0) {
+            setIsSidebarOpen(true);
+            return;
+        }
+
+        if (isSidebarOpen) {
+            setIsSidebarOpen(false);
+        }
     };
 
     const location = useLocation();
@@ -148,7 +184,11 @@ export default function AppLayout({ children }) {
                 />
             </header>
 
-            <div className="flex flex-1 min-h-0">
+            <div
+                className="flex flex-1 min-h-0"
+                onTouchStart={handleSidebarTouchStart}
+                onTouchEnd={handleSidebarTouchEnd}
+            >
                 {showSidebarLayout && (
                     <>
                         <aside

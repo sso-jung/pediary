@@ -151,7 +151,7 @@ export default function CategoryPage() {
                                 key={doc.id}
                                 className="
                   ui-doc-item
-                  flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between
+                  grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:flex sm:flex-row sm:items-center sm:justify-between
                   rounded-xl px-3 py-1.5 text-xs sm:text-sm
                 "
                                 role="button"
@@ -170,7 +170,7 @@ export default function CategoryPage() {
                                     }
                                 }}
                             >
-                                <div className="flex flex-1 items-start gap-2">
+                                <div className="flex min-w-0 flex-1 items-start gap-2">
                                     {/* 즐겨찾기 */}
                                     <button
                                         data-stop-nav="true"
@@ -189,7 +189,7 @@ export default function CategoryPage() {
                                         {isFavorite ? '★' : '☆'}
                                     </button>
 
-                                    <div className="flex flex-col flex-1">
+                                    <div className="flex min-w-0 flex-col flex-1">
                                         <div className="flex flex-wrap items-center gap-1 sm:gap-2">
                                             <span className="text-[11px] sm:text-[12px] ui-doc-meta">
                                                 {categoryPath} |
@@ -213,14 +213,14 @@ export default function CategoryPage() {
                                         </div>
 
                                         <span className="mt-0.5 text-[10px] sm:text-[11px] ui-doc-meta">
-                      작성: {new Date(doc.created_at).toLocaleString()} · 수정:{' '}
-                                            {new Date(doc.updated_at).toLocaleString()}
+                      <span className="sm:hidden">작성: {new Date(doc.created_at).toLocaleString()}</span>
+                      <span className="hidden sm:inline">작성: {new Date(doc.created_at).toLocaleString()} · 수정: {new Date(doc.updated_at).toLocaleString()}</span>
                     </span>
                                     </div>
                                 </div>
 
                                 {/* 우측 액션 */}
-                                <div className="mt-1 flex items-center justify-end gap-2 text-[11px] sm:mt-0 sm:ml-3 sm:text-xs">
+                                <div className="flex shrink-0 flex-col items-end justify-center gap-1 text-[11px] sm:mt-0 sm:ml-3 sm:flex-row sm:items-center sm:gap-2 sm:text-xs">
                                     <button
                                         data-stop-nav="true"
                                         type="button"

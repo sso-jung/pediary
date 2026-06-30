@@ -29,12 +29,12 @@ export default function DocumentPagination({
     };
 
     return (
-        <div className="mt-[15px] grid grid-cols-1 gap-2 text-[11px] sm:mt-4 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
-            <div className="flex justify-start">
+        <div className="mt-[15px] flex flex-wrap items-center gap-1.5 text-[10px] sm:mt-4 sm:grid sm:grid-cols-[1fr_auto_1fr] sm:gap-2 sm:text-[11px] sm:items-center">
+            <div className="flex shrink-0 justify-start">
                 <label className="inline-flex items-center gap-1.5 ui-doc-meta">
                     <span>페이지당</span>
                     <select
-                        className="h-7 rounded-full border px-2 text-[11px] outline-none"
+                        className="h-7 rounded-full border px-2 text-[10px] outline-none sm:text-[11px]"
                         style={{
                             backgroundColor: 'var(--color-page-surface)',
                             borderColor: 'var(--color-panel-border)',
@@ -52,10 +52,10 @@ export default function DocumentPagination({
                 </label>
             </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-1">
+            <div className="flex min-w-0 flex-1 flex-nowrap items-center justify-start gap-1 sm:justify-center">
                 <button
                     type="button"
-                    className="ui-doc-action rounded-full border px-2 py-1 disabled:opacity-40"
+                    className="ui-doc-action rounded-full border px-1.5 py-1 disabled:opacity-40 sm:px-2"
                     style={{ borderColor: 'var(--color-panel-border)' }}
                     disabled={currentPage <= 1}
                     onClick={() => movePage(1)}
@@ -65,7 +65,7 @@ export default function DocumentPagination({
 
                 <button
                     type="button"
-                    className="ui-doc-action rounded-full border px-2 py-1 disabled:opacity-40"
+                    className="ui-doc-action rounded-full border px-1.5 py-1 disabled:opacity-40 sm:px-2"
                     style={{ borderColor: 'var(--color-panel-border)' }}
                     disabled={currentPage <= 1}
                     onClick={() => movePage(currentPage - 1)}
@@ -78,7 +78,8 @@ export default function DocumentPagination({
                         key={pageNo}
                         type="button"
                         className={
-                            'rounded-full border px-2 py-1 transition ' +
+                            'rounded-full border px-1.5 py-1 transition sm:px-2 ' +
+                            (pageNo === currentPage ? '' : 'hidden sm:inline-flex ') +
                             (pageNo === currentPage
                                 ? 'ui-side-subitem-active font-semibold'
                                 : 'ui-doc-action')
@@ -92,7 +93,7 @@ export default function DocumentPagination({
 
                 <button
                     type="button"
-                    className="ui-doc-action rounded-full border px-2 py-1 disabled:opacity-40"
+                    className="ui-doc-action rounded-full border px-1.5 py-1 disabled:opacity-40 sm:px-2"
                     style={{ borderColor: 'var(--color-panel-border)' }}
                     disabled={currentPage >= pageCount}
                     onClick={() => movePage(currentPage + 1)}
@@ -102,7 +103,7 @@ export default function DocumentPagination({
 
                 <button
                     type="button"
-                    className="ui-doc-action rounded-full border px-2 py-1 disabled:opacity-40"
+                    className="ui-doc-action rounded-full border px-1.5 py-1 disabled:opacity-40 sm:px-2"
                     style={{ borderColor: 'var(--color-panel-border)' }}
                     disabled={currentPage >= pageCount}
                     onClick={() => movePage(pageCount)}
@@ -111,7 +112,7 @@ export default function DocumentPagination({
                 </button>
             </div>
 
-            <div className="ui-doc-meta text-left sm:text-right">
+            <div className="ui-doc-meta basis-full text-left text-[11px] sm:basis-auto sm:text-right">
                 {startNo}-{endNo} / 총 {totalCount}개
             </div>
         </div>

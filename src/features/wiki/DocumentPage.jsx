@@ -293,7 +293,7 @@ function DocumentHeader({
 
     return (
         <div
-            className={`flex flex-col gap-2 sm:flex-row sm:items-center ${
+            className={`${isEditing ? 'flex flex-col gap-2 sm:flex-row sm:items-center' : 'flex items-center gap-2'} ${
                 !isEditing ? 'cursor-pointer' : ''
             }`}
             onClick={!isEditing ? onClickTitleArea : undefined}
@@ -405,13 +405,13 @@ function DocumentHeader({
                 {/* 보기 모드: 제목 + 공개범위 뱃지 */}
                 {!isEditing && (
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <h1 className="min-w-0 truncate text-[24px] font-bold leading-tight tracking-normal page-text-main">
+                        <h1 className="min-w-0 truncate text-[22px] font-bold leading-tight tracking-normal page-text-main sm:text-[24px]">
                             {doc.title}
                         </h1>
 
                         {isOwner && (
                             <span
-                                className={'inline-flex shrink-0 items-center rounded-full px-2 py-[1px] text-[11px] font-semibold ' +
+                                className={'hidden shrink-0 items-center rounded-full px-2 py-[1px] text-[11px] font-semibold sm:inline-flex ' +
                                 (visibility === 'friends' ? 'ui-badge-friends' : 'ui-badge-private')}
                             >
                                 {visibility === 'friends' ? '친구 공개' : '나만 보기'}
@@ -432,7 +432,7 @@ function DocumentHeader({
                             onClickExportExcel?.();
                         }}
                         disabled={exporting}
-                        className="ui-btn-success inline-flex h-7 items-center gap-1 rounded-md border px-2.5 py-0 text-[11px] font-semibold shadow-sm disabled:opacity-60"
+                        className="ui-btn-success hidden h-7 items-center gap-1 rounded-md border px-2.5 py-0 text-[11px] font-semibold shadow-sm disabled:opacity-60 sm:inline-flex"
                     >
                         <svg
                             className="h-4 w-4"
@@ -460,7 +460,7 @@ function DocumentHeader({
                             e.stopPropagation();
                             onClickGoList?.();
                         }}
-                        className="md:hidden ui-control h-7 !rounded-md px-2.5 py-0 text-[11px] font-semibold"
+                        className="md:hidden ui-control h-6 !rounded-md px-2 py-0 text-[10px] font-semibold"
                     >
                         목록
                     </button>
@@ -487,7 +487,7 @@ function DocumentHeader({
 
                 {/* 보기 / 편집 탭 */}
                 {isOwner && (
-                    <div className="ui-tabbar inline-flex h-7 items-center !rounded-md px-1 py-[1px] text-[10px] lg:text-[11px] whitespace-nowrap">
+                    <div className="ui-tabbar inline-flex h-6 items-center !rounded-md px-1 py-[1px] text-[10px] whitespace-nowrap sm:h-7 lg:text-[11px]">
                         <button
                             type="button"
                             onClick={(e) => {
@@ -496,7 +496,7 @@ function DocumentHeader({
                                 // 여기서는 form submit 아님
                                 onClickView?.();
                             }}
-                            className="ui-tab !rounded-md !py-[4px]"
+                            className="ui-tab !rounded-md !py-[3px] sm:!py-[4px]"
                             data-active={!isEditing}
                         >
                             보기
@@ -510,7 +510,7 @@ function DocumentHeader({
                                     // 여기서 직접 set은 안 함
                                     onClickEdit?.();
                                 }}
-                                className="ui-tab !rounded-md !py-[4px]"
+                                className="ui-tab !rounded-md !py-[3px] sm:!py-[4px]"
                                 data-active={isEditing}
                             >
                                 편집
@@ -551,14 +551,15 @@ function DocumentHeader({
     );
 }
 
-function SectionSidebar({ headings, isEditing, onClickHeading, numberColor }) {
+function SectionSidebar({ headings, isEditing, onClickHeading, numberColor, className = '' }) {
     void isEditing;
     void numberColor;
 
     return (
         <aside
-            className="hidden md:block h-full overflow-y-auto rounded-2xl p-2 text-[10px] shadow-soft ui-surface
-             basic:p-2.5 xl:p-3"
+            className={[
+                className || 'hidden md:block h-full overflow-y-auto rounded-2xl p-2 text-[10px] shadow-soft ui-surface basic:p-2.5 xl:p-3',
+            ].join(' ')}
         >
             <h2 className="mb-2 text-[10px] font-semibold page-text-muted">
                 섹션
@@ -697,6 +698,7 @@ export default function DocumentPage() {
     const [exporting, setExporting] = useState(false);
     const [activeHeading, setActiveHeading] = useState(null);
     const [isDocumentReady, setIsDocumentReady] = useState(false);
+    const [isSectionSidebarOpen, setIsSectionSidebarOpen] = useState(false);
 
     const [autosaveStatus, setAutosaveStatus] = useState('idle');
     const lastSavedRef = useRef({
@@ -711,6 +713,7 @@ export default function DocumentPage() {
 
     const viewLoggedRef = useRef(false);
     const viewerContainerRef = useRef(null);
+    const sectionSidebarSwipeRef = useRef(null);
 
     const getViewerRoot = useCallback(() => {
         return viewerContainerRef.current;
@@ -816,6 +819,7 @@ export default function DocumentPage() {
 // 사이드바 섹션 클릭 시 스크롤
     const handleClickHeading = (heading) => {
         if (!heading) return;
+        setIsSectionSidebarOpen(false);
 
         // 🔹 편집 모드: 에디터에 “이 헤딩으로 스크롤 해줘”라고 신호만 보냄
         if (isEditing) {
@@ -846,6 +850,41 @@ export default function DocumentPage() {
             setActiveHeading(null);
         }
     }, [isEditing]);
+
+    const handleSectionSidebarTouchStart = (e) => {
+        if (isEditing) return;
+
+        const touch = e.touches?.[0];
+        if (!touch) return;
+        if (!isSectionSidebarOpen && touch.clientX > 28) return;
+
+        sectionSidebarSwipeRef.current = {
+            x: touch.clientX,
+            y: touch.clientY,
+        };
+    };
+
+    const handleSectionSidebarTouchEnd = (e) => {
+        if (isEditing) return;
+
+        const start = sectionSidebarSwipeRef.current;
+        sectionSidebarSwipeRef.current = null;
+        const touch = e.changedTouches?.[0];
+        if (!start || !touch) return;
+
+        const diffX = touch.clientX - start.x;
+        const diffY = touch.clientY - start.y;
+        if (Math.abs(diffX) < 64 || Math.abs(diffX) < Math.abs(diffY) * 1.4) return;
+
+        if (diffX > 0) {
+            setIsSectionSidebarOpen(true);
+            return;
+        }
+
+        if (isSectionSidebarOpen) {
+            setIsSectionSidebarOpen(false);
+        }
+    };
 
     // URL 해시 → 해당 섹션으로 스크롤
     useEffect(() => {
@@ -1063,7 +1102,11 @@ export default function DocumentPage() {
     }
 
     return (
-        <div className="flex h-full min-h-0 flex-col space-y-2 lg:space-y-[10px]">
+        <div
+            className="flex h-full min-h-0 flex-col space-y-2 lg:space-y-[10px]"
+            onTouchStart={handleSectionSidebarTouchStart}
+            onTouchEnd={handleSectionSidebarTouchEnd}
+        >
             {/* 상단 바 */}
             <div
                 className={
@@ -1148,7 +1191,7 @@ export default function DocumentPage() {
                             ref={viewerContainerRef}
                             onClick={handleViewerClick}
                             className={
-                                'wiki-doc-viewer-shell tui-viewer-wrapper h-full overflow-y-auto p-2 lg:p-2 ' +
+                                'wiki-doc-viewer-shell tui-viewer-wrapper h-full overflow-y-auto p-0 sm:p-2 lg:p-2 ' +
                                 (viewStartsWithPlainText ? 'wiki-view-starts-plain' : '')
                             }
                             style={
@@ -1172,6 +1215,47 @@ export default function DocumentPage() {
                     showBacklinks={showBacklinks}
                     setShowBacklinks={setShowBacklinks}
                 />
+            )}
+
+            {!isEditing && (
+                <div
+                    className={`fixed inset-0 z-40 md:hidden ${
+                        isSectionSidebarOpen ? '' : 'pointer-events-none invisible'
+                    }`}
+                >
+                    <div
+                        className={`absolute inset-0 bg-black/30 transition-opacity ${
+                            isSectionSidebarOpen ? 'opacity-100' : 'opacity-0'
+                        }`}
+                        onClick={() => setIsSectionSidebarOpen(false)}
+                    />
+
+                    <div
+                        className={`absolute inset-y-0 left-0 flex w-[74%] max-w-[300px] transform transition-transform duration-200 ${
+                            isSectionSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+                        }`}
+                    >
+                        <div className="panel-surface flex h-full w-full flex-col rounded-r-2xl shadow-xl">
+                            <div className="flex items-center justify-between border-b border-border-subtle px-3 py-2">
+                                <span className="text-[11px] font-semibold">섹션</span>
+                                <button
+                                    type="button"
+                                    className="rounded-full px-2 py-1 text-[11px] text-slate-400 hover:bg-slate-100/60"
+                                    onClick={() => setIsSectionSidebarOpen(false)}
+                                >
+                                    닫기
+                                </button>
+                            </div>
+                            <SectionSidebar
+                                headings={headings}
+                                isEditing={isEditing}
+                                onClickHeading={handleClickHeading}
+                                numberColor={sectionColor}
+                                className="block h-full min-h-0 overflow-y-auto p-3 text-[10px] ui-surface"
+                            />
+                        </div>
+                    </div>
+                </div>
             )}
 
             <WikiLinkTooltip tooltip={wikiLinkTooltip} />
