@@ -1405,6 +1405,7 @@ export default function ActivityCalendar() {
     const handleCalendarTouchEnd = (e) => {
         if (!isMobileView) return;
         if (calendarView !== 'weekly' && calendarView !== 'monthly' && calendarView !== 'timeline') return;
+        if (calendarView === 'weekly') return;
 
         const start = swipeTouchRef.current;
         swipeTouchRef.current = null;
@@ -1802,7 +1803,7 @@ export default function ActivityCalendar() {
                                             0,
                                             ...visibleSegments.map((segment) => Math.abs(getTimelineLaneOffset(segment.laneIndex || 0))),
                                         );
-                                        const baseRowHeight = isMobileView ? 18 : 54;
+                                        const baseRowHeight = isMobileView ? 22 : 54;
                                         const rowHeight = Math.max(baseRowHeight, baseRowHeight + maxLaneOffset * timelineLaneGap * 2);
 
                                         return (
@@ -1903,6 +1904,21 @@ export default function ActivityCalendar() {
                                                 type="button"
                                                 onClick={(e) => {
                                                     if (isInternalLinkClick(e)) return;
+
+                                                    const rect = e.currentTarget.getBoundingClientRect();
+                                                    const x = e.clientX - rect.left;
+                                                    const edgeWidth = rect.width * 0.32;
+
+                                                    if (x < edgeWidth) {
+                                                        handlePrev();
+                                                        return;
+                                                    }
+
+                                                    if (x > rect.width - edgeWidth) {
+                                                        handleNext();
+                                                        return;
+                                                    }
+
                                                     handleOpenDiary(key);
                                                 }}
                                                 className="diary-calendar-cell flex min-h-[28rem] flex-col overflow-hidden border border-border-subtle px-3 py-3 text-left transition hover:bg-[var(--color-panel-bg)] sm:hidden"
