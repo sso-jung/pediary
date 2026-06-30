@@ -1921,7 +1921,7 @@ export default function ActivityCalendar() {
 
                                                     handleOpenDiary(key);
                                                 }}
-                                                className="diary-calendar-cell flex min-h-[28rem] flex-col overflow-hidden border border-border-subtle px-3 py-3 text-left transition hover:bg-[var(--color-panel-bg)] sm:hidden"
+                                                className="diary-calendar-cell flex min-h-[28rem] flex-col overflow-hidden border border-border-subtle px-3 py-3 text-left transition sm:hidden"
                                                 style={isCurrentMonth ? undefined : { backgroundColor: 'rgba(148, 163, 184, 0.08)' }}
                                             >
                                                 <div className="mb-1 flex items-center justify-between pb-0">
