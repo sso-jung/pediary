@@ -856,11 +856,13 @@ export default function DocumentPage() {
 
         const touch = e.touches?.[0];
         if (!touch) return;
-        if (!isSectionSidebarOpen && touch.clientX > 28) return;
+        const isRightEdge = touch.clientX >= window.innerWidth - 28;
+        if (!isSectionSidebarOpen && touch.clientX > 28 && !isRightEdge) return;
 
         sectionSidebarSwipeRef.current = {
             x: touch.clientX,
             y: touch.clientY,
+            edge: isRightEdge ? 'right' : 'left',
         };
     };
 
@@ -875,6 +877,11 @@ export default function DocumentPage() {
         const diffX = touch.clientX - start.x;
         const diffY = touch.clientY - start.y;
         if (Math.abs(diffX) < 64 || Math.abs(diffX) < Math.abs(diffY) * 1.4) return;
+
+        if (start.edge === 'right' && diffX < 0) {
+            handleGoList();
+            return;
+        }
 
         if (diffX > 0) {
             setIsSectionSidebarOpen(true);

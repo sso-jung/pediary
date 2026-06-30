@@ -112,7 +112,7 @@ export default function DocumentPagination({
                 </button>
             </div>
 
-            <div className="ui-doc-meta basis-full text-left text-[11px] sm:basis-auto sm:text-right">
+            <div className="ui-doc-meta basis-full text-right text-[11px] sm:basis-auto">
                 {startNo}-{endNo} / 총 {totalCount}개
             </div>
         </div>

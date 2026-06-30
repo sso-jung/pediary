@@ -1803,7 +1803,7 @@ export default function ActivityCalendar() {
                                             0,
                                             ...visibleSegments.map((segment) => Math.abs(getTimelineLaneOffset(segment.laneIndex || 0))),
                                         );
-                                        const baseRowHeight = isMobileView ? 22 : 54;
+                                        const baseRowHeight = isMobileView ? 30 : 54;
                                         const rowHeight = Math.max(baseRowHeight, baseRowHeight + maxLaneOffset * timelineLaneGap * 2);
 
                                         return (

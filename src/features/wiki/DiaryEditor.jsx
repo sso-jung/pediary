@@ -1470,7 +1470,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
             onClickCapture={handleInternalLinkClickCapture}
         >
             <div
-                className="ui-dialog flex max-h-[88vh] min-h-[58vh] w-full flex-col overflow-hidden rounded-t-2xl p-3 sm:max-h-[92vh] sm:min-h-[82vh] sm:w-[min(760px,calc(100vw-32px))] sm:rounded-2xl sm:p-4"
+                className="ui-dialog flex max-h-[88vh] min-h-[61vh] w-full flex-col overflow-hidden rounded-t-2xl p-3 sm:max-h-[92vh] sm:min-h-[82vh] sm:w-[min(760px,calc(100vw-32px))] sm:rounded-2xl sm:p-4"
                 onMouseDown={(e) => e.stopPropagation()}
                 >
                 <div className="flex items-start justify-between gap-3">

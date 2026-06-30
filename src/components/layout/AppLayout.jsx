@@ -259,8 +259,14 @@ export default function AppLayout({ children }) {
                                     </div>
                                 </div>
 
-                                <div className="fixed inset-0 z-40 flex items-end bg-black/30 min-[1420px]:hidden">
-                                    <div className="panel-surface w-full max-h-[75%] rounded-t-2xl border border-border-subtle shadow-xl">
+                                <div
+                                    className="fixed inset-0 z-40 flex items-end bg-black/30 min-[1420px]:hidden"
+                                    onClick={() => setActiveSidePanel(null)}
+                                >
+                                    <div
+                                        className="panel-surface w-full max-h-[75%] rounded-t-2xl border border-border-subtle shadow-xl"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
                                         <div className="flex items-center justify-between border-b border-border-subtle px-4 py-2">
                                             <span className="text-xs font-semibold">
                                                 {activeSidePanel === 'friends' ? '친구' : '내 정보'}
@@ -293,8 +299,14 @@ export default function AppLayout({ children }) {
                                     </div>
                                 </div>
 
-                                <div className="fixed inset-0 z-40 flex items-end bg-black/30 lg:hidden">
-                                    <div className="panel-surface w-full max-h-[75%] rounded-t-2xl border border-border-subtle shadow-xl">
+                                <div
+                                    className="fixed inset-0 z-40 flex items-end bg-black/30 lg:hidden"
+                                    onClick={() => setActiveSidePanel(null)}
+                                >
+                                    <div
+                                        className="panel-surface w-full max-h-[75%] rounded-t-2xl border border-border-subtle shadow-xl"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
                                         <div className="flex items-center justify-between border-b border-border-subtle px-4 py-2">
                                             <span className="text-xs font-semibold">
                                                 {activeSidePanel === 'friends' ? '친구' : '내 정보'}
