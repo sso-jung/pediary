@@ -1431,8 +1431,8 @@ export default function ActivityCalendar() {
 
         const currentIndex = CALENDAR_VIEWS.indexOf(calendarView);
         const nextIndex = diffX > 0
-            ? Math.min(currentIndex + 1, CALENDAR_VIEWS.length - 1)
-            : Math.max(currentIndex - 1, 0);
+            ? Math.max(currentIndex - 1, 0)
+            : Math.min(currentIndex + 1, CALENDAR_VIEWS.length - 1);
 
         if (nextIndex !== currentIndex) {
             handleChangeCalendarView(CALENDAR_VIEWS[nextIndex]);
