@@ -1,5 +1,6 @@
 // src/components/layout/AppLayout.jsx
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
@@ -7,6 +8,8 @@ import FriendsPage from '../../features/friends/FriendsPage';
 import MyInfoPanel from '../../features/account/MyInfoPanel';
 
 const THEME_STORAGE_KEY = 'pediary-theme';
+const PULL_REFRESH_TRIGGER = 72;
+const PULL_REFRESH_MAX = 96;
 
 function getOrbitTheme() {
     const hour = new Date().getHours();
@@ -32,11 +35,35 @@ function getEffectiveTheme(themeSetting) {
     return themeSetting;
 }
 
+function getScrollableParent(target) {
+    let node = target;
+
+    while (node && node !== document.body && node !== document.documentElement) {
+        const style = window.getComputedStyle(node);
+        const overflowY = style.overflowY;
+
+        if (
+            (overflowY === 'auto' || overflowY === 'scroll') &&
+            node.scrollHeight > node.clientHeight
+        ) {
+            return node;
+        }
+
+        node = node.parentElement;
+    }
+
+    return null;
+}
+
 export default function AppLayout({ children }) {
+    const queryClient = useQueryClient();
     const [activeSidePanel, setActiveSidePanel] = useState(null); // 'friends' | 'me' | null
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [orbitTick, setOrbitTick] = useState(() => Date.now());
+    const [pullOffset, setPullOffset] = useState(0);
+    const [isPullRefreshing, setIsPullRefreshing] = useState(false);
     const sidebarSwipeRef = useRef(null);
+    const pullRefreshRef = useRef(null);
 
     const [themeSetting, setThemeSetting] = useState(() => {
         if (typeof window === 'undefined') return 'noon';
@@ -66,6 +93,74 @@ export default function AppLayout({ children }) {
 
     const handleToggleSidebar = () => {
         setIsSidebarOpen((prev) => !prev);
+    };
+
+    const handlePullRefreshStart = (e) => {
+        if (isPullRefreshing || isSidebarOpen || activeSidePanel) return;
+        if (typeof window === 'undefined') return;
+        if (!window.matchMedia('(pointer: coarse)').matches) return;
+
+        const touch = e.touches?.[0];
+        if (!touch) return;
+        if (touch.clientY > 96) return;
+
+        const scrollableParent = getScrollableParent(e.target);
+        if (scrollableParent && scrollableParent.scrollTop > 0) return;
+
+        pullRefreshRef.current = {
+            x: touch.clientX,
+            y: touch.clientY,
+            ready: false,
+        };
+    };
+
+    const handlePullRefreshMove = (e) => {
+        const state = pullRefreshRef.current;
+        const touch = e.touches?.[0];
+        if (!state || !touch) return;
+
+        const diffX = touch.clientX - state.x;
+        const diffY = touch.clientY - state.y;
+        if (diffY <= 0 || Math.abs(diffX) > diffY) {
+            setPullOffset(0);
+            return;
+        }
+
+        const scrollableParent = getScrollableParent(e.target);
+        if (scrollableParent && scrollableParent.scrollTop > 0) return;
+
+        e.preventDefault();
+
+        const nextOffset = Math.min(PULL_REFRESH_MAX, diffY * 0.45);
+        state.ready = nextOffset >= PULL_REFRESH_TRIGGER;
+        setPullOffset(nextOffset);
+    };
+
+    const handlePullRefreshEnd = async () => {
+        const state = pullRefreshRef.current;
+        pullRefreshRef.current = null;
+
+        if (!state) {
+            setPullOffset(0);
+            return;
+        }
+
+        if (!state.ready) {
+            setPullOffset(0);
+            return;
+        }
+
+        setPullOffset(PULL_REFRESH_TRIGGER);
+        setIsPullRefreshing(true);
+
+        try {
+            await queryClient.invalidateQueries();
+        } finally {
+            window.setTimeout(() => {
+                setIsPullRefreshing(false);
+                setPullOffset(0);
+            }, 250);
+        }
     };
 
     const handleSidebarTouchStart = (e) => {
@@ -186,9 +281,30 @@ export default function AppLayout({ children }) {
 
             <div
                 className="flex flex-1 min-h-0"
-                onTouchStart={handleSidebarTouchStart}
-                onTouchEnd={handleSidebarTouchEnd}
+                onTouchStart={(e) => {
+                    handlePullRefreshStart(e);
+                    handleSidebarTouchStart(e);
+                }}
+                onTouchMove={handlePullRefreshMove}
+                onTouchEnd={(e) => {
+                    handlePullRefreshEnd();
+                    handleSidebarTouchEnd(e);
+                }}
+                onTouchCancel={() => {
+                    pullRefreshRef.current = null;
+                    setPullOffset(0);
+                }}
             >
+                <div
+                    className="pointer-events-none fixed left-1/2 top-3 z-50 flex h-9 w-9 -translate-x-1/2 items-center justify-center rounded-full border border-border-subtle bg-surface-elevated shadow-soft transition-opacity duration-150"
+                    style={{
+                        opacity: pullOffset || isPullRefreshing ? 1 : 0,
+                        transform: `translate3d(-50%, ${pullOffset}px, 0)`,
+                    }}
+                >
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-[var(--color-accent)]" />
+                </div>
+
                 {showSidebarLayout && (
                     <>
                         <aside
