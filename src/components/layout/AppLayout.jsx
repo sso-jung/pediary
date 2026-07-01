@@ -102,7 +102,7 @@ export default function AppLayout({ children }) {
 
         const touch = e.touches?.[0];
         if (!touch) return;
-        if (touch.clientY > 96) return;
+        if (touch.clientY > window.innerHeight / 2) return;
 
         const scrollableParent = getScrollableParent(e.target);
         if (scrollableParent && scrollableParent.scrollTop > 0) return;
