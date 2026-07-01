@@ -41,6 +41,7 @@ const CALENDAR_VIEW_STORAGE_KEY_PREFIX = 'pediary.diaryCalendar.viewState';
 const CALENDAR_VIEWS = ['weekly', 'monthly', 'timeline'];
 const MOBILE_MEDIA_QUERY = '(max-width: 639px)';
 const MOBILE_TIMELINE_MONTH_COUNT = 4;
+const MOBILE_EDGE_TAP_RATIO = 0.24;
 
 function addDays(date, amount) {
     const next = new Date(date);
@@ -428,17 +429,22 @@ function getTimelineLaneOffset(laneIndex = 0) {
 function TimelineTooltip({ tooltip }) {
     if (!tooltip) return null;
 
+    const margin = 12;
+    const maxWidth = Math.min(260, window.innerWidth - margin * 2);
+    const x = Math.min(Math.max(tooltip.x, margin + maxWidth / 2), window.innerWidth - margin - maxWidth / 2);
+    const y = Math.min(Math.max(tooltip.y, margin), window.innerHeight - margin - 48);
+
     return createPortal(
         <div
             className="diary-timeline-tooltip pointer-events-none fixed z-[9999] rounded-lg px-3 py-2 text-[11px] font-semibold leading-snug text-white shadow-xl"
             style={{
-                left: tooltip.x,
-                top: tooltip.y,
+                left: x,
+                top: y,
                 transform: 'translate(-50%, 13px)',
                 backgroundColor: tooltip.backgroundColor || 'rgb(30 41 59)',
                 color: tooltip.color || '#fff',
-                whiteSpace: 'nowrap',
-                maxWidth: 'calc(100vw - 24px)',
+                whiteSpace: 'normal',
+                maxWidth,
             }}
         >
             {tooltip.text}
@@ -1405,7 +1411,6 @@ export default function ActivityCalendar() {
     const handleCalendarTouchEnd = (e) => {
         if (!isMobileView) return;
         if (calendarView !== 'weekly' && calendarView !== 'monthly' && calendarView !== 'timeline') return;
-        if (calendarView === 'weekly') return;
 
         const start = swipeTouchRef.current;
         swipeTouchRef.current = null;
@@ -1424,12 +1429,14 @@ export default function ActivityCalendar() {
             swipeBlockClickRef.current = false;
         }, 0);
 
-        if (diffX > 0) {
-            handlePrev();
-            return;
-        }
+        const currentIndex = CALENDAR_VIEWS.indexOf(calendarView);
+        const nextIndex = diffX > 0
+            ? Math.min(currentIndex + 1, CALENDAR_VIEWS.length - 1)
+            : Math.max(currentIndex - 1, 0);
 
-        handleNext();
+        if (nextIndex !== currentIndex) {
+            handleChangeCalendarView(CALENDAR_VIEWS[nextIndex]);
+        }
     };
 
     const handleCalendarClickCapture = (e) => {
@@ -1437,6 +1444,31 @@ export default function ActivityCalendar() {
 
         e.preventDefault();
         e.stopPropagation();
+    };
+
+    const handleCalendarEdgeTapCapture = (e) => {
+        if (!isMobileView) return;
+        if (calendarView !== 'monthly' && calendarView !== 'timeline') return;
+        if (swipeBlockClickRef.current) return;
+        if (isInternalLinkClick(e)) return;
+        if (e.target.closest?.('.diary-timeline-segment')) return;
+
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const edgeWidth = rect.width * MOBILE_EDGE_TAP_RATIO;
+
+        if (x < edgeWidth) {
+            e.preventDefault();
+            e.stopPropagation();
+            handlePrev();
+            return;
+        }
+
+        if (x > rect.width - edgeWidth) {
+            e.preventDefault();
+            e.stopPropagation();
+            handleNext();
+        }
     };
 
     const handleOpenDiary = (dateKey) => {
@@ -1765,7 +1797,10 @@ export default function ActivityCalendar() {
                             className="min-h-0 flex-1 overflow-x-hidden pb-2 text-[12px] sm:overflow-x-auto"
                             onTouchStart={handleCalendarTouchStart}
                             onTouchEnd={handleCalendarTouchEnd}
-                            onClickCapture={handleCalendarClickCapture}
+                            onClickCapture={(e) => {
+                                handleCalendarEdgeTapCapture(e);
+                                handleCalendarClickCapture(e);
+                            }}
                         >
                             <div className="relative min-w-0 sm:min-w-[1080px]">
                                 <div className="pointer-events-none absolute bottom-[-10px] left-[70px] right-0 top-0 z-30 overflow-hidden sm:left-[118px] sm:overflow-visible">
@@ -1887,7 +1922,10 @@ export default function ActivityCalendar() {
                             className="min-h-0 flex-1 overflow-x-auto pb-2"
                             onTouchStart={handleCalendarTouchStart}
                             onTouchEnd={handleCalendarTouchEnd}
-                            onClickCapture={handleCalendarClickCapture}
+                            onClickCapture={(e) => {
+                                handleCalendarEdgeTapCapture(e);
+                                handleCalendarClickCapture(e);
+                            }}
                         >
                             <div className={calendarView === 'weekly' ? (isMobileView ? 'flex h-full min-w-0 flex-col' : 'flex h-full min-w-[720px] flex-col sm:min-w-0') : 'min-w-0'}>
                                 {calendarView === 'weekly' && isMobileView ? (
