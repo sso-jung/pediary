@@ -429,8 +429,8 @@ function getTimelineLaneOffset(laneIndex = 0) {
 function TimelineTooltip({ tooltip }) {
     if (!tooltip) return null;
 
-    const margin = 12;
-    const maxWidth = Math.min(260, window.innerWidth - margin * 2);
+    const margin = 8;
+    const maxWidth = Math.min(320, window.innerWidth - margin * 2);
     const x = Math.min(Math.max(tooltip.x, margin + maxWidth / 2), window.innerWidth - margin - maxWidth / 2);
     const y = Math.min(Math.max(tooltip.y, margin), window.innerHeight - margin - 48);
 
