@@ -978,40 +978,12 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
     useEffect(() => {
         if (!open || typeof document === 'undefined') return;
 
-        let startX = 0;
-        let startY = 0;
-
-        const handleTouchStart = (e) => {
-            if (!window.matchMedia('(max-width: 639px)').matches) return;
-
-            const touch = e.touches?.[0];
-            if (!touch) return;
-
-            startX = touch.clientX;
-            startY = touch.clientY;
-        };
-
-        const handleTouchMove = (e) => {
-            if (!window.matchMedia('(max-width: 639px)').matches) return;
-
-            const touch = e.touches?.[0];
-            if (!touch) return;
-
-            const deltaX = touch.clientX - startX;
-            const deltaY = touch.clientY - startY;
-
-            if (deltaY <= 0 || Math.abs(deltaX) > Math.abs(deltaY)) return;
-            if ((dialogScrollRef.current?.scrollTop ?? 0) > 1) return;
-
-            if (e.cancelable) e.preventDefault();
-        };
-
-        document.addEventListener('touchstart', handleTouchStart, { passive: true, capture: true });
-        document.addEventListener('touchmove', handleTouchMove, { passive: false, capture: true });
+        document.documentElement.classList.add('diary-editor-open');
+        document.body.classList.add('diary-editor-open');
 
         return () => {
-            document.removeEventListener('touchstart', handleTouchStart, { capture: true });
-            document.removeEventListener('touchmove', handleTouchMove, { capture: true });
+            document.documentElement.classList.remove('diary-editor-open');
+            document.body.classList.remove('diary-editor-open');
         };
     }, [open]);
 
@@ -1115,13 +1087,9 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
         return window.matchMedia('(max-width: 639px)').matches;
     };
 
-    const isPullCloseIgnoredTarget = (target) =>
-        !!target?.closest?.('input, textarea, select, button, a, [contenteditable="true"]');
-
     const handleDialogTouchStart = (e) => {
         if (!isMobileViewport()) return;
         if (e.touches.length !== 1) return;
-        if (isPullCloseIgnoredTarget(e.target)) return;
 
         const scrollEl = dialogScrollRef.current;
         const hasScrollableContent = scrollEl

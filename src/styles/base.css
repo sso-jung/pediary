@@ -26,6 +26,15 @@ body {
     font-weight: 500;
 }
 
+html.diary-editor-open,
+body.diary-editor-open {
+    overscroll-behavior-y: none;
+}
+
+html.diary-editor-open #root {
+    overscroll-behavior-y: none;
+}
+
 /* Pediary 헤더 전용 폰트 (필요 시만 사용) */
 .pediary-heading {
     font-family: "Noto Sans KR", "Pretendard Variable", system-ui, -apple-system, BlinkMacSystemFont,

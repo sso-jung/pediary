@@ -55,6 +55,10 @@ function getScrollableParent(target) {
     return null;
 }
 
+function isDiaryEditorOpen() {
+    return document.documentElement.classList.contains('diary-editor-open');
+}
+
 export default function AppLayout({ children }) {
     const queryClient = useQueryClient();
     const [activeSidePanel, setActiveSidePanel] = useState(null); // 'friends' | 'me' | null
@@ -96,6 +100,7 @@ export default function AppLayout({ children }) {
     };
 
     const handlePullRefreshStart = (e) => {
+        if (isDiaryEditorOpen()) return;
         if (isPullRefreshing || isSidebarOpen || activeSidePanel) return;
         if (typeof window === 'undefined') return;
         if (!window.matchMedia('(pointer: coarse)').matches) return;
@@ -115,6 +120,12 @@ export default function AppLayout({ children }) {
     };
 
     const handlePullRefreshMove = (e) => {
+        if (isDiaryEditorOpen()) {
+            pullRefreshRef.current = null;
+            setPullOffset(0);
+            return;
+        }
+
         const state = pullRefreshRef.current;
         const touch = e.touches?.[0];
         if (!state || !touch) return;
@@ -137,6 +148,12 @@ export default function AppLayout({ children }) {
     };
 
     const handlePullRefreshEnd = async () => {
+        if (isDiaryEditorOpen()) {
+            pullRefreshRef.current = null;
+            setPullOffset(0);
+            return;
+        }
+
         const state = pullRefreshRef.current;
         pullRefreshRef.current = null;
 
