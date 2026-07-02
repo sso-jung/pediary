@@ -976,6 +976,46 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
     }, [open, diaryDate]);
 
     useEffect(() => {
+        if (!open || typeof document === 'undefined') return;
+
+        let startX = 0;
+        let startY = 0;
+
+        const handleTouchStart = (e) => {
+            if (!window.matchMedia('(max-width: 639px)').matches) return;
+
+            const touch = e.touches?.[0];
+            if (!touch) return;
+
+            startX = touch.clientX;
+            startY = touch.clientY;
+        };
+
+        const handleTouchMove = (e) => {
+            if (!window.matchMedia('(max-width: 639px)').matches) return;
+
+            const touch = e.touches?.[0];
+            if (!touch) return;
+
+            const deltaX = touch.clientX - startX;
+            const deltaY = touch.clientY - startY;
+
+            if (deltaY <= 0 || Math.abs(deltaX) > Math.abs(deltaY)) return;
+            if ((dialogScrollRef.current?.scrollTop ?? 0) > 1) return;
+
+            if (e.cancelable) e.preventDefault();
+        };
+
+        document.addEventListener('touchstart', handleTouchStart, { passive: true, capture: true });
+        document.addEventListener('touchmove', handleTouchMove, { passive: false, capture: true });
+
+        return () => {
+            document.removeEventListener('touchstart', handleTouchStart, { capture: true });
+            document.removeEventListener('touchmove', handleTouchMove, { capture: true });
+        };
+    }, [open]);
+
+    useEffect(() => {
         if (!open || !diaryDate) return;
         if (loading) return;
         if (!properties || !savedPropertyValues) return;

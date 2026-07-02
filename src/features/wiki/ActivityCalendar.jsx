@@ -1,5 +1,5 @@
 // src/features/wiki/ActivityCalendar.jsx
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -427,15 +427,45 @@ function getTimelineLaneOffset(laneIndex = 0) {
 }
 
 function TimelineTooltip({ tooltip }) {
+    const tooltipRef = useRef(null);
+    const [position, setPosition] = useState(null);
+
+    useLayoutEffect(() => {
+        if (!tooltip) {
+            setPosition(null);
+            return;
+        }
+
+        const margin = 8;
+        const minX = tooltip.minX ?? margin;
+        const maxX = tooltip.maxX ?? window.innerWidth - margin;
+        const maxWidth = Math.min(tooltip.maxWidth || 320, Math.max(maxX - minX, 120));
+        const tooltipWidth = Math.min(tooltipRef.current?.offsetWidth || maxWidth, maxWidth);
+        const minCenter = minX + tooltipWidth / 2;
+        const maxCenter = maxX - tooltipWidth / 2;
+        const x = maxCenter >= minCenter
+            ? Math.min(Math.max(tooltip.x, minCenter), maxCenter)
+            : (minX + maxX) / 2;
+        const y = Math.min(Math.max(tooltip.y, margin), window.innerHeight - margin - 48);
+        const tooltipLeft = x - tooltipWidth / 2;
+        const anchorX = tooltip.anchorX ?? tooltip.x;
+        const arrowLeft = Math.min(Math.max(anchorX - tooltipLeft, 10), tooltipWidth - 10);
+
+        setPosition({ x, y, maxWidth, arrowLeft });
+    }, [tooltip]);
+
     if (!tooltip) return null;
 
     const margin = 8;
-    const maxWidth = Math.min(320, window.innerWidth - margin * 2);
-    const x = Math.min(Math.max(tooltip.x, margin + maxWidth / 2), window.innerWidth - margin - maxWidth / 2);
-    const y = Math.min(Math.max(tooltip.y, margin), window.innerHeight - margin - 48);
+    const minX = tooltip.minX ?? margin;
+    const maxX = tooltip.maxX ?? window.innerWidth - margin;
+    const maxWidth = position?.maxWidth ?? Math.min(tooltip.maxWidth || 320, Math.max(maxX - minX, 120));
+    const x = position?.x ?? tooltip.x;
+    const y = position?.y ?? tooltip.y;
 
     return createPortal(
         <div
+            ref={tooltipRef}
             className="diary-timeline-tooltip pointer-events-none fixed z-[9999] rounded-lg px-3 py-2 text-[11px] font-semibold leading-snug text-white shadow-xl"
             style={{
                 left: x,
@@ -444,6 +474,7 @@ function TimelineTooltip({ tooltip }) {
                 backgroundColor: tooltip.backgroundColor || 'rgb(30 41 59)',
                 color: tooltip.color || '#fff',
                 whiteSpace: 'normal',
+                width: 'max-content',
                 maxWidth,
             }}
         >
@@ -452,6 +483,7 @@ function TimelineTooltip({ tooltip }) {
                 aria-hidden
                 className="diary-timeline-tooltip-arrow absolute left-1/2 h-2 w-2 -translate-x-1/2 rotate-45"
                 style={{
+                    left: position?.arrowLeft,
                     top: -4,
                     backgroundColor: tooltip.backgroundColor || 'rgb(30 41 59)',
                 }}
@@ -507,13 +539,24 @@ function TimelineSegmentBar({ segment, year, timelineWidth, timelineRange, isMob
     const laneY = `calc(50% + ${laneOffset * laneGap}px)`;
     const handleTooltipShow = (target) => {
         const rect = target.getBoundingClientRect();
+        const scrollRect = isMobileView
+            ? target.closest?.('.diary-timeline-scroll')?.getBoundingClientRect()
+            : null;
+        const rootRect = isMobileView
+            ? target.closest?.('.diary-calendar-root')?.getBoundingClientRect()
+            : null;
+        const anchorX = rect.left + rect.width / 2;
 
         onTooltipShow?.({
             text: `${dateText} · ${segment.text}`,
-            x: rect.left + rect.width / 2,
+            x: anchorX + (scrollRect ? 34 : 0),
+            anchorX,
             y: rect.bottom + (isSingleDay ? 8 : 0),
             backgroundColor: segmentColor,
             color: segmentTextColor,
+            minX: scrollRect ? scrollRect.left + 12 : undefined,
+            maxX: rootRect ? rootRect.right - 2 : scrollRect ? scrollRect.right - 4 : undefined,
+            maxWidth: rootRect ? Math.min(230, rootRect.width - 24) : scrollRect ? Math.min(210, scrollRect.width - 16) : undefined,
         });
     };
     const handleTouchStart = (e) => {
@@ -1633,7 +1676,7 @@ export default function ActivityCalendar() {
     return (
         <div
             ref={rootRef}
-            className="h-full min-h-0 text-xs"
+            className="diary-calendar-root h-full min-h-0 text-xs"
             onMouseDownCapture={handleInternalLinkClickCapture}
             onClickCapture={handleInternalLinkClickCapture}
         >
@@ -1794,7 +1837,7 @@ export default function ActivityCalendar() {
                 <div className="flex min-h-0 flex-1 flex-col overflow-auto pt-3">
                     {calendarView === 'timeline' ? (
                         <div
-                            className="min-h-0 flex-1 overflow-x-hidden pb-2 text-[12px] sm:overflow-x-auto"
+                            className="diary-timeline-scroll min-h-0 flex-1 overflow-x-hidden pb-2 text-[12px] sm:overflow-x-auto"
                             onTouchStart={handleCalendarTouchStart}
                             onTouchEnd={handleCalendarTouchEnd}
                             onClickCapture={(e) => {
@@ -1803,7 +1846,7 @@ export default function ActivityCalendar() {
                             }}
                         >
                             <div className="relative min-w-0 sm:min-w-[1080px]">
-                                <div className="pointer-events-none absolute bottom-[-10px] left-[70px] right-0 top-0 z-30 overflow-hidden sm:left-[118px] sm:overflow-visible">
+                                <div className="pointer-events-none absolute bottom-[-10px] left-[38px] right-0 top-0 z-30 overflow-hidden sm:left-[118px] sm:overflow-visible">
                                     <TimelineTodayGuide
                                         year={year}
                                         showMarker
@@ -1811,7 +1854,7 @@ export default function ActivityCalendar() {
                                         monthCount={timelineMonthCount}
                                     />
                                 </div>
-                                <div className="grid grid-cols-[60px_minmax(0,1fr)] sm:grid-cols-[118px_minmax(900px,1fr)]">
+                                <div className="grid grid-cols-[28px_minmax(0,1fr)] sm:grid-cols-[118px_minmax(900px,1fr)]">
                                     <div className="py-2 pr-1 sm:px-2" />
                                     <div ref={timelineAreaRef} className="relative ml-2.5 sm:ml-0">
                                         <TimelineMonthHeader
@@ -1825,6 +1868,8 @@ export default function ActivityCalendar() {
                                         const name = getPropertyDisplayName(item.property?.name);
                                         const showIcon = ['icon_name', 'icon'].includes(item.displayMode);
                                         const showName = ['icon_name', 'name'].includes(item.displayMode);
+                                        const showTimelineIcon = isMobileView ? true : showIcon;
+                                        const showTimelineName = isMobileView ? false : showName;
                                         const timelineLaneGap = isMobileView ? TIMELINE_MOBILE_LANE_GAP : TIMELINE_LANE_GAP;
 
                                         const segments = timelineSegmentsByPropertyId.get(item.propertyId) || [];
@@ -1844,20 +1889,20 @@ export default function ActivityCalendar() {
                                         return (
                                             <div key={item.propertyId} className="contents">
                                                 <div
-                                                    className="diary-timeline-section-divider flex min-w-0 items-center gap-1 py-1 pr-1 font-semibold text-[var(--color-text-main)] sm:px-2 sm:py-2"
+                                                    className="diary-timeline-section-divider flex min-w-0 items-center justify-center gap-1 py-1 font-semibold text-[var(--color-text-main)] sm:justify-start sm:px-2 sm:py-2"
                                                     style={{
                                                         height: rowHeight,
                                                         borderTop: index > 0 ? '3px double rgba(232, 184, 194, 0) ' : undefined,
                                                     }}
                                                 >
-                                                    {showIcon && item.property?.icon && (
+                                                    {showTimelineIcon && item.property?.icon && (
                                                         <span
                                                             className="flex h-4 w-4 shrink-0 items-center justify-center">
                                         <PropertyIcon icon={item.property.icon}/>
                                     </span>
                                                     )}
 
-                                                    {showName && (
+                                                    {showTimelineName && (
                                                         <span className="min-w-0 break-keep text-[11px] leading-tight sm:break-words sm:text-[12px]">
                                         {name || '속성명 없음'}
                                     </span>
