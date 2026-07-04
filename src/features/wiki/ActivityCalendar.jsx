@@ -29,6 +29,7 @@ const VIEW_LABEL = {
     weekly: 'WEEKLY',
     monthly: 'MONTHLY',
     timeline: 'TIMELINE',
+    patchwork: 'PATCHWORK',
 };
 
 const TIMELINE_GROUP_GAP_DAYS = 31;
@@ -37,8 +38,18 @@ const TIMELINE_MOBILE_LANE_GAP = 30;
 const TIMELINE_MIN_VISUAL_DAYS = 22;
 const TIMELINE_TEXT_MIN_WIDTH = 50;
 const TIMELINE_PROPERTY_TYPES = ['select', 'multi_select'];
+const PATCHWORK_FALLBACK_COLORS = [
+    '#f59e0b',
+    '#ef4444',
+    '#10b981',
+    '#3b82f6',
+    '#8b5cf6',
+    '#ec4899',
+    '#14b8a6',
+    '#f97316',
+];
 const CALENDAR_VIEW_STORAGE_KEY_PREFIX = 'pediary.diaryCalendar.viewState';
-const CALENDAR_VIEWS = ['weekly', 'monthly', 'timeline'];
+const CALENDAR_VIEWS = ['weekly', 'monthly', 'timeline', 'patchwork'];
 const MOBILE_MEDIA_QUERY = '(max-width: 639px)';
 const MOBILE_TIMELINE_MONTH_COUNT = 4;
 const MOBILE_EDGE_TAP_RATIO = 0.24;
@@ -426,6 +437,75 @@ function getTimelineLaneOffset(laneIndex = 0) {
     return laneIndex % 2 === 1 ? -distance : distance;
 }
 
+function getPatchworkFallbackColor(seed) {
+    const text = String(seed || '');
+    const hash = [...text].reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return PATCHWORK_FALLBACK_COLORS[hash % PATCHWORK_FALLBACK_COLORS.length];
+}
+
+function toPatchworkPastelColor(color, isMidnightTheme = false) {
+    const value = String(color || '').trim();
+    if (!value) return value;
+    return isMidnightTheme
+        ? `color-mix(in srgb, ${value} 30%, white)`
+        : `color-mix(in srgb, ${value} 42%, white)`;
+}
+
+function buildPatchworkCellTone(displayValues = [], fallbackSeed = '', isMidnightTheme = false) {
+    const colors = displayValues
+        .map((display) => display.option?.color)
+        .filter(Boolean);
+
+    if (colors.length === 0) {
+        return {
+            backgroundColor: toPatchworkPastelColor(getPatchworkFallbackColor(fallbackSeed), isMidnightTheme),
+        };
+    }
+
+    if (colors.length === 1) {
+        return {
+            backgroundColor: toPatchworkPastelColor(colors[0], isMidnightTheme),
+        };
+    }
+
+    const uniqueColors = [...new Set(colors)].map((color) => toPatchworkPastelColor(color, isMidnightTheme));
+
+    return {
+        background: `linear-gradient(90deg, ${uniqueColors.join(', ')})`,
+    };
+}
+
+function buildPatchworkCells({
+    diaries = [],
+    diaryValueMapByDate = new Map(),
+    property,
+    propertyId,
+    optionMetaMap,
+    isMidnightTheme = false,
+}) {
+    return new Map(
+        (diaries || []).flatMap((diary) => {
+            const value = diaryValueMapByDate.get(diary.diary_date)?.get(propertyId);
+            const displayValues = getTimelineDisplayValues(property, value, optionMetaMap);
+
+            if (displayValues.length === 0) return [];
+
+            return [[
+                diary.diary_date,
+                {
+                    dateKey: diary.diary_date,
+                    text: displayValues.map((display) => display.text).filter(Boolean).join(', '),
+                    style: buildPatchworkCellTone(
+                        displayValues,
+                        `${propertyId}:${diary.diary_date}:${displayValues.map((display) => display.text).join('|')}`,
+                        isMidnightTheme,
+                    ),
+                },
+            ]];
+        }),
+    );
+}
+
 function TimelineTooltip({ tooltip }) {
     const tooltipRef = useRef(null);
     const [position, setPosition] = useState(null);
@@ -471,7 +551,7 @@ function TimelineTooltip({ tooltip }) {
                 left: x,
                 top: y,
                 transform: 'translate(-50%, 13px)',
-                backgroundColor: tooltip.backgroundColor || 'rgb(30 41 59)',
+                background: tooltip.background || tooltip.backgroundColor || 'rgb(30 41 59)',
                 color: tooltip.color || '#fff',
                 whiteSpace: 'normal',
                 width: 'max-content',
@@ -485,7 +565,7 @@ function TimelineTooltip({ tooltip }) {
                 style={{
                     left: position?.arrowLeft,
                     top: -4,
-                    backgroundColor: tooltip.backgroundColor || 'rgb(30 41 59)',
+                    background: tooltip.background || tooltip.backgroundColor || 'rgb(30 41 59)',
                 }}
             />
         </div>,
@@ -1101,6 +1181,136 @@ function TimelineTodayGuide({ year, showMarker = false, startMonth = 1, monthCou
     );
 }
 
+function PatchworkGridRow({ dayKeys, cellMap, year, isMobileView, onTooltipShow, onTooltipHide, onOpenDiary }) {
+    return (
+        <div
+            className="grid h-full"
+            style={{
+                gridTemplateColumns: `repeat(${dayKeys.length}, minmax(0, 1fr))`,
+            }}
+        >
+            {dayKeys.map((dateKey, index) => {
+                const cell = dateKey ? cellMap.get(dateKey) : null;
+                const isToday = !!dateKey && dateKey === getDateKey(new Date());
+                const tooltipText = dateKey && cell
+                    ? `${formatShortDate(dateKey)} · ${cell.text}`
+                    : '';
+                const handleTooltipShow = (target) => {
+                    if (!dateKey || !cell) return;
+
+                    const rect = target.getBoundingClientRect();
+                    const scrollRect = target.closest?.('.diary-timeline-scroll')?.getBoundingClientRect();
+                    const rootRect = target.closest?.('.diary-calendar-root')?.getBoundingClientRect();
+                    const anchorX = rect.left + rect.width / 2;
+
+                    onTooltipShow?.({
+                        text: tooltipText,
+                        x: anchorX,
+                        anchorX,
+                        y: rect.bottom + 2,
+                        background: cell?.style?.background || cell?.style?.backgroundColor || 'rgba(226, 232, 240, 0.96)',
+                        color: 'var(--color-text-main)',
+                        minX: scrollRect ? scrollRect.left + 12 : undefined,
+                        maxX: rootRect ? rootRect.right - 2 : scrollRect ? scrollRect.right - 4 : undefined,
+                        maxWidth: rootRect ? Math.min(230, rootRect.width - 24) : scrollRect ? Math.min(210, scrollRect.width - 16) : undefined,
+                    });
+                };
+
+                return (
+                    <button
+                        type="button"
+                        key={dateKey || `empty-${index}`}
+                        className={`relative block h-full border-b border-r ${dateKey && cell ? 'cursor-pointer' : 'cursor-default'}`}
+                        aria-label={tooltipText || undefined}
+                        style={{
+                            borderColor: 'rgba(100, 116, 139, 0.16)',
+                            backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                            backgroundClip: 'padding-box',
+                            ...(cell?.style || {}),
+                        }}
+                        onMouseEnter={(e) => !isMobileView && dateKey && cell && handleTooltipShow(e.currentTarget)}
+                        onMouseLeave={() => !isMobileView && onTooltipHide?.()}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (!dateKey || !cell) return;
+
+                            if (isMobileView) {
+                                onTooltipHide?.();
+                            }
+
+                            onOpenDiary?.(dateKey);
+                        }}
+                    >
+                        {isToday && (
+                            <span
+                                aria-hidden
+                                className="pointer-events-none absolute inset-0 z-10"
+                                style={{
+                                    top: -1,
+                                    right: -1,
+                                    bottom: -1,
+                                    left: -1,
+                                    border: '1.5px solid rgba(226, 154, 170, 0.92)',
+                                }}
+                            />
+                        )}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
+function buildPatchworkMonthGroups(year) {
+    return [
+        { startMonth: 1, monthCount: 4 },
+        { startMonth: 5, monthCount: 4 },
+        { startMonth: 9, monthCount: 4 },
+    ].map((group) => {
+        return {
+            ...group,
+            months: Array.from({ length: group.monthCount }).map((_, index) => {
+                const month = group.startMonth + index;
+                const daysInMonth = new Date(year, month, 0).getDate();
+
+                return {
+                    month,
+                    dayKeys: Array.from({ length: 31 }).map((__, dayIndex) =>
+                        dayIndex < daysInMonth
+                            ? getDateKey(new Date(year, month - 1, dayIndex + 1))
+                            : null,
+                    ),
+                };
+            }),
+        };
+    });
+}
+
+function PatchworkMonthHeader({ group }) {
+    return (
+        <div
+            className="grid h-full"
+            style={{
+                gridTemplateColumns: `repeat(${group.months.length * 31}, minmax(0, 1fr))`,
+            }}
+        >
+            {group.months.map((month, index) => (
+                <div
+                    key={month.month}
+                    className="flex h-full items-center justify-center text-[11px] font-semibold"
+                    style={{
+                        gridColumn: `span 31 / span 31`,
+                        color: 'color-mix(in_srgb,var(--color-text-muted)_78%,transparent)',
+                        borderRight: index < group.months.length - 1 ? '1px solid rgba(100, 116, 139, 0.16)' : undefined,
+                    }}
+                >
+                    {month.month}월
+                </div>
+            ))}
+        </div>
+    );
+}
+
 function CalendarDropdown({ value, label, options, onChange, className = '' }) {
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef(null);
@@ -1199,6 +1409,10 @@ export default function ActivityCalendar() {
     const [timelineLinkDialog, setTimelineLinkDialog] = useState(null);
     const [timelineLinkInput, setTimelineLinkInput] = useState('');
     const [timelineWidth, setTimelineWidth] = useState(0);
+    const [theme, setTheme] = useState(() => {
+        if (typeof document === 'undefined') return 'noon';
+        return document.documentElement.getAttribute('data-theme') || 'noon';
+    });
     const [timelineStartDate, setTimelineStartDate] = useState(() =>
         getMobileTimelineStartDate(today),
     );
@@ -1241,7 +1455,28 @@ export default function ActivityCalendar() {
     }, []);
 
     useEffect(() => {
-        if (calendarView !== 'timeline') return;
+        if (typeof document === 'undefined') return;
+
+        const root = document.documentElement;
+        const updateTheme = () => {
+            setTheme(root.getAttribute('data-theme') || 'noon');
+        };
+
+        updateTheme();
+
+        if (typeof MutationObserver === 'undefined') return;
+
+        const observer = new MutationObserver(updateTheme);
+        observer.observe(root, {
+            attributes: true,
+            attributeFilter: ['data-theme'],
+        });
+
+        return () => observer.disconnect();
+    }, []);
+
+    useEffect(() => {
+        if (calendarView !== 'timeline' && calendarView !== 'patchwork') return;
         const element = timelineAreaRef.current;
         if (!element) return;
 
@@ -1276,6 +1511,7 @@ export default function ActivityCalendar() {
     }, [propertyOptions]);
 
     const holidayDateSet = new Set((holidays || []).map((holiday) => holiday.holiday_date));
+    const isMidnightTheme = theme === 'midnight';
 
     useEffect(() => {
         viewStorageLoadedRef.current = false;
@@ -1343,6 +1579,10 @@ export default function ActivityCalendar() {
             setTimelineStartDate(next);
         }
 
+        if (nextView === 'patchwork') {
+            setYear((prev) => prev || today.getFullYear());
+        }
+
         setCalendarView(nextView);
     };
 
@@ -1403,6 +1643,10 @@ export default function ActivityCalendar() {
             handleMoveWeek(isMobileView ? -1 : -7);
             return;
         }
+        if (calendarView === 'patchwork') {
+            setYear((y) => y - 1);
+            return;
+        }
         if (calendarView === 'timeline') {
             if (isMobileView) {
                 handleMoveTimelineWindow(-1);
@@ -1417,6 +1661,10 @@ export default function ActivityCalendar() {
     const handleNext = () => {
         if (calendarView === 'weekly') {
             handleMoveWeek(isMobileView ? 1 : 7);
+            return;
+        }
+        if (calendarView === 'patchwork') {
+            setYear((y) => y + 1);
             return;
         }
         if (calendarView === 'timeline') {
@@ -1440,7 +1688,7 @@ export default function ActivityCalendar() {
 
     const handleCalendarTouchStart = (e) => {
         if (!isMobileView) return;
-        if (calendarView !== 'weekly' && calendarView !== 'monthly' && calendarView !== 'timeline') return;
+        if (calendarView !== 'weekly' && calendarView !== 'monthly' && calendarView !== 'timeline' && calendarView !== 'patchwork') return;
 
         const touch = e.touches?.[0];
         if (!touch) return;
@@ -1453,7 +1701,7 @@ export default function ActivityCalendar() {
 
     const handleCalendarTouchEnd = (e) => {
         if (!isMobileView) return;
-        if (calendarView !== 'weekly' && calendarView !== 'monthly' && calendarView !== 'timeline') return;
+        if (calendarView !== 'weekly' && calendarView !== 'monthly' && calendarView !== 'timeline' && calendarView !== 'patchwork') return;
 
         const start = swipeTouchRef.current;
         swipeTouchRef.current = null;
@@ -1491,7 +1739,7 @@ export default function ActivityCalendar() {
 
     const handleCalendarEdgeTapCapture = (e) => {
         if (!isMobileView) return;
-        if (calendarView !== 'monthly' && calendarView !== 'timeline') return;
+        if (calendarView !== 'monthly' && calendarView !== 'timeline' && calendarView !== 'patchwork') return;
         if (swipeBlockClickRef.current) return;
         if (isInternalLinkClick(e)) return;
         if (e.target.closest?.('.diary-timeline-segment')) return;
@@ -1604,23 +1852,32 @@ export default function ActivityCalendar() {
             ? `${timelineRangeStartDate.getFullYear()}년 ${timelineRangeStartMonth}월~${timelineRangeEndMonthDate.getMonth() + 1}월`
             : `${timelineRangeStartDate.getFullYear()}년 ${timelineRangeStartMonth}월~${timelineRangeEndMonthDate.getFullYear()}년 ${timelineRangeEndMonthDate.getMonth() + 1}월`
         : `${year}년`;
+    const patchworkRange = useMemo(() => ({
+        startKey: `${year}-01-01`,
+        endKey: `${year + 1}-01-01`,
+    }), [year]);
+    const patchworkMonthGroups = useMemo(() => buildPatchworkMonthGroups(year), [year]);
     const rangeStartKey =
         calendarView === 'weekly'
             ? weekStartKey
             : calendarView === 'timeline'
                 ? timelineRange.startKey
+                : calendarView === 'patchwork'
+                    ? patchworkRange.startKey
                 : getDateKey(visibleWeeks[0][0]);
     const rangeEndKey =
         calendarView === 'weekly'
             ? weekEndKey
             : calendarView === 'timeline'
                 ? timelineRange.endKey
+                : calendarView === 'patchwork'
+                    ? patchworkRange.endKey
                 : monthCalendarEndKey;
     const viewItems = useMemo(
         () => {
             const items = buildViewItems(properties || [], viewLayout || []);
 
-            if (calendarView !== 'timeline') return items;
+            if (calendarView !== 'timeline' && calendarView !== 'patchwork') return items;
 
             return items.filter((item) => TIMELINE_PROPERTY_TYPES.includes(item.property?.type));
         },
@@ -1633,7 +1890,7 @@ export default function ActivityCalendar() {
     const { data: diaries } = useDiariesByDateRange(
         rangeStartKey,
         rangeEndKey,
-        calendarView === 'weekly' || calendarView === 'monthly' || calendarView === 'timeline',
+        calendarView === 'weekly' || calendarView === 'monthly' || calendarView === 'timeline' || calendarView === 'patchwork',
         visiblePropertyIds,
     );
     const hasDiaryInternalLinks = (diaries || []).some(hasInternalLinkValue);
@@ -1665,6 +1922,23 @@ export default function ActivityCalendar() {
             }),
         );
     }, [calendarView, diaries, diaryValueMapByDate, optionMapByPropertyId, viewItems]);
+    const patchworkCellsByPropertyId = useMemo(() => {
+        if (calendarView !== 'patchwork') return new Map();
+
+        return new Map(
+            viewItems.map((item) => [
+                item.propertyId,
+                buildPatchworkCells({
+                    diaries: diaries || [],
+                    diaryValueMapByDate,
+                    property: item.property,
+                    propertyId: item.propertyId,
+                    optionMetaMap: optionMapByPropertyId.get(item.propertyId),
+                    isMidnightTheme,
+                }),
+            ]),
+        );
+    }, [calendarView, diaries, diaryValueMapByDate, isMidnightTheme, optionMapByPropertyId, viewItems]);
 
     const yearOptions = [];
     const baseYear = today.getFullYear();
@@ -1684,7 +1958,7 @@ export default function ActivityCalendar() {
                 <div className="diary-calendar-toolbar-divider shrink-0 border-b border-border-subtle pb-3">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex flex-nowrap items-center gap-1 sm:gap-2">
-                            {['weekly', 'monthly', 'timeline'].map((view) => (
+                            {['weekly', 'monthly', 'timeline', 'patchwork'].map((view) => (
                                 <button
                                     key={view}
                                     type="button"
@@ -1706,7 +1980,7 @@ export default function ActivityCalendar() {
                                             }
                                     }
                                 >
-                                    {view === 'weekly' && isMobileView ? 'TODAY' : VIEW_LABEL[view]}
+                                    {view === 'weekly' && isMobileView ? 'DAILY' : VIEW_LABEL[view]}
                                 </button>
                             ))}
                             <button
@@ -1781,7 +2055,11 @@ export default function ActivityCalendar() {
                                         color: 'var(--color-text-main)',
                                     }}
                                 >
-                                    {calendarView === 'timeline' ? timelineRangeLabel : `${year}년 ${month}월`}
+                                    {calendarView === 'timeline'
+                                        ? timelineRangeLabel
+                                        : calendarView === 'patchwork'
+                                            ? `${year}년`
+                                            : `${year}년 ${month}월`}
                                 </span>
                             )}
                             <button
@@ -1958,6 +2236,113 @@ export default function ActivityCalendar() {
                                 {viewItems.length === 0 && (
                                     <p className="px-2 py-5 text-xs ui-dialog-message">
                                         TIMELINE에 표시할 속성이 없어.
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    ) : calendarView === 'patchwork' ? (
+                        <div
+                            className="diary-timeline-scroll min-h-0 flex-1 overflow-x-auto pb-2 text-[12px]"
+                            onTouchStart={handleCalendarTouchStart}
+                            onTouchEnd={handleCalendarTouchEnd}
+                            onClickCapture={(e) => {
+                                handleCalendarEdgeTapCapture(e);
+                                handleCalendarClickCapture(e);
+                            }}
+                        >
+                            <div className="relative min-w-[1080px]">
+                                <div ref={timelineAreaRef} className="grid grid-cols-[118px_minmax(900px,1fr)] gap-y-2">
+                                    {viewItems.map((item, index) => {
+                                        const name = getPropertyDisplayName(item.property?.name);
+                                        const showIcon = ['icon_name', 'icon'].includes(item.displayMode);
+                                        const showName = ['icon_name', 'name'].includes(item.displayMode);
+                                        const cells = patchworkCellsByPropertyId.get(item.propertyId) || new Map();
+                                        const rowHeight = 105;
+
+                                        return (
+                                            <div key={item.propertyId} className="contents">
+                                                <div
+                                                    className="diary-timeline-section-divider flex min-w-0 items-center justify-start gap-2 px-2 py-2 font-semibold text-[var(--color-text-main)]"
+                                                    style={{
+                                                        height: rowHeight,
+                                                        borderTop: index > 0 ? '1px solid rgba(100, 116, 139, 0.16)' : undefined,
+                                                    }}
+                                                >
+                                                    {showIcon && item.property?.icon && (
+                                                        <span className="flex h-4 w-4 shrink-0 items-center justify-center self-start pt-1">
+                                                            <PropertyIcon icon={item.property.icon} />
+                                                        </span>
+                                                    )}
+                                                    {showName && (
+                                                        <span className="min-w-0 break-words text-[12px] leading-tight self-start pt-0.5">
+                                                            {name || '속성명 없음'}
+                                                        </span>
+                                                    )}
+                                                    {!showIcon && !showName && (
+                                                        <span className="min-w-0 break-words text-[12px] leading-tight self-start pt-0.5">
+                                                            {name || '속성명 없음'}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <div
+                                                    className="diary-timeline-row diary-timeline-section-divider relative overflow-hidden"
+                                                    style={{
+                                                        minHeight: rowHeight,
+                                                        borderTop: index > 0 ? '1px solid rgba(100, 116, 139, 0.16)' : undefined,
+                                                    }}
+                                                >
+                                                    <div>
+                                                        {patchworkMonthGroups.map((group) => (
+                                                            <div
+                                                                key={`${item.propertyId}-${group.startMonth}`}
+                                                                className="relative overflow-hidden"
+                                                                style={{
+                                                                    backgroundColor: 'rgba(100, 116, 139, 0.025)',
+                                                                    borderTop: group.startMonth > 1 ? '1px solid rgba(100, 116, 139, 0.12)' : undefined,
+                                                                }}
+                                                            >
+                                                                <div
+                                                                    className="relative h-5"
+                                                                    style={{
+                                                                        borderTop: '1px solid rgba(100, 116, 139, 0.16)',
+                                                                        borderLeft: '1px solid rgba(100, 116, 139, 0.16)',
+                                                                        borderRight: '1px solid rgba(100, 116, 139, 0.16)',
+                                                                        borderBottom: '1px solid rgba(100, 116, 139, 0.16)',
+                                                                        boxShadow: 'none',
+                                                                    }}
+                                                                >
+                                                                    <PatchworkMonthHeader group={group} />
+                                                                </div>
+                                                                <div
+                                                                    className="relative h-8"
+                                                                    style={{
+                                                                        borderLeft: '1px solid rgba(100, 116, 139, 0.16)',
+                                                                        borderRight: '1px solid rgba(100, 116, 139, 0.16)',
+                                                                    }}
+                                                                >
+                                                                    <PatchworkGridRow
+                                                                        dayKeys={group.months.flatMap((month) => month.dayKeys)}
+                                                                        cellMap={cells}
+                                                                        year={year}
+                                                                        isMobileView={isMobileView}
+                                                                        onTooltipShow={setTimelineTooltip}
+                                                                        onTooltipHide={() => setTimelineTooltip(null)}
+                                                                        onOpenDiary={handleOpenDiary}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {viewItems.length === 0 && (
+                                    <p className="px-2 py-5 text-xs ui-dialog-message">
+                                        PATCHWORK에 표시할 속성이 없어.
                                     </p>
                                 )}
                             </div>

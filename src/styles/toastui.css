@@ -866,7 +866,7 @@
     position: fixed;
     z-index: 9999;
     max-width: min(360px, calc(100vw - 24px));
-    transform: translate(-50%, -100%);
+    transform: translateX(-50%);
     pointer-events: none;
 
     padding: 7px 10px;
@@ -884,13 +884,12 @@
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
 }
 
-.wiki-link-tooltip::after {
-    content: "";
+.wiki-link-tooltip-arrow {
     position: absolute;
-    left: 50%;
     bottom: -5px;
     width: 9px;
     height: 9px;
-    transform: translateX(-50%) rotate(45deg);
+    margin-left: -4.5px;
+    transform: rotate(45deg);
     background: color-mix(in srgb, var(--color-text-main) 92%, transparent);
 }

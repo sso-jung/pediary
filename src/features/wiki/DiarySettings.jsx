@@ -37,12 +37,14 @@ const VIEW_OPTIONS = [
     { value: 'weekly', label: 'WEEKLY' },
     { value: 'monthly', label: 'MONTHLY' },
     { value: 'timeline', label: 'TIMELINE' },
+    { value: 'patchwork', label: 'PATCHWORK' },
 ];
 const SETTINGS_TABS = [
     { value: 'properties', label: '속성 편집' },
     { value: 'weekly', label: 'WEEKLY' },
     { value: 'monthly', label: 'MONTHLY' },
     { value: 'timeline', label: 'TIMELINE' },
+    { value: 'patchwork', label: 'PATCHWORK' },
 ];
 const VIEW_VISIBILITY_OPTIONS = [
     { value: 'visible', label: '내용 표시' },
@@ -605,6 +607,7 @@ export default function DiarySettings({ open, onClose }) {
     const { data: weeklyViewLayout } = useDiaryViewLayout('weekly');
     const { data: monthlyViewLayout } = useDiaryViewLayout('monthly');
     const { data: timelineViewLayout } = useDiaryViewLayout('timeline');
+    const { data: patchworkViewLayout } = useDiaryViewLayout('patchwork');
     const { data: weeklyViewSetting } = useDiaryViewSetting('weekly');
     const { data: monthlyViewSetting } = useDiaryViewSetting('monthly');
     const { data: propertyOptions } = useDiaryPropertyOptions();
@@ -622,6 +625,7 @@ export default function DiarySettings({ open, onClose }) {
     const updateWeeklyViewLayout = useUpdateDiaryViewLayout('weekly');
     const updateMonthlyViewLayout = useUpdateDiaryViewLayout('monthly');
     const updateTimelineViewLayout = useUpdateDiaryViewLayout('timeline');
+    const updatePatchworkViewLayout = useUpdateDiaryViewLayout('patchwork');
     const updateWeeklyViewSetting = useUpdateDiaryViewSetting('weekly');
     const updateMonthlyViewSetting = useUpdateDiaryViewSetting('monthly');
 
@@ -719,6 +723,7 @@ export default function DiarySettings({ open, onClose }) {
         updateWeeklyViewLayout.isPending ||
         updateMonthlyViewLayout.isPending ||
         updateTimelineViewLayout.isPending ||
+        updatePatchworkViewLayout.isPending ||
         updateWeeklyViewSetting.isPending ||
         updateMonthlyViewSetting.isPending;
 
@@ -1121,6 +1126,7 @@ export default function DiarySettings({ open, onClose }) {
         weekly: weeklyViewLayout || [],
         monthly: monthlyViewLayout || [],
         timeline: timelineViewLayout || [],
+        patchwork: patchworkViewLayout || [],
     };
     const viewSettings = {
         weekly: weeklyViewSetting || null,
@@ -1130,6 +1136,7 @@ export default function DiarySettings({ open, onClose }) {
         weekly: updateWeeklyViewLayout,
         monthly: updateMonthlyViewLayout,
         timeline: updateTimelineViewLayout,
+        patchwork: updatePatchworkViewLayout,
     };
     const updateViewSettings = {
         weekly: updateWeeklyViewSetting,
@@ -1166,7 +1173,7 @@ export default function DiarySettings({ open, onClose }) {
     const renderViewSettings = (viewOption) => {
         const viewItems = buildViewLayoutItems(properties || [], viewLayouts[viewOption.value])
             .filter((item) =>
-                viewOption.value !== 'timeline' ||
+                (viewOption.value !== 'timeline' && viewOption.value !== 'patchwork') ||
                 TIMELINE_PROPERTY_TYPES.includes(item.property?.type),
             );
         const canShowTitle = viewOption.value === 'weekly' || viewOption.value === 'monthly';
@@ -1239,8 +1246,8 @@ export default function DiarySettings({ open, onClose }) {
 
                 {viewItems.length === 0 && (
                     <p className="px-2 py-4 text-xs ui-dialog-message">
-                        {viewOption.value === 'timeline'
-                            ? '선택/다중선택 속성을 timeline에서 관리할 수 있어.'
+                        {viewOption.value === 'timeline' || viewOption.value === 'patchwork'
+                            ? '선택/다중선택 속성을 이 뷰에서 관리할 수 있어.'
                             : '아직 추가된 속성이 없어.'}
                     </p>
                 )}

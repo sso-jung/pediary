@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 function decodeHtmlEntities(value = '') {
     const textarea = document.createElement('textarea');
@@ -113,17 +113,54 @@ export function useWikiLinkTooltip(getRoot, enabled = true) {
 }
 
 export function WikiLinkTooltip({ tooltip }) {
+    const tooltipRef = useRef(null);
+    const [position, setPosition] = useState(null);
+
+    useLayoutEffect(() => {
+        if (!tooltip) {
+            setPosition(null);
+            return;
+        }
+
+        const margin = 8;
+        const minX = margin;
+        const maxX = window.innerWidth - margin;
+        const maxWidth = Math.min(360, Math.max(maxX - minX, 120));
+        const tooltipWidth = Math.min(tooltipRef.current?.offsetWidth || maxWidth, maxWidth);
+        const tooltipHeight = tooltipRef.current?.offsetHeight || 0;
+        const minCenter = minX + tooltipWidth / 2;
+        const maxCenter = maxX - tooltipWidth / 2;
+        const x = maxCenter >= minCenter
+            ? Math.min(Math.max(tooltip.left, minCenter), maxCenter)
+            : (minX + maxX) / 2;
+        const y = Math.max(tooltip.top - tooltipHeight, margin);
+        const tooltipLeft = x - tooltipWidth / 2;
+        const anchorX = tooltip.left;
+        const arrowLeft = Math.min(Math.max(anchorX - tooltipLeft, 10), tooltipWidth - 10);
+
+        setPosition({ x, y, maxWidth, arrowLeft });
+    }, [tooltip]);
+
     if (!tooltip) return null;
 
     return (
         <div
+            ref={tooltipRef}
             className="wiki-link-tooltip"
             style={{
-                top: tooltip.top,
-                left: tooltip.left,
+                top: position?.y ?? tooltip.top,
+                left: position?.x ?? tooltip.left,
+                maxWidth: position?.maxWidth ?? 'min(360px, calc(100vw - 24px))',
             }}
         >
             {tooltip.text}
+            <span
+                aria-hidden
+                className="wiki-link-tooltip-arrow"
+                style={{
+                    left: position?.arrowLeft,
+                }}
+            />
         </div>
     );
 }

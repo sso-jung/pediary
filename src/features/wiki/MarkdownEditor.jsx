@@ -1220,6 +1220,29 @@ export default function MarkdownEditor({
         };
     }, [allDocs, categories]);
 
+    useEffect(() => {
+        const root = editorRef.current?.getRootElement?.();
+        if (!root) return;
+
+        const handleRenderedInternalLinkClick = (e) => {
+            const link = e.target?.closest?.('a.wiki-internal-link');
+            if (!link || !root.contains(link)) return;
+
+            const href = link.getAttribute('href');
+            if (!href) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+            window.open(href, '_blank', 'noopener,noreferrer');
+        };
+
+        root.addEventListener('click', handleRenderedInternalLinkClick, true);
+
+        return () => {
+            root.removeEventListener('click', handleRenderedInternalLinkClick, true);
+        };
+    }, []);
+
     // 🔹 에디터 명령 실행 헬퍼
     const execCommand = useCallback((cmd, payload) => {
         const instance = editorRef.current?.getInstance();

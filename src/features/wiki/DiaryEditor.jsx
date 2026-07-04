@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
 import { PropertyIcon } from './DiaryPropertyUtils';
 import { useDiary } from './hooks/useDiary';
 import { useDeleteDiary } from './hooks/useDeleteDiary';
@@ -872,7 +871,6 @@ function ListActionButton({ type, onClick, disabled }) {
 }
 
 export default function DiaryEditor({ open, diaryDate, onClose }) {
-    const navigate = useNavigate();
     const { data: diary, isLoading } = useDiary(open ? diaryDate : null);
     const { data: properties } = useDiaryProperties();
     const { data: sections } = useDiaryPropertySections();
@@ -916,9 +914,8 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
     const handleNavigateLink = useCallback((href) => {
         if (!href) return;
 
-        onClose?.();
-        navigate(href);
-    }, [navigate, onClose]);
+        window.open(href, '_blank', 'noopener,noreferrer');
+    }, []);
     const handleInternalLinkClickCapture = useCallback((e) => {
         const href = getDiaryInternalLinkHref(e.target);
         if (!href) return;
