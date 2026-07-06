@@ -12,7 +12,7 @@ export function useCreateCategory() {
       createCategory({ userId: user.id, name, parentId }),
     onSuccess: () => {
       // 카테고리 목록 다시 가져오기
-      queryClient.invalidateQueries(['categories', user.id]);
+      queryClient.invalidateQueries({ queryKey: ['categories', user.id] });
     },
   });
 }

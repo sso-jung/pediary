@@ -38,7 +38,6 @@ export function useUpdateDiaryViewLayout(viewType) {
         mutationFn: ({ items }) => updateDiaryViewLayout({ userId, viewType, items }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['diaryViewLayout', userId, viewType] });
-            queryClient.invalidateQueries({ queryKey: ['diaries', userId] });
         },
     });
 }
@@ -52,7 +51,6 @@ export function useUpdateDiaryViewSetting(viewType) {
         mutationFn: ({ showTitle }) => updateDiaryViewSetting({ userId, viewType, showTitle }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['diaryViewSetting', userId, viewType] });
-            queryClient.invalidateQueries({ queryKey: ['diaries', userId] });
         },
     });
 }

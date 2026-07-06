@@ -11,7 +11,7 @@ export function useCreateDocument(categoryId) {
         mutationFn: ({ title, visibility }) =>
             createDocument({ userId: user.id, categoryId, title, visibility }),
         onSuccess: async (newDoc) => {
-            queryClient.invalidateQueries(['documents', user.id, categoryId]);
+            queryClient.invalidateQueries({ queryKey: ['documents', user.id, categoryId] });
 
             // 작성 로그 남기기
             if (newDoc?.id) {

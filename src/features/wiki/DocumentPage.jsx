@@ -96,7 +96,7 @@ function buildSectionTree(markdown) {
         }
         usedIds.add(id);
 
-        headings.push({ id, level, text: plainText, number });
+        headings.push({ id, level, text: plainText, rawText, number });
 
         newLines.push('');
         newLines.push(`<a id="${id}"></a>`);
@@ -109,6 +109,56 @@ function buildSectionTree(markdown) {
         markdownWithAnchors: newLines.join('\n'),
         headings,
     };
+}
+
+function renderSectionHeadingText(heading) {
+    const rawText = heading?.rawText;
+    if (!rawText) return heading?.text || '';
+
+    const parts = [];
+    const regex = /~~([\s\S]*?)~~/g;
+    let lastIndex = 0;
+    let match;
+    let index = 0;
+
+    while ((match = regex.exec(rawText)) !== null) {
+        if (match.index > lastIndex) {
+            const text = stripHeadingText(rawText.slice(lastIndex, match.index));
+            if (text) {
+                parts.push(
+                    <span key={`text-${index}`}>
+                        {text}
+                    </span>,
+                );
+                index += 1;
+            }
+        }
+
+        const text = stripHeadingText(match[1]);
+        if (text) {
+            parts.push(
+                <span key={`strike-${index}`} className="line-through">
+                    {text}
+                </span>,
+            );
+            index += 1;
+        }
+
+        lastIndex = regex.lastIndex;
+    }
+
+    if (lastIndex < rawText.length) {
+        const text = stripHeadingText(rawText.slice(lastIndex));
+        if (text) {
+            parts.push(
+                <span key={`text-${index}`}>
+                    {text}
+                </span>,
+            );
+        }
+    }
+
+    return parts.length > 0 ? parts : heading.text;
 }
 
 // 🔹 역링크 계산 로직을 커스텀 훅으로 분리
@@ -585,7 +635,7 @@ function SectionSidebar({ headings, isEditing, onClickHeading, numberColor, clas
                                 <span className="mr-1 text-[11px] page-text-muted">
                                     {h.number}.
                                 </span>
-                                {h.text}
+                                {renderSectionHeadingText(h)}
                             </button>
                         </li>
                     ))}

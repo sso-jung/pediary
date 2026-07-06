@@ -375,21 +375,8 @@ export async function updateDocument({
 export async function fetchAllDocuments(userId) {
     if (!userId) return [];
 
-    // 1) 내 문서 전체
-    const myDocs = await fetchMyDocuments(userId); // 이미 아래쪽에 정의돼 있음
-
-    // 2) 내가 볼 수 있는 문서들 (내 것 + 친구공개 + public)
-    const visibleDocs = await fetchVisibleDocuments(userId);
-
-    // 3) 두 배열을 합치되, 같은 문서(id 기준)는 한 번만
-    const map = new Map();
-    [...myDocs, ...visibleDocs].forEach((doc) => {
-        if (doc && doc.id != null) {
-            map.set(doc.id, doc);
-        }
-    });
-
-    return Array.from(map.values());
+    // 내가 볼 수 있는 문서들 (내 것 + 친구공개 + public)
+    return fetchVisibleDocuments(userId);
 }
 
 // 🔹 문서 복구 (카테고리가 삭제된 경우 처리 포함)
@@ -1543,13 +1530,27 @@ export async function fetchVisibleCategories(userId) {
         return myCategories;
     }
 
-    // 3) 내가 볼 수 있는 모든 문서 (내 것 + 친구공개)
-    const visibleDocs = await fetchVisibleDocuments(userId);
+    // 3) 내가 볼 수 있는 공유 문서의 category_id만 조회
+    let orConditions = ['visibility.eq.public'];
+    const friendIdList = friendIds.join(',');
 
-    // 4) 그 중에서 "친구의 문서"에 해당하는 category_id만 추출
+    orConditions.push(
+        `and(user_id.in.(${friendIdList}),visibility.eq.friends)`,
+    );
+
+    const { data: visibleDocs, error: visibleDocsError } = await supabase
+        .from('documents')
+        .select('user_id, category_id')
+        .or(orConditions.join(','))
+        .neq('user_id', userId)
+        .is('deleted_at', null);
+
+    if (visibleDocsError) throw visibleDocsError;
+
+    // 4) 그 중에서 category_id만 추출
     const friendCategoryIdSet = new Set(
-        visibleDocs
-            .filter((doc) => doc.user_id !== userId && doc.category_id != null)
+        (visibleDocs ?? [])
+            .filter((doc) => doc.category_id != null)
             .map((doc) => doc.category_id),
     );
 
@@ -1618,11 +1619,9 @@ export async function fetchVisibleDocumentsByCategory({
                                                           categoryId,
                                                           includeChildren = false, // 🔹 추가 옵션
                                                       }) {
-    const all = await fetchVisibleDocuments(userId); // 내 + 친구공개
-
     // categoryId가 null/undefined/'' 이면 전체 문서 리턴 (전체 카테고리 용도)
     if (categoryId == null || categoryId === '') {
-        return all;
+        return fetchVisibleDocuments(userId);
     }
 
     const targetId = Number(categoryId);
@@ -1648,11 +1647,30 @@ export async function fetchVisibleDocumentsByCategory({
         targetIds = [...targetIds, ...childIds];
     }
 
-    return all.filter(
-        (doc) =>
-            doc.category_id != null &&
-            targetIds.includes(Number(doc.category_id)),
-    );
+    // 1) 내 친구 목록
+    const friends = await fetchFriends(userId);
+    const friendIds = friends.map((f) => f.friend_id);
+    const friendIdList = friendIds.length ? friendIds.join(',') : null;
+
+    let orConditions = [`user_id.eq.${userId}`];
+    orConditions.push('visibility.eq.public');
+
+    if (friendIdList) {
+        orConditions.push(
+            `and(user_id.in.(${friendIdList}),visibility.eq.friends)`,
+        );
+    }
+
+    const { data, error } = await supabase
+        .from('documents')
+        .select('*')
+        .or(orConditions.join(','))
+        .in('category_id', targetIds)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    return data ?? [];
 }
 
 export async function softDeleteDocument({ documentId, userId }) {

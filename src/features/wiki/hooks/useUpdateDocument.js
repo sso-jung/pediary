@@ -1,6 +1,6 @@
 // src/features/wiki/hooks/useUpdateDocument.js
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { updateDocument, logDocumentActivity } from '../../../lib/wikiApi';
+import { updateDocument } from '../../../lib/wikiApi';
 import { useAuthStore } from '../../../store/authStore';
 
 export function useUpdateDocument(documentId, slug) {
@@ -18,22 +18,15 @@ export function useUpdateDocument(documentId, slug) {
                 categoryId,
             }),
         onSuccess: (updatedDoc) => {
-            queryClient.invalidateQueries(['document', user.id, slug]);
-            queryClient.invalidateQueries([
-                'documents',
-                user.id,
-                updatedDoc.category_id,
-            ]);
-            queryClient.invalidateQueries(['allDocuments', user.id]);
-
-            // 수정 로그 남기기
-            if (updatedDoc?.id) {
-                logDocumentActivity({
-                    userId: user.id,
-                    documentId: updatedDoc.id,
-                    action: 'updated',
-                });
-            }
+            queryClient.invalidateQueries({ queryKey: ['document', user.id, slug] });
+            queryClient.invalidateQueries({
+                queryKey: [
+                    'documents',
+                    user.id,
+                    updatedDoc.category_id,
+                ],
+            });
+            queryClient.invalidateQueries({ queryKey: ['allDocuments', user.id] });
         },
     });
 }

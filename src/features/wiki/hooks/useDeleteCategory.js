@@ -16,8 +16,11 @@ export function useDeleteCategory() {
             });
         },
         onSuccess: () => {
-            // 귀찮으니 전체 invalidate (규모 크지 않다고 가정)
-            queryClient.invalidateQueries();
+            queryClient.invalidateQueries({ queryKey: ['categories', user?.id] });
+            queryClient.invalidateQueries({ queryKey: ['visibleDocuments'] });
+            queryClient.invalidateQueries({ queryKey: ['allDocuments'] });
+            queryClient.invalidateQueries({ queryKey: ['myDocuments'] });
+            queryClient.invalidateQueries({ queryKey: ['deletedDocuments'] });
         },
     });
 }

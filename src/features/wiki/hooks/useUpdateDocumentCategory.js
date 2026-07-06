@@ -16,9 +16,14 @@ export function useUpdateDocumentCategory() {
                 categoryId,
             });
         },
-        onSuccess: () => {
-            // 귀찮으니 일단 전체 invalidate (규모 크면 나중에 세분화)
-            queryClient.invalidateQueries();
+        onSuccess: (updatedDoc) => {
+            queryClient.invalidateQueries({ queryKey: ['document'] });
+            queryClient.invalidateQueries({ queryKey: ['visibleDocuments'] });
+            queryClient.invalidateQueries({ queryKey: ['allDocuments'] });
+            queryClient.invalidateQueries({ queryKey: ['myDocuments'] });
+            queryClient.invalidateQueries({
+                queryKey: ['documents', user?.id, updatedDoc?.category_id],
+            });
         },
     });
 }

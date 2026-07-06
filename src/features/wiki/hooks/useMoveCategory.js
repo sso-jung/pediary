@@ -20,7 +20,7 @@ export function useMoveCategory() {
         },
         onSuccess: () => {
             if (!user) return;
-            queryClient.invalidateQueries(['categories', user.id]);
+            queryClient.invalidateQueries({ queryKey: ['categories', user.id] });
         },
     });
 }

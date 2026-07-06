@@ -16,7 +16,11 @@ export function useRestoreDocument() {
             });
         },
         onSuccess: () => {
-            queryClient.invalidateQueries();
+            queryClient.invalidateQueries({ queryKey: ['categories', user?.id] });
+            queryClient.invalidateQueries({ queryKey: ['visibleDocuments'] });
+            queryClient.invalidateQueries({ queryKey: ['allDocuments'] });
+            queryClient.invalidateQueries({ queryKey: ['myDocuments'] });
+            queryClient.invalidateQueries({ queryKey: ['deletedDocuments'] });
         },
     });
 }

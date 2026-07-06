@@ -5,7 +5,7 @@ export function stripHeadingText(rawText = '') {
     s = s.replace(/<[^>]*>/g, '');
     s = s.replace(/\[([^\]]+)\]\((?:[^)]+)\)/g, '$1');
     s = s.replace(/\\([\\`*_[\]{}()#+\-.!|~>])/g, '$1');
-    s = s.replace(/[*_`]/g, '');
+    s = s.replace(/[*_`~]/g, '');
     s = s.replace(/\s+/g, ' ');
     return s.trim();
 }
