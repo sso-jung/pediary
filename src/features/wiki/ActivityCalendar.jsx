@@ -474,10 +474,25 @@ function buildPatchworkCellTone(displayValues = [], fallbackSeed = '', isMidnigh
     }
 
     const uniqueColors = [...new Set(colors)].map((color) => toPatchworkPastelColor(color, isMidnightTheme));
+    const sectionWidth = 100 / uniqueColors.length;
+    const colorStops = uniqueColors.map((color, index) => {
+        const start = (sectionWidth * index).toFixed(5);
+        const end = (sectionWidth * (index + 1)).toFixed(5);
+
+        return `${color} ${start}% ${end}%`;
+    });
 
     return {
-        background: `linear-gradient(90deg, ${uniqueColors.join(', ')})`,
+        background: `linear-gradient(90deg, ${colorStops.join(', ')})`,
     };
+}
+
+function getPatchworkBorderColor(theme) {
+    if (theme === 'midnight') return 'color-mix(in srgb, var(--color-text-muted) 28%, transparent)';
+    if (theme === 'dusk') return 'rgba(120, 110, 140, 0.26)';
+    if (theme === 'noon') return 'rgba(100, 116, 139, 0.24)';
+
+    return 'rgba(100, 116, 139, 0.16)';
 }
 
 function buildPatchworkCells({
@@ -542,8 +557,10 @@ function buildPatchworkDateCells({
 
                 entries[viewItems.indexOf(item)] = {
                     propertyId: item.propertyId,
+                    property: item.property,
                     propertyName: getPropertyDisplayName(item.property?.name) || '속성명 없음',
                     text,
+                    displayValues,
                     style,
                 };
 
@@ -1245,14 +1262,12 @@ function TimelineTodayGuide({ year, showMarker = false, startMonth = 1, monthCou
     );
 }
 
-function PatchworkGridRow({ dayKeys, cellMap, propertyCount, isMobileView, isMidnightTheme, onTooltipShow, onTooltipHide, onOpenDiary }) {
+function PatchworkGridRow({ dayKeys, cellMap, propertyCount, isMobileView, isMidnightTheme, patchworkBorderColor, onTooltipShow, onTooltipHide, onOpenDiary }) {
     const subCellCount = Math.max(1, propertyCount || 1);
     const emptyCellColor = isMidnightTheme
         ? 'color-mix(in srgb, var(--color-page-surface) 86%, var(--color-text-muted) 14%)'
         : 'rgba(255, 255, 255, 0.94)';
-    const cellBorderColor = isMidnightTheme
-        ? 'color-mix(in srgb, var(--color-text-muted) 28%, transparent)'
-        : 'rgba(100, 116, 139, 0.16)';
+    const cellBorderColor = patchworkBorderColor || getPatchworkBorderColor('noon');
 
     return (
         <div
@@ -1264,11 +1279,43 @@ function PatchworkGridRow({ dayKeys, cellMap, propertyCount, isMobileView, isMid
             {dayKeys.map((dateKey, index) => {
                 const cell = dateKey ? cellMap.get(dateKey) : null;
                 const tooltipContent = dateKey && cell ? (
-                    <div className="space-y-1">
-                        <div>{formatPatchworkDate(dateKey)}</div>
+                    <div className="space-y-1.5">
                         {cell.entries.filter(Boolean).map((entry) => (
-                            <div key={entry.propertyId}>
-                                {entry.propertyName} : {entry.text}
+                            <div key={entry.propertyId} className="flex min-w-0 items-center gap-1.5">
+                                <span
+                                    aria-hidden
+                                    className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center text-[var(--color-text-muted)]"
+                                >
+                                    {entry.property?.icon ? (
+                                        <PropertyIcon icon={entry.property.icon} />
+                                    ) : (
+                                        <span
+                                            className="inline-block h-2 w-2 rounded-full"
+                                            style={{
+                                                backgroundColor: getPatchworkFallbackColor(entry.propertyId),
+                                            }}
+                                        />
+                                    )}
+                                </span>
+                                <span className="shrink-0 text-[11px] font-semibold text-[var(--color-text-main)]">
+                                    {entry.propertyName}
+                                </span>
+                                <span className="shrink-0 text-[var(--color-text-muted)]">:</span>
+                                <span className="flex min-w-0 flex-wrap items-center gap-1">
+                                    {entry.displayValues?.map((display) => (
+                                        display.option ? (
+                                            <OptionBadge
+                                                key={display.text}
+                                                option={display.option}
+                                                compact
+                                            />
+                                        ) : (
+                                            <span key={display.text} className="text-[11px] text-[var(--color-text-main)]">
+                                                {display.text}
+                                            </span>
+                                        )
+                                    ))}
+                                </span>
                             </div>
                         ))}
                     </div>
@@ -1286,11 +1333,11 @@ function PatchworkGridRow({ dayKeys, cellMap, propertyCount, isMobileView, isMid
                         x: anchorX,
                         anchorX,
                         y: rect.bottom + 2,
-                        background: cell.tooltipTone?.background || 'rgba(226, 232, 240, 0.96)',
-                        color: cell.tooltipTone?.color || 'var(--color-text-main)',
+                        background: '#ffffff',
+                        color: 'var(--color-text-main)',
                         minX: scrollRect ? scrollRect.left + 12 : undefined,
                         maxX: rootRect ? rootRect.right - 2 : scrollRect ? scrollRect.right - 4 : undefined,
-                        maxWidth: rootRect ? Math.min(260, rootRect.width - 24) : scrollRect ? Math.min(240, scrollRect.width - 16) : undefined,
+                        maxWidth: rootRect ? Math.min(320, rootRect.width - 24) : scrollRect ? Math.min(300, scrollRect.width - 16) : undefined,
                     });
                 };
 
@@ -1378,11 +1425,9 @@ function buildPatchworkMonthGroups(year, monthCount = 3) {
     });
 }
 
-function PatchworkMonthHeader({ group, isMidnightTheme = false, isMobileView = false }) {
+function PatchworkMonthHeader({ group, patchworkBorderColor, isMobileView = false }) {
     const todayKey = getDateKey(new Date());
-    const headerBorderColor = isMidnightTheme
-        ? 'color-mix(in srgb, var(--color-text-muted) 28%, transparent)'
-        : 'rgba(100, 116, 139, 0.16)';
+    const headerBorderColor = patchworkBorderColor || getPatchworkBorderColor('noon');
 
     return (
         <div
@@ -1633,6 +1678,7 @@ export default function ActivityCalendar() {
 
     const holidayDateSet = new Set((holidays || []).map((holiday) => holiday.holiday_date));
     const isMidnightTheme = theme === 'midnight';
+    const patchworkBorderColor = getPatchworkBorderColor(theme);
 
     useEffect(() => {
         viewStorageLoadedRef.current = false;
@@ -2414,18 +2460,14 @@ export default function ActivityCalendar() {
                                                 key={group.startMonth}
                                                 className="relative overflow-hidden"
                                                 style={{
+                                                    '--patchwork-border-color': patchworkBorderColor,
                                                     backgroundColor: 'rgba(100, 116, 139, 0.025)',
                                                 }}
                                             >
                                                 <div
                                                     className="relative h-3.5 sm:h-5"
                                                     style={{
-                                                        '--patchwork-border-color': isMidnightTheme
-                                                            ? 'color-mix(in srgb, var(--color-text-muted) 28%, transparent)'
-                                                            : 'rgba(100, 116, 139, 0.16)',
-                                                        borderTop: isMidnightTheme
-                                                            ? '1px solid color-mix(in srgb, var(--color-text-muted) 28%, transparent)'
-                                                            : '1px solid rgba(100, 116, 139, 0.16)',
+                                                        borderTop: '1px solid var(--patchwork-border-color)',
                                                         borderLeft: '1px solid var(--patchwork-border-color)',
                                                         borderRight: '1px solid var(--patchwork-border-color)',
                                                         borderBottom: '1px solid var(--patchwork-border-color)',
@@ -2434,19 +2476,15 @@ export default function ActivityCalendar() {
                                                 >
                                                     <PatchworkMonthHeader
                                                         group={group}
-                                                        isMidnightTheme={isMidnightTheme}
+                                                        patchworkBorderColor={patchworkBorderColor}
                                                         isMobileView={isMobileView}
                                                     />
                                                 </div>
                                                 <div
                                                     className="relative"
                                                     style={{
-                                                        borderLeft: isMidnightTheme
-                                                            ? '1px solid color-mix(in srgb, var(--color-text-muted) 28%, transparent)'
-                                                            : '1px solid rgba(100, 116, 139, 0.16)',
-                                                        borderRight: isMidnightTheme
-                                                            ? '1px solid color-mix(in srgb, var(--color-text-muted) 28%, transparent)'
-                                                            : '1px solid rgba(100, 116, 139, 0.16)',
+                                                        borderLeft: '1px solid var(--patchwork-border-color)',
+                                                        borderRight: '1px solid var(--patchwork-border-color)',
                                                     }}
                                                 >
                                                     <PatchworkGridRow
@@ -2455,6 +2493,7 @@ export default function ActivityCalendar() {
                                                         propertyCount={viewItems.length}
                                                         isMobileView={isMobileView}
                                                         isMidnightTheme={isMidnightTheme}
+                                                        patchworkBorderColor={patchworkBorderColor}
                                                         onTooltipShow={setTimelineTooltip}
                                                         onTooltipHide={() => setTimelineTooltip(null)}
                                                         onOpenDiary={handleOpenDiary}
