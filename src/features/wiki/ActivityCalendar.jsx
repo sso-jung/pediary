@@ -266,7 +266,8 @@ function formatShortDate(dateKey) {
 
 function formatPatchworkDate(dateKey) {
     const [, month, day] = String(dateKey || '').split('-');
-    return `${Number(month)}월 ${Number(day)}일`;
+    const weekday = ['일', '월', '화', '수', '목', '금', '토'][parseDateKey(dateKey).getDay()];
+    return `${Number(month)}월 ${Number(day)}일 (${weekday})`;
 }
 
 function getDateDiffDays(fromDateKey, toDateKey) {
@@ -1263,6 +1264,8 @@ function TimelineTodayGuide({ year, showMarker = false, startMonth = 1, monthCou
 }
 
 function PatchworkGridRow({ dayKeys, cellMap, propertyCount, isMobileView, isMidnightTheme, patchworkBorderColor, onTooltipShow, onTooltipHide, onOpenDiary }) {
+    const longPressTimerRef = useRef(null);
+    const longPressTriggeredRef = useRef(false);
     const subCellCount = Math.max(1, propertyCount || 1);
     const emptyCellColor = isMidnightTheme
         ? 'color-mix(in srgb, var(--color-page-surface) 86%, var(--color-text-muted) 14%)'
@@ -1278,8 +1281,12 @@ function PatchworkGridRow({ dayKeys, cellMap, propertyCount, isMobileView, isMid
         >
             {dayKeys.map((dateKey, index) => {
                 const cell = dateKey ? cellMap.get(dateKey) : null;
+                const dateText = dateKey ? formatPatchworkDate(dateKey) : '';
                 const tooltipContent = dateKey && cell ? (
                     <div className="space-y-1.5">
+                        <div className="border-b border-border-subtle pb-1 text-[11px] font-semibold text-[var(--color-text-main)]">
+                            {dateText}
+                        </div>
                         {cell.entries.filter(Boolean).map((entry) => (
                             <div key={entry.propertyId} className="flex min-w-0 items-center gap-1.5">
                                 <span
@@ -1340,6 +1347,22 @@ function PatchworkGridRow({ dayKeys, cellMap, propertyCount, isMobileView, isMid
                         maxWidth: rootRect ? Math.min(320, rootRect.width - 24) : scrollRect ? Math.min(300, scrollRect.width - 16) : undefined,
                     });
                 };
+                const handleTouchStart = () => {
+                    if (!isMobileView || !dateKey) return;
+
+                    longPressTriggeredRef.current = false;
+                    window.clearTimeout(longPressTimerRef.current);
+                    longPressTimerRef.current = window.setTimeout(() => {
+                        longPressTriggeredRef.current = true;
+                        onTooltipHide?.();
+                        onOpenDiary?.(dateKey);
+                    }, 520);
+                };
+                const handleTouchEnd = () => {
+                    if (!isMobileView) return;
+
+                    window.clearTimeout(longPressTimerRef.current);
+                };
 
                 return (
                     <button
@@ -1353,6 +1376,10 @@ function PatchworkGridRow({ dayKeys, cellMap, propertyCount, isMobileView, isMid
                             backgroundColor: emptyCellColor,
                             backgroundClip: 'padding-box',
                         }}
+                        onTouchStart={handleTouchStart}
+                        onTouchEnd={handleTouchEnd}
+                        onTouchCancel={handleTouchEnd}
+                        onTouchMove={handleTouchEnd}
                         onMouseEnter={(e) => !isMobileView && dateKey && cell && handleTooltipShow(e.currentTarget)}
                         onMouseLeave={() => !isMobileView && onTooltipHide?.()}
                         onClick={(e) => {
@@ -1360,10 +1387,26 @@ function PatchworkGridRow({ dayKeys, cellMap, propertyCount, isMobileView, isMid
                             if (!dateKey) return;
 
                             if (isMobileView) {
-                                onTooltipHide?.();
+                                if (longPressTriggeredRef.current) {
+                                    longPressTriggeredRef.current = false;
+                                    return;
+                                }
+
+                                if (cell) {
+                                    handleTooltipShow(e.currentTarget);
+                                } else {
+                                    onTooltipHide?.();
+                                }
+                                return;
                             }
 
                             onOpenDiary?.(dateKey);
+                        }}
+                        onContextMenu={(e) => {
+                            if (!isMobileView) return;
+
+                            e.preventDefault();
+                            e.stopPropagation();
                         }}
                     >
                         {Array.from({ length: subCellCount }).map((_, subIndex) => {
