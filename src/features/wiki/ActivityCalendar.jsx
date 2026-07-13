@@ -453,8 +453,8 @@ function toPatchworkPastelColor(color, isMidnightTheme = false) {
     const value = String(color || '').trim();
     if (!value) return value;
     return isMidnightTheme
-        ? `color-mix(in srgb, color-mix(in srgb, ${value} 66%, white) 68%, var(--color-page-surface))`
-        : `color-mix(in srgb, ${value} 42%, white)`;
+        ? `color-mix(in srgb, color-mix(in srgb, ${value} 76%, white) 74%, var(--color-page-surface))`
+        : `color-mix(in srgb, ${value} 64%, white)`;
 }
 
 function buildPatchworkCellTone(displayValues = [], fallbackSeed = '', isMidnightTheme = false) {
