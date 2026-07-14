@@ -12,6 +12,7 @@ export function useDeleteDiary() {
         onSuccess: (_, variables) => {
             queryClient.invalidateQueries({ queryKey: ['diary', userId, variables?.diaryDate] });
             queryClient.invalidateQueries({ queryKey: ['diaryPropertyValues', userId, variables?.diaryDate] });
+            queryClient.invalidateQueries({ queryKey: ['diaryPropertyValuesByPropertyIds', userId] });
             queryClient.invalidateQueries({ queryKey: ['diaries', userId] });
         },
     });

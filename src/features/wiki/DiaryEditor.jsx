@@ -5,7 +5,10 @@ import { useDiary } from './hooks/useDiary';
 import { useDeleteDiary } from './hooks/useDeleteDiary';
 import { useDiaryLayout } from './hooks/useDiaryLayout';
 import { useDiaryProperties, useDiaryPropertySections } from './hooks/useDiaryProperties';
-import { useDiaryPropertyValues } from './hooks/useDiaryPropertyValues';
+import {
+    useDiaryPropertyValues,
+    useDiaryPropertyValuesByPropertyIds,
+} from './hooks/useDiaryPropertyValues';
 import { useSaveDiary } from './hooks/useSaveDiary';
 import { useAllDocuments } from './hooks/useAllDocuments';
 import { useCategories } from './hooks/useCategories';
@@ -43,6 +46,7 @@ function getDiaryDateText(dateKey) {
 function getInitialPropertyValue(property) {
     const value = property?.default_value;
     if (!value) {
+        if (property.type === 'random_pick') return { option: null, text: '' };
         if (property.type === 'multi_select') return [];
         if (property.type === 'select') return null;
         return '';
@@ -61,6 +65,13 @@ function getInitialPropertyValue(property) {
 
     if (property.type === 'select') {
         return normalizeOptionValue(value.option);
+    }
+
+    if (property.type === 'random_pick') {
+        return {
+            option: normalizeOptionValue(value.option),
+            text: value.text || '',
+        };
     }
 
     if (property.type === 'number_list') {
@@ -104,6 +115,13 @@ function getValueForInput(property, savedValues) {
 
     if (property.type === 'select') {
         return normalizeOptionValue(saved.option);
+    }
+
+    if (property.type === 'random_pick') {
+        return {
+            option: normalizeOptionValue(saved.option),
+            text: saved.text || '',
+        };
     }
 
     if (property.type === 'number_list') {
@@ -152,6 +170,13 @@ function buildPropertyValue(property, rawValue) {
     if (property.type === 'select') {
         return {
             option: normalizeOptionValue(rawValue),
+        };
+    }
+
+    if (property.type === 'random_pick') {
+        return {
+            option: normalizeOptionValue(rawValue?.option),
+            text: rawValue?.text || '',
         };
     }
 
@@ -211,6 +236,10 @@ function hasPropertyValue(property, rawValue) {
         return !!getOptionName(rawValue);
     }
 
+    if (property.type === 'random_pick') {
+        return String(rawValue?.text || '').trim() !== '';
+    }
+
     if (property.type === 'check_list') {
         if (Array.isArray(rawValue)) {
             return rawValue.some((item) => String(item.text || '').trim());
@@ -234,6 +263,45 @@ function hasDraftContent({ title, properties = [], propertyValues = {}, contentM
     return (properties || []).some((property) =>
         hasPropertyValue(property, propertyValues[property.id]),
     );
+}
+
+function getRandomPickAnswerText(value) {
+    return String(value?.text || '').trim();
+}
+
+function getRandomPickOptionName(value) {
+    return getOptionName(value?.option);
+}
+
+function pickRandomOption(property, optionsByPropertyId, randomPickPropertyValues = []) {
+    const options = optionsByPropertyId.get(property.id) || [];
+    if (options.length === 0) return { option: null, text: '' };
+
+    const counts = new Map(
+        options.map((option) => [getOptionName(makeOptionValue(option)), 0]),
+    );
+
+    (randomPickPropertyValues || [])
+        .filter((item) => item.property_id === property.id)
+        .forEach((item) => {
+            if (!getRandomPickAnswerText(item.value)) return;
+
+            const optionName = getRandomPickOptionName(item.value);
+            if (!optionName || !counts.has(optionName)) return;
+
+            counts.set(optionName, counts.get(optionName) + 1);
+        });
+
+    const minCount = Math.min(...counts.values());
+    const candidates = options.filter(
+        (option) => counts.get(getOptionName(makeOptionValue(option))) === minCount,
+    );
+    const selected = candidates[Math.floor(Math.random() * candidates.length)] || options[0];
+
+    return {
+        option: makeOptionValue(selected),
+        text: '',
+    };
 }
 
 function getDiaryPropertyItems(properties = [], layout = [], propertyValues = {}) {
@@ -874,11 +942,21 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
     const { data: diary, isLoading } = useDiary(open ? diaryDate : null);
     const { data: properties } = useDiaryProperties();
     const { data: sections } = useDiaryPropertySections();
-    const { data: layout } = useDiaryLayout();
+    const { data: layout, isLoading: layoutLoading } = useDiaryLayout();
     const { data: savedPropertyValues, isLoading: valuesLoading } = useDiaryPropertyValues(
         open ? diaryDate : null,
     );
-    const { data: propertyOptions } = useDiaryPropertyOptions();
+    const { data: propertyOptions, isLoading: optionsLoading } = useDiaryPropertyOptions();
+    const randomPickPropertyIds = useMemo(
+        () => (properties || [])
+            .filter((property) => property.type === 'random_pick')
+            .map((property) => property.id),
+        [properties],
+    );
+    const {
+        data: randomPickPropertyValues,
+        isLoading: randomPickValuesLoading,
+    } = useDiaryPropertyValuesByPropertyIds(randomPickPropertyIds, open);
     const { data: allDocs } = useAllDocuments();
     const { data: categories } = useCategories();
     const createPropertyOption = useCreateDiaryPropertyOption();
@@ -925,7 +1003,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
         handleNavigateLink(href);
     }, [handleNavigateLink]);
 
-    const loading = isLoading || valuesLoading;
+    const loading = isLoading || valuesLoading || layoutLoading || optionsLoading || randomPickValuesLoading;
     const linkCandidates = useMemo(() => buildDiaryLinkCandidates(allDocs || []), [allDocs]);
     const visibleProperties = getVisibleProperties(
         properties || [],
@@ -988,10 +1066,26 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
         if (!open || !diaryDate) return;
         if (loading) return;
         if (!properties || !savedPropertyValues) return;
+        if (!propertyOptions) return;
+        if (randomPickPropertyIds.length > 0 && !randomPickPropertyValues) return;
         if (hydratedRef.current) return;
 
         const nextPropertyValues = {};
         properties.forEach((property) => {
+            const savedValue = savedPropertyValues.find((item) => item.property_id === property.id);
+
+            if (
+                property.type === 'random_pick' &&
+                !savedValue
+            ) {
+                nextPropertyValues[property.id] = pickRandomOption(
+                    property,
+                    optionsByPropertyId,
+                    randomPickPropertyValues,
+                );
+                return;
+            }
+
             nextPropertyValues[property.id] = getValueForInput(property, savedPropertyValues);
         });
 
@@ -1006,8 +1100,33 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
         };
 
         hydratedRef.current = true;
-        dirtyRef.current = false;
-    }, [open, diaryDate, loading, diary, properties, savedPropertyValues]);
+        dirtyRef.current = properties.some(
+            (property) =>
+                property.type === 'random_pick' &&
+                !savedPropertyValues.find((item) => item.property_id === property.id) &&
+                getOptionName(nextPropertyValues[property.id]?.option),
+        );
+
+        if (dirtyRef.current) {
+            window.setTimeout(() => {
+                if (hydratedRef.current) {
+                    void saveDraft();
+                }
+            }, 0);
+        }
+    }, [
+        open,
+        diaryDate,
+        loading,
+        diary,
+        layout,
+        properties,
+        propertyOptions,
+        savedPropertyValues,
+        randomPickPropertyIds.length,
+        randomPickPropertyValues,
+        optionsByPropertyId,
+    ]);
 
     useEffect(() => {
         return () => {
@@ -1440,6 +1559,48 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
                     categories={categories || []}
                     onNavigateLink={handleNavigateLink}
                 />
+            );
+        }
+
+        if (property.type === 'random_pick') {
+            const value = propertyValues[property.id] || { option: null, text: '' };
+            const option = normalizeOptionValue(value.option);
+
+            return (
+                <div className="space-y-1.5">
+                    <div className="min-h-7">
+                        {option ? (
+                            <span
+                                className="inline-flex max-w-full items-center rounded-md px-2 py-1 text-xs font-medium"
+                                style={{
+                                    backgroundColor: option.color || DEFAULT_OPTION_COLOR,
+                                    color: option.textColor || DEFAULT_OPTION_TEXT_COLOR,
+                                }}
+                            >
+                                <span className="truncate">{option.name}</span>
+                            </span>
+                        ) : (
+                            <span className="text-xs text-[var(--color-text-muted)]">
+                                후보 항목이 없어.
+                            </span>
+                        )}
+                    </div>
+                    <DiaryTextareaField
+                        value={value.text || ''}
+                        onChangeValue={(nextValue) =>
+                            handleChangePropertyValue(property.id, {
+                                ...value,
+                                text: nextValue,
+                            })
+                        }
+                        onBlur={flushSave}
+                        disabled={loading || !option}
+                        linkCandidates={linkCandidates}
+                        documents={allDocs || []}
+                        categories={categories || []}
+                        onNavigateLink={handleNavigateLink}
+                    />
+                </div>
             );
         }
 

@@ -13,6 +13,7 @@ export function useSaveDiary() {
         onSuccess: (diary) => {
             queryClient.invalidateQueries({ queryKey: ['diary', userId, diary?.diary_date] });
             queryClient.invalidateQueries({ queryKey: ['diaryPropertyValues', userId, diary?.diary_date] });
+            queryClient.invalidateQueries({ queryKey: ['diaryPropertyValuesByPropertyIds', userId] });
             queryClient.invalidateQueries({ queryKey: ['diaries', userId] });
         },
     });

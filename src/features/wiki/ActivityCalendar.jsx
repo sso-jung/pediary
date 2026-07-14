@@ -30,6 +30,7 @@ const VIEW_LABEL = {
     monthly: 'MONTHLY',
     timeline: 'TIMELINE',
     patchwork: 'PATCHWORK',
+    strata: 'STRATA',
 };
 
 const TIMELINE_GROUP_GAP_DAYS = 31;
@@ -49,7 +50,7 @@ const PATCHWORK_FALLBACK_COLORS = [
     '#f97316',
 ];
 const CALENDAR_VIEW_STORAGE_KEY_PREFIX = 'pediary.diaryCalendar.viewState';
-const CALENDAR_VIEWS = ['weekly', 'monthly', 'timeline', 'patchwork'];
+const CALENDAR_VIEWS = ['weekly', 'monthly', 'timeline', 'patchwork', 'strata'];
 const MOBILE_MEDIA_QUERY = '(max-width: 639px)';
 const MOBILE_TIMELINE_MONTH_COUNT = 4;
 const MOBILE_EDGE_TAP_RATIO = 0.24;
@@ -136,6 +137,10 @@ function getPropertyValueText(property, value) {
         return normalizeOptionValue(value.option)?.name || '';
     }
 
+    if (property?.type === 'random_pick') {
+        return normalizeOptionValue(value.option)?.name || value.text || '';
+    }
+
     if (property?.type === 'number_list') {
         return Array.isArray(value.numbers)
             ? value.numbers.filter((item) => item !== null && item !== undefined && item !== '').join(', ')
@@ -176,6 +181,16 @@ function getPropertyValueLines(property, value, optionMetaMap) {
                 ...option,
                 type: 'option',
             }));
+    }
+
+    if (property?.type === 'random_pick') {
+        const option = mergeLatestOptionMeta(value.option, optionMetaMap);
+        const text = String(value.text || '').trim();
+
+        return [
+            option ? { ...option, type: 'option' } : null,
+            text,
+        ].filter(Boolean);
     }
 
     if (property?.type === 'number_list') {
@@ -1263,6 +1278,219 @@ function TimelineTodayGuide({ year, showMarker = false, startMonth = 1, monthCou
     );
 }
 
+function getRandomPickOptionName(value) {
+    return normalizeOptionValue(value?.option)?.name || '';
+}
+
+function getRandomPickText(value) {
+    return String(value?.text || '').trim();
+}
+
+function buildStrataRows({ diaries = [], diaryValueMapByDate = new Map(), propertyId }) {
+    const rowMap = new Map();
+
+    (diaries || []).forEach((diary) => {
+        const value = diaryValueMapByDate.get(diary.diary_date)?.get(propertyId);
+        const optionName = getRandomPickOptionName(value);
+        const text = getRandomPickText(value);
+
+        if (!optionName || !text) return;
+
+        const current = rowMap.get(optionName) || {
+            optionName,
+            count: 0,
+            firstDate: diary.diary_date,
+            recentDate: diary.diary_date,
+            entries: [],
+        };
+
+        current.count += 1;
+        current.firstDate = String(diary.diary_date).localeCompare(String(current.firstDate)) < 0
+            ? diary.diary_date
+            : current.firstDate;
+        current.recentDate = String(diary.diary_date).localeCompare(String(current.recentDate)) > 0
+            ? diary.diary_date
+            : current.recentDate;
+        current.entries = [
+            ...current.entries,
+            {
+                dateKey: diary.diary_date,
+                text,
+            },
+        ];
+
+        rowMap.set(optionName, current);
+    });
+
+    return [...rowMap.values()]
+        .map((row) => ({
+            ...row,
+            entries: row.entries.sort((a, b) => String(a.dateKey).localeCompare(String(b.dateKey))),
+        }))
+        .sort(
+            (a, b) =>
+                String(b.recentDate).localeCompare(String(a.recentDate)) ||
+                b.count - a.count ||
+                a.optionName.localeCompare(b.optionName),
+        );
+}
+
+function StrataView({
+                        viewItems = [],
+                        selectedPropertyId,
+                        onSelectProperty,
+                        rows = [],
+                        selectedOptionName,
+                        onSelectOption,
+                        documents = [],
+                        categories = [],
+                    }) {
+    const selectedItem = viewItems.find((item) => item.propertyId === selectedPropertyId);
+    const selectedRow = rows.find((row) => row.optionName === selectedOptionName);
+    const propertyName = getPropertyDisplayName(selectedItem?.property?.name) || '속성명 없음';
+    const closeDialog = () => onSelectOption('');
+
+    return (
+        <div className="min-h-0 flex-1 overflow-auto pb-2 text-[12px]">
+            {viewItems.length > 1 && (
+                <div className="mb-3 flex flex-wrap gap-1.5 border-b border-border-subtle pb-2">
+                    {viewItems.map((item) => (
+                        <button
+                            key={item.propertyId}
+                            type="button"
+                            className={[
+                                "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition",
+                                selectedPropertyId === item.propertyId
+                                    ? "bg-[rgba(127,127,127,0.12)] text-[var(--color-text-main)]"
+                                    : "text-[var(--color-text-muted)] hover:bg-[rgba(127,127,127,0.08)] hover:text-[var(--color-text-main)]",
+                            ].join(" ")}
+                            onClick={() => onSelectProperty(item.propertyId)}
+                        >
+                            {item.property?.icon && (
+                                <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                                    <PropertyIcon icon={item.property.icon} />
+                                </span>
+                            )}
+                            <span>{getPropertyDisplayName(item.property?.name) || '속성명 없음'}</span>
+                        </button>
+                    ))}
+                </div>
+            )}
+
+            {viewItems.length === 0 ? (
+                <p className="px-2 py-5 text-xs ui-dialog-message">
+                    STRATA에 표시할 랜덤 뽑기 속성이 없어.
+                </p>
+            ) : (
+                <>
+                    <div className="min-w-0 overflow-auto rounded-lg border border-border-subtle">
+                        <table className="w-full min-w-[560px] border-collapse text-left text-xs">
+                            <thead>
+                            <tr className="border-b border-border-subtle bg-[rgba(100,116,139,0.06)] text-[var(--color-text-muted)]">
+                                <th className="px-3 py-2 font-semibold">{propertyName}</th>
+                                <th className="w-24 px-3 py-2 text-right font-semibold">작성 횟수</th>
+                                <th className="w-28 px-3 py-2 font-semibold">최초 작성일</th>
+                                <th className="w-28 px-3 py-2 font-semibold">최근 작성일</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {rows.map((row) => (
+                                <tr
+                                    key={row.optionName}
+                                    className={[
+                                        "cursor-pointer border-b border-border-subtle transition last:border-b-0 hover:bg-[#F0F6FF]",
+                                        selectedOptionName === row.optionName ? "bg-[#F0F6FF]" : "",
+                                    ].join(" ")}
+                                    onClick={() => onSelectOption(row.optionName)}
+                                >
+                                    <td className="px-3 py-2 font-medium text-[var(--color-text-main)]">
+                                        {row.optionName}
+                                    </td>
+                                    <td className="px-3 py-2 text-right text-[var(--color-text-main)]">
+                                        {row.count}
+                                    </td>
+                                    <td className="px-3 py-2 text-[var(--color-text-muted)]">
+                                        {row.firstDate}
+                                    </td>
+                                    <td className="px-3 py-2 text-[var(--color-text-muted)]">
+                                        {row.recentDate}
+                                    </td>
+                                </tr>
+                            ))}
+                            {rows.length === 0 && (
+                                <tr>
+                                    <td
+                                        colSpan={4}
+                                        className="px-3 py-6 text-center text-xs text-[var(--color-text-muted)]"
+                                    >
+                                        작성된 텍스트가 없어.
+                                    </td>
+                                </tr>
+                            )}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {selectedRow && createPortal(
+                        <div
+                            className="fixed inset-0 z-50 flex items-center justify-center px-4 py-6 ui-dialog-backdrop"
+                            onMouseDown={(e) => {
+                                e.stopPropagation();
+                                if (e.target === e.currentTarget) {
+                                    closeDialog();
+                                }
+                            }}
+                        >
+                            <div
+                                className="ui-dialog flex min-h-[68vh] min-w-[68vh] max-h-[78vh] w-[min(560px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl p-4"
+                                onMouseDown={(e) => e.stopPropagation()}
+                            >
+                                <div className="mb-3 flex items-start justify-between gap-3 border-b border-border-subtle pb-3">
+                                    <div className="min-w-0">
+                                        <p className="truncate text-sm font-semibold text-[var(--color-text-main)]">
+                                            {selectedRow.optionName}
+                                        </p>
+                                        <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">
+                                            {propertyName} · {selectedRow.count}회
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="shrink-0 rounded-md px-2 py-1 text-[11px] font-medium text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] hover:text-[var(--color-text-main)]"
+                                        onClick={closeDialog}
+                                    >
+                                        닫기
+                                    </button>
+                                </div>
+
+                                <div className="min-h-0 overflow-y-auto pr-1">
+                                    <div className="space-y-3">
+                                        {selectedRow.entries.map((entry) => (
+                                            <div key={`${entry.dateKey}-${entry.text}`} className="space-y-1">
+                                                <p className="text-[11px] font-semibold text-[var(--color-text-muted)]">
+                                                    {entry.dateKey}
+                                                </p>
+                                                <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-[var(--color-text-main)]">
+                                                    <LinkedDiaryText
+                                                        text={entry.text}
+                                                        documents={documents}
+                                                        categories={categories}
+                                                    />
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>,
+                        document.body,
+                    )}
+                </>
+            )}
+        </div>
+    );
+}
+
 function PatchworkGridRow({ dayKeys, cellMap, propertyCount, isMobileView, isMidnightTheme, patchworkBorderColor, onTooltipShow, onTooltipHide, onOpenDiary }) {
     const longPressTimerRef = useRef(null);
     const longPressTriggeredRef = useRef(false);
@@ -1618,6 +1846,8 @@ export default function ActivityCalendar() {
     const [timelineLinkDialog, setTimelineLinkDialog] = useState(null);
     const [timelineLinkInput, setTimelineLinkInput] = useState('');
     const [timelineWidth, setTimelineWidth] = useState(0);
+    const [selectedStrataPropertyId, setSelectedStrataPropertyId] = useState(null);
+    const [selectedStrataOptionName, setSelectedStrataOptionName] = useState('');
     const [theme, setTheme] = useState(() => {
         if (typeof document === 'undefined') return 'noon';
         return document.documentElement.getAttribute('data-theme') || 'noon';
@@ -1662,6 +1892,12 @@ export default function ActivityCalendar() {
 
         return () => media.removeEventListener('change', handleChange);
     }, []);
+
+    useEffect(() => {
+        if (!isMobileView || calendarView !== 'strata') return;
+
+        setCalendarView('weekly');
+    }, [calendarView, isMobileView]);
 
     useEffect(() => {
         if (typeof document === 'undefined') return;
@@ -1789,7 +2025,7 @@ export default function ActivityCalendar() {
             setTimelineStartDate(next);
         }
 
-        if (nextView === 'patchwork') {
+        if (nextView === 'patchwork' || nextView === 'strata') {
             setYear((prev) => prev || today.getFullYear());
         }
 
@@ -1853,7 +2089,7 @@ export default function ActivityCalendar() {
             handleMoveWeek(isMobileView ? -1 : -7);
             return;
         }
-        if (calendarView === 'patchwork') {
+        if (calendarView === 'patchwork' || calendarView === 'strata') {
             setYear((y) => y - 1);
             return;
         }
@@ -1873,7 +2109,7 @@ export default function ActivityCalendar() {
             handleMoveWeek(isMobileView ? 1 : 7);
             return;
         }
-        if (calendarView === 'patchwork') {
+        if (calendarView === 'patchwork' || calendarView === 'strata') {
             setYear((y) => y + 1);
             return;
         }
@@ -1930,13 +2166,16 @@ export default function ActivityCalendar() {
             swipeBlockClickRef.current = false;
         }, 0);
 
-        const currentIndex = CALENDAR_VIEWS.indexOf(calendarView);
+        const swipeViews = isMobileView
+            ? CALENDAR_VIEWS.filter((view) => view !== 'strata')
+            : CALENDAR_VIEWS;
+        const currentIndex = swipeViews.indexOf(calendarView);
         const nextIndex = diffX > 0
             ? Math.max(currentIndex - 1, 0)
-            : Math.min(currentIndex + 1, CALENDAR_VIEWS.length - 1);
+            : Math.min(currentIndex + 1, swipeViews.length - 1);
 
         if (nextIndex !== currentIndex) {
-            handleChangeCalendarView(CALENDAR_VIEWS[nextIndex]);
+            handleChangeCalendarView(swipeViews[nextIndex]);
         }
     };
 
@@ -2075,7 +2314,7 @@ export default function ActivityCalendar() {
             ? weekStartKey
             : calendarView === 'timeline'
                 ? timelineRange.startKey
-                : calendarView === 'patchwork'
+                : calendarView === 'patchwork' || calendarView === 'strata'
                     ? patchworkRange.startKey
                 : getDateKey(visibleWeeks[0][0]);
     const rangeEndKey =
@@ -2083,12 +2322,16 @@ export default function ActivityCalendar() {
             ? weekEndKey
             : calendarView === 'timeline'
                 ? timelineRange.endKey
-                : calendarView === 'patchwork'
+                : calendarView === 'patchwork' || calendarView === 'strata'
                     ? patchworkRange.endKey
                 : monthCalendarEndKey;
     const viewItems = useMemo(
         () => {
             const items = buildViewItems(properties || [], viewLayout || []);
+
+            if (calendarView === 'strata') {
+                return items.filter((item) => item.property?.type === 'random_pick');
+            }
 
             if (calendarView !== 'timeline' && calendarView !== 'patchwork') return items;
 
@@ -2103,7 +2346,7 @@ export default function ActivityCalendar() {
     const { data: diaries } = useDiariesByDateRange(
         rangeStartKey,
         rangeEndKey,
-        calendarView === 'weekly' || calendarView === 'monthly' || calendarView === 'timeline' || calendarView === 'patchwork',
+        calendarView === 'weekly' || calendarView === 'monthly' || calendarView === 'timeline' || calendarView === 'patchwork' || calendarView === 'strata',
         visiblePropertyIds,
     );
     const hasDiaryInternalLinks = (diaries || []).some(hasInternalLinkValue);
@@ -2146,6 +2389,40 @@ export default function ActivityCalendar() {
             isMidnightTheme,
         });
     }, [calendarView, diaries, diaryValueMapByDate, isMidnightTheme, optionMapByPropertyId, viewItems]);
+    const activeStrataPropertyId = useMemo(() => {
+        if (calendarView !== 'strata') return null;
+        if (viewItems.length === 0) return null;
+
+        return viewItems.some((item) => item.propertyId === selectedStrataPropertyId)
+            ? selectedStrataPropertyId
+            : viewItems[0].propertyId;
+    }, [calendarView, selectedStrataPropertyId, viewItems]);
+    const strataRows = useMemo(() => {
+        if (calendarView !== 'strata' || !activeStrataPropertyId) return [];
+
+        return buildStrataRows({
+            diaries: diaries || [],
+            diaryValueMapByDate,
+            propertyId: activeStrataPropertyId,
+        });
+    }, [activeStrataPropertyId, calendarView, diaries, diaryValueMapByDate]);
+    const activeStrataOptionName = useMemo(() => {
+        if (calendarView !== 'strata') return '';
+        if (strataRows.length === 0) return '';
+
+        return strataRows.some((row) => row.optionName === selectedStrataOptionName)
+            ? selectedStrataOptionName
+            : '';
+    }, [calendarView, selectedStrataOptionName, strataRows]);
+
+    useEffect(() => {
+        if (calendarView !== 'strata') return;
+        if (!activeStrataPropertyId) return;
+        if (activeStrataPropertyId === selectedStrataPropertyId) return;
+
+        setSelectedStrataPropertyId(activeStrataPropertyId);
+        setSelectedStrataOptionName('');
+    }, [activeStrataPropertyId, calendarView, selectedStrataPropertyId]);
 
     const yearOptions = [];
     const baseYear = today.getFullYear();
@@ -2165,7 +2442,7 @@ export default function ActivityCalendar() {
                 <div className="diary-calendar-toolbar-divider shrink-0 border-b border-border-subtle pb-3">
                     <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
                         <div className="flex min-w-0 flex-nowrap items-center gap-0.5 sm:gap-2">
-                            {['weekly', 'monthly', 'timeline', 'patchwork'].map((view) => (
+                            {CALENDAR_VIEWS.filter((view) => !isMobileView || view !== 'strata').map((view) => (
                                 <button
                                     key={view}
                                     type="button"
@@ -2270,7 +2547,7 @@ export default function ActivityCalendar() {
                                 >
                                     {calendarView === 'timeline'
                                         ? timelineRangeLabel
-                                        : calendarView === 'patchwork'
+                                        : calendarView === 'patchwork' || calendarView === 'strata'
                                             ? `${year}년`
                                             : `${year}년 ${month}월`}
                                 </span>
@@ -2453,6 +2730,20 @@ export default function ActivityCalendar() {
                                 )}
                             </div>
                         </div>
+                    ) : calendarView === 'strata' ? (
+                        <StrataView
+                            viewItems={viewItems}
+                            selectedPropertyId={activeStrataPropertyId}
+                            onSelectProperty={(propertyId) => {
+                                setSelectedStrataPropertyId(propertyId);
+                                setSelectedStrataOptionName('');
+                            }}
+                            rows={strataRows}
+                            selectedOptionName={activeStrataOptionName}
+                            onSelectOption={setSelectedStrataOptionName}
+                            documents={allDocs || []}
+                            categories={categories || []}
+                        />
                     ) : calendarView === 'patchwork' ? (
                         <div
                             className="diary-timeline-scroll min-h-0 flex-1 overflow-x-auto pb-2 text-[12px]"

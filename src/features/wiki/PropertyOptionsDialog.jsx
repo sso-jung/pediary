@@ -90,6 +90,7 @@ export default function PropertyOptionsDialog({
     const editingOptionName = editingOption
         ? optionNames[editingOption.id] ?? editingOption.name ?? ''
         : '';
+    const isRandomPickProperty = property.type === 'random_pick';
 
     const saveOptionName = (option, nameValue) => {
         const name = String(nameValue || '').trim();
@@ -133,36 +134,96 @@ export default function PropertyOptionsDialog({
                     </p>
                 </div>
 
-                <div className="max-h-[32vh] overflow-y-auto pr-1">
-                    <div className="flex flex-wrap gap-1.5">
-                        {sortedOptions.map((option) => {
-                            const currentBg = option.color || DEFAULT_OPTION_COLOR;
-                            const currentText = getSavedTextColor(option, currentBg);
-                            const draftName = optionNames[option.id] ?? option.name ?? '';
+                <div className={isRandomPickProperty ? "max-h-[48vh] overflow-y-auto pr-1" : "max-h-[32vh] overflow-y-auto pr-1"}>
+                    {isRandomPickProperty ? (
+                        <div className="space-y-0.5">
+                            {sortedOptions.map((option) => {
+                                const draftName = optionNames[option.id] ?? option.name ?? '';
+                                const isEditing = editingOptionId === option.id;
 
-                            return (
-                                <button
-                                    key={option.id}
-                                    type="button"
-                                    className={[
-                                        "max-w-full rounded-full p-[2px] transition",
-                                        editingOptionId === option.id
-                                            ? "bg-[rgba(127,127,127,0.16)]"
-                                            : "hover:bg-[rgba(127,127,127,0.08)]",
-                                    ].join(" ")}
-                                    onClick={() => setEditingOptionId(option.id)}
-                                >
-                                    <OptionBadge
-                                        option={{
-                                            name: draftName || option.name,
-                                            color: currentBg,
-                                            textColor: currentText,
-                                        }}
-                                    />
-                                </button>
-                            );
-                        })}
-                    </div>
+                                return (
+                                    <div
+                                        key={option.id}
+                                        className="flex items-center gap-1.5"
+                                    >
+                                        <input
+                                            className="ui-input !h-6 !rounded !px-1.5 !py-0 text-xs"
+                                            value={draftName}
+                                            readOnly={!isEditing}
+                                            onDoubleClick={() => setEditingOptionId(option.id)}
+                                            onChange={(e) =>
+                                                setOptionNames((prev) => ({
+                                                    ...prev,
+                                                    [option.id]: e.target.value,
+                                                }))
+                                            }
+                                            onBlur={(e) => {
+                                                saveOptionName(option, e.target.value);
+                                                setEditingOptionId(null);
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Escape') {
+                                                    e.preventDefault();
+                                                    setOptionNames((prev) => ({
+                                                        ...prev,
+                                                        [option.id]: option.name,
+                                                    }));
+                                                    setEditingOptionId(null);
+                                                    e.currentTarget.blur();
+                                                    return;
+                                                }
+
+                                                if (e.key !== 'Enter') return;
+
+                                                e.preventDefault();
+                                                saveOptionName(option, e.currentTarget.value);
+                                                setEditingOptionId(null);
+                                                e.currentTarget.blur();
+                                            }}
+                                        />
+
+                                        <button
+                                            type="button"
+                                            className="h-6 shrink-0 rounded px-1.5 text-[11px] font-medium text-red-500 transition hover:bg-red-500/10"
+                                            onClick={() => onDelete({ optionId: option.id })}
+                                        >
+                                            삭제
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                            {sortedOptions.map((option) => {
+                                const currentBg = option.color || DEFAULT_OPTION_COLOR;
+                                const currentText = getSavedTextColor(option, currentBg);
+                                const draftName = optionNames[option.id] ?? option.name ?? '';
+
+                                return (
+                                    <button
+                                        key={option.id}
+                                        type="button"
+                                        className={[
+                                            "max-w-full rounded-full p-[2px] transition",
+                                            editingOptionId === option.id
+                                                ? "bg-[rgba(127,127,127,0.16)]"
+                                                : "hover:bg-[rgba(127,127,127,0.08)]",
+                                        ].join(" ")}
+                                        onClick={() => setEditingOptionId(option.id)}
+                                    >
+                                        <OptionBadge
+                                            option={{
+                                                name: draftName || option.name,
+                                                color: currentBg,
+                                                textColor: currentText,
+                                            }}
+                                        />
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
 
                     {sortedOptions.length === 0 && (
                         <p className="px-1 py-4 text-xs text-[var(--color-text-muted)]">
@@ -171,7 +232,7 @@ export default function PropertyOptionsDialog({
                     )}
                 </div>
 
-                {editingOption && (
+                {editingOption && !isRandomPickProperty && (
                     <div className="property-options-panel mt-3 rounded-lg border border-border-subtle px-3 py-2">
                         <div className="mb-2 flex items-center justify-between gap-2">
                             <OptionBadge
@@ -274,7 +335,7 @@ export default function PropertyOptionsDialog({
                                 handleCreate();
                             }
                         }}
-                        placeholder="새 옵션"
+                        placeholder={isRandomPickProperty ? '새 항목' : '새 옵션'}
                     />
 
                     <button

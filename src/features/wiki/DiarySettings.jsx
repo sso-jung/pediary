@@ -38,6 +38,7 @@ const VIEW_OPTIONS = [
     { value: 'monthly', label: 'MONTHLY' },
     { value: 'timeline', label: 'TIMELINE' },
     { value: 'patchwork', label: 'PATCHWORK' },
+    { value: 'strata', label: 'STRATA' },
 ];
 const SETTINGS_TABS = [
     { value: 'properties', label: '속성 편집' },
@@ -45,6 +46,7 @@ const SETTINGS_TABS = [
     { value: 'monthly', label: 'MONTHLY' },
     { value: 'timeline', label: 'TIMELINE' },
     { value: 'patchwork', label: 'PATCHWORK' },
+    { value: 'strata', label: 'STRATA' },
 ];
 const VIEW_VISIBILITY_OPTIONS = [
     { value: 'visible', label: '내용 표시' },
@@ -608,6 +610,7 @@ export default function DiarySettings({ open, onClose }) {
     const { data: monthlyViewLayout } = useDiaryViewLayout('monthly');
     const { data: timelineViewLayout } = useDiaryViewLayout('timeline');
     const { data: patchworkViewLayout } = useDiaryViewLayout('patchwork');
+    const { data: strataViewLayout } = useDiaryViewLayout('strata');
     const { data: weeklyViewSetting } = useDiaryViewSetting('weekly');
     const { data: monthlyViewSetting } = useDiaryViewSetting('monthly');
     const { data: propertyOptions } = useDiaryPropertyOptions();
@@ -626,6 +629,7 @@ export default function DiarySettings({ open, onClose }) {
     const updateMonthlyViewLayout = useUpdateDiaryViewLayout('monthly');
     const updateTimelineViewLayout = useUpdateDiaryViewLayout('timeline');
     const updatePatchworkViewLayout = useUpdateDiaryViewLayout('patchwork');
+    const updateStrataViewLayout = useUpdateDiaryViewLayout('strata');
     const updateWeeklyViewSetting = useUpdateDiaryViewSetting('weekly');
     const updateMonthlyViewSetting = useUpdateDiaryViewSetting('monthly');
 
@@ -1127,6 +1131,7 @@ export default function DiarySettings({ open, onClose }) {
         monthly: monthlyViewLayout || [],
         timeline: timelineViewLayout || [],
         patchwork: patchworkViewLayout || [],
+        strata: strataViewLayout || [],
     };
     const viewSettings = {
         weekly: weeklyViewSetting || null,
@@ -1137,6 +1142,7 @@ export default function DiarySettings({ open, onClose }) {
         monthly: updateMonthlyViewLayout,
         timeline: updateTimelineViewLayout,
         patchwork: updatePatchworkViewLayout,
+        strata: updateStrataViewLayout,
     };
     const updateViewSettings = {
         weekly: updateWeeklyViewSetting,
@@ -1173,8 +1179,10 @@ export default function DiarySettings({ open, onClose }) {
     const renderViewSettings = (viewOption) => {
         const viewItems = buildViewLayoutItems(properties || [], viewLayouts[viewOption.value])
             .filter((item) =>
-                (viewOption.value !== 'timeline' && viewOption.value !== 'patchwork') ||
-                TIMELINE_PROPERTY_TYPES.includes(item.property?.type),
+                viewOption.value === 'strata'
+                    ? item.property?.type === 'random_pick'
+                    : (viewOption.value !== 'timeline' && viewOption.value !== 'patchwork') ||
+                    TIMELINE_PROPERTY_TYPES.includes(item.property?.type),
             );
         const canShowTitle = viewOption.value === 'weekly' || viewOption.value === 'monthly';
 
@@ -1229,26 +1237,32 @@ export default function DiarySettings({ open, onClose }) {
                             }
                         />
 
-                        <SettingsDropdown
-                            value={item.displayMode}
-                            options={DISPLAY_MODE_OPTIONS}
-                            onChange={(value) =>
-                                handleChangeViewLayout(
-                                    viewOption.value,
-                                    item.propertyId,
-                                    'displayMode',
-                                    value,
-                                )
-                            }
-                        />
+                        {viewOption.value === 'strata' ? (
+                            <div />
+                        ) : (
+                            <SettingsDropdown
+                                value={item.displayMode}
+                                options={DISPLAY_MODE_OPTIONS}
+                                onChange={(value) =>
+                                    handleChangeViewLayout(
+                                        viewOption.value,
+                                        item.propertyId,
+                                        'displayMode',
+                                        value,
+                                    )
+                                }
+                            />
+                        )}
                     </div>
                 ))}
 
                 {viewItems.length === 0 && (
                     <p className="px-2 py-4 text-xs ui-dialog-message">
-                        {viewOption.value === 'timeline' || viewOption.value === 'patchwork'
-                            ? '선택/다중선택 속성을 이 뷰에서 관리할 수 있어.'
-                            : '아직 추가된 속성이 없어.'}
+                        {viewOption.value === 'strata'
+                            ? '랜덤 뽑기 속성을 이 뷰에서 관리할 수 있어.'
+                            : viewOption.value === 'timeline' || viewOption.value === 'patchwork'
+                                ? '선택/다중선택 속성을 이 뷰에서 관리할 수 있어.'
+                                : '아직 추가된 속성이 없어.'}
                     </p>
                 )}
             </div>
@@ -1343,7 +1357,7 @@ export default function DiarySettings({ open, onClose }) {
                         maxLength={10}
                     />
 
-                    {['select', 'multi_select'].includes(draft.type) && (
+                    {['select', 'multi_select', 'random_pick'].includes(draft.type) && (
                         <button
                             type="button"
                             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] hover:text-[var(--color-text-primary)]"

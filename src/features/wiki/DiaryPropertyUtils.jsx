@@ -8,6 +8,7 @@ export const PROPERTY_TYPES = [
     { value: 'period', label: '기간' },
     { value: 'select', label: '선택' },
     { value: 'multi_select', label: '다중선택' },
+    { value: 'random_pick', label: '랜덤 뽑기' },
 ];
 
 function makePresetIcon(paths) {

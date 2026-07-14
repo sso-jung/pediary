@@ -1147,6 +1147,19 @@ export async function fetchDiaryPropertyValues({ userId, diaryDate }) {
     return data ?? [];
 }
 
+export async function fetchDiaryPropertyValuesByPropertyIds({ userId, propertyIds = [] }) {
+    if (!userId || propertyIds.length === 0) return [];
+
+    const { data, error } = await supabase
+        .from('diary_property_values')
+        .select('property_id, value')
+        .eq('user_id', userId)
+        .in('property_id', propertyIds);
+
+    if (error) throw error;
+    return data ?? [];
+}
+
 export async function upsertDiaryPropertyValue({ userId, diaryDate, propertyId, value }) {
     if (!userId || !diaryDate || !propertyId) {
         throw new Error('다이어리 속성 정보를 확인할 수 없어.');
