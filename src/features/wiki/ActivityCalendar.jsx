@@ -1278,8 +1278,15 @@ function TimelineTodayGuide({ year, showMarker = false, startMonth = 1, monthCou
     );
 }
 
-function getRandomPickOptionName(value) {
-    return normalizeOptionValue(value?.option)?.name || '';
+function getRandomPickOption(value) {
+    return normalizeOptionValue(value?.option);
+}
+
+function getRandomPickOptionKey(option) {
+    if (!option) return '';
+    if (option.id !== null && option.id !== undefined) return `id:${option.id}`;
+    if (option.name) return `name:${option.name}`;
+    return '';
 }
 
 function getRandomPickText(value) {
@@ -1291,12 +1298,15 @@ function buildStrataRows({ diaries = [], diaryValueMapByDate = new Map(), proper
 
     (diaries || []).forEach((diary) => {
         const value = diaryValueMapByDate.get(diary.diary_date)?.get(propertyId);
-        const optionName = getRandomPickOptionName(value);
+        const option = getRandomPickOption(value);
+        const optionKey = getRandomPickOptionKey(option);
+        const optionName = option?.name || '';
         const text = getRandomPickText(value);
 
-        if (!optionName || !text) return;
+        if (!optionKey || !optionName || !text) return;
 
-        const current = rowMap.get(optionName) || {
+        const current = rowMap.get(optionKey) || {
+            optionKey,
             optionName,
             count: 0,
             firstDate: diary.diary_date,
@@ -1319,7 +1329,7 @@ function buildStrataRows({ diaries = [], diaryValueMapByDate = new Map(), proper
             },
         ];
 
-        rowMap.set(optionName, current);
+        rowMap.set(optionKey, current);
     });
 
     return [...rowMap.values()]
@@ -1346,7 +1356,7 @@ function StrataView({
                         categories = [],
                     }) {
     const selectedItem = viewItems.find((item) => item.propertyId === selectedPropertyId);
-    const selectedRow = rows.find((row) => row.optionName === selectedOptionName);
+    const selectedRow = rows.find((row) => row.optionKey === selectedOptionName || row.optionName === selectedOptionName);
     const propertyName = getPropertyDisplayName(selectedItem?.property?.name) || '속성명 없음';
     const closeDialog = () => onSelectOption('');
 
@@ -1396,12 +1406,12 @@ function StrataView({
                             <tbody>
                             {rows.map((row) => (
                                 <tr
-                                    key={row.optionName}
+                                    key={row.optionKey}
                                     className={[
                                         "cursor-pointer border-b border-border-subtle transition last:border-b-0 hover:bg-[#F0F6FF]",
-                                        selectedOptionName === row.optionName ? "bg-[#F0F6FF]" : "",
+                                        selectedOptionName === row.optionKey ? "bg-[#F0F6FF]" : "",
                                     ].join(" ")}
-                                    onClick={() => onSelectOption(row.optionName)}
+                                    onClick={() => onSelectOption(row.optionKey)}
                                 >
                                     <td className="px-3 py-2 font-medium text-[var(--color-text-main)]">
                                         {row.optionName}
@@ -2410,7 +2420,7 @@ export default function ActivityCalendar() {
         if (calendarView !== 'strata') return '';
         if (strataRows.length === 0) return '';
 
-        return strataRows.some((row) => row.optionName === selectedStrataOptionName)
+        return strataRows.some((row) => row.optionKey === selectedStrataOptionName)
             ? selectedStrataOptionName
             : '';
     }, [calendarView, selectedStrataOptionName, strataRows]);

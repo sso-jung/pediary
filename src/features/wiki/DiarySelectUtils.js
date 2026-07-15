@@ -91,6 +91,7 @@ export function normalizeOptionValue(value) {
         DEFAULT_OPTION_TEXT_COLOR;
 
     return {
+        id: value.id ?? null,
         name,
         color,
         textColor,
@@ -125,6 +126,7 @@ export function makeOptionValue(option) {
         DEFAULT_OPTION_TEXT_COLOR;
 
     return {
+        id: option?.id ?? null,
         name,
         color,
         textColor,

@@ -148,7 +148,7 @@ function getValueForInput(property, savedValues) {
     return saved.text || '';
 }
 
-function buildPropertyValue(property, rawValue) {
+function buildPropertyValue(property, rawValue, savedValue = null) {
     if (property.type === 'period') {
         return {
             start: rawValue?.start || '',
@@ -174,9 +174,14 @@ function buildPropertyValue(property, rawValue) {
     }
 
     if (property.type === 'random_pick') {
+        const text = rawValue?.text || '';
+        const option =
+            normalizeOptionValue(rawValue?.option) ||
+            (String(text).trim() ? normalizeOptionValue(savedValue?.option) : null);
+
         return {
-            option: normalizeOptionValue(rawValue?.option),
-            text: rawValue?.text || '',
+            option,
+            text,
         };
     }
 
@@ -1159,10 +1164,14 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
             diaryDate,
             title: String(draft.title || '').trim() || '다이어리',
             contentMarkdown: diary?.content_markdown || '',
-            propertyValues: (properties || []).map((property) => ({
-                propertyId: property.id,
-                value: buildPropertyValue(property, draft.propertyValues[property.id]),
-            })),
+            propertyValues: (properties || []).map((property) => {
+                const savedValue = savedPropertyValues?.find((item) => item.property_id === property.id)?.value;
+
+                return {
+                    propertyId: property.id,
+                    value: buildPropertyValue(property, draft.propertyValues[property.id], savedValue),
+                };
+            }),
         });
     };
 
