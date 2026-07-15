@@ -4,6 +4,7 @@ export const PROPERTY_TYPES = [
     { value: 'number', label: '숫자' },
     { value: 'number_list', label: '숫자목록' },
     { value: 'check_list', label: '체크목록' },
+    { value: 'goal', label: '목표' },
     { value: 'date', label: '날짜' },
     { value: 'period', label: '기간' },
     { value: 'select', label: '선택' },
@@ -91,6 +92,10 @@ export const PROPERTY_ICON_PRESETS = [
     {
         label: '잎',
         icon: makePresetIcon('<path d="M20.8 3.2C11 3.4 4.5 8.4 4.5 15.1c0 3.2 2.1 5.2 5.2 5.2 6.8 0 10.6-7.3 11.1-17.1ZM6.2 19.6C8.8 14.8 12.5 11 17.8 7.5 14.6 11.6 10.8 15.7 6.2 19.6Z"/>'),
+    },
+    {
+        label: '다이어트',
+        icon: makePresetIcon('<path d="M2.8 8.6h2.7v6.8H2.8a1 1 0 0 1-1-1V9.6a1 1 0 0 1 1-1Zm3.7-1.8h2.7v10.4H6.5V6.8Zm3.8 4h3.4v2.4h-3.4v-2.4Zm4.5-4h2.7v10.4h-2.7V6.8Zm3.7 1.8h2.7a1 1 0 0 1 1 1v4.8a1 1 0 0 1-1 1h-2.7V8.6Z"/>'),
     },
     {
         label: '웃음',

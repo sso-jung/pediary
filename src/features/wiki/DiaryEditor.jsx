@@ -9,6 +9,7 @@ import {
     useDiaryPropertyValues,
     useDiaryPropertyValuesByPropertyIds,
 } from './hooks/useDiaryPropertyValues';
+import { useDiaryGoals } from './hooks/useDiaryGoals';
 import { useSaveDiary } from './hooks/useSaveDiary';
 import { useAllDocuments } from './hooks/useAllDocuments';
 import { useCategories } from './hooks/useCategories';
@@ -47,6 +48,7 @@ function getInitialPropertyValue(property) {
     const value = property?.default_value;
     if (!value) {
         if (property.type === 'random_pick') return { option: null, text: '' };
+        if (property.type === 'goal') return { items: [] };
         if (property.type === 'multi_select') return [];
         if (property.type === 'select') return null;
         return '';
@@ -124,6 +126,19 @@ function getValueForInput(property, savedValues) {
         };
     }
 
+    if (property.type === 'goal') {
+        return {
+            goalSetId: saved.goalSetId ?? saved.goal_set_id ?? null,
+            items: Array.isArray(saved.items)
+                ? saved.items.map((item) => ({
+                    id: item.id ?? null,
+                    name: String(item.name || '').trim(),
+                    checked: !!item.checked,
+                }))
+                : [],
+        };
+    }
+
     if (property.type === 'number_list') {
         return Array.isArray(saved.numbers)
             ? saved.numbers.map((item) => item ?? '').join('\n')
@@ -185,6 +200,19 @@ function buildPropertyValue(property, rawValue, savedValue = null) {
         };
     }
 
+    if (property.type === 'goal') {
+        return {
+            goalSetId: rawValue?.goalSetId ?? rawValue?.goal_set_id ?? null,
+            items: Array.isArray(rawValue?.items)
+                ? rawValue.items.map((item) => ({
+                    id: item.id ?? null,
+                    name: String(item.name || '').trim(),
+                    checked: !!item.checked,
+                }))
+                : [],
+        };
+    }
+
     if (property.type === 'number_list') {
         return {
             numbers: String(rawValue || '')
@@ -243,6 +271,10 @@ function hasPropertyValue(property, rawValue) {
 
     if (property.type === 'random_pick') {
         return String(rawValue?.text || '').trim() !== '';
+    }
+
+    if (property.type === 'goal') {
+        return Array.isArray(rawValue?.items) && rawValue.items.some((item) => !!item.checked);
     }
 
     if (property.type === 'check_list') {
@@ -912,6 +944,63 @@ function deleteCheckItem(value, index) {
     return items.length > 0 ? items : [{ checked: false, text: '' }];
 }
 
+function sameGoalItem(a, b) {
+    if (a?.id !== null && a?.id !== undefined && b?.id !== null && b?.id !== undefined) {
+        return String(a.id) === String(b.id);
+    }
+
+    return String(a?.name || '').trim().toLowerCase() === String(b?.name || '').trim().toLowerCase();
+}
+
+function findActiveGoalSet(goalSets = [], diaryDate) {
+    if (!diaryDate) return null;
+
+    return [...(goalSets || [])]
+        .filter((goalSet) =>
+            String(goalSet.start_date || '').localeCompare(diaryDate) <= 0 &&
+            String(goalSet.end_date || '').localeCompare(diaryDate) >= 0,
+        )
+        .sort(
+            (a, b) =>
+                String(b.start_date || '').localeCompare(String(a.start_date || '')) ||
+                String(a.end_date || '').localeCompare(String(b.end_date || '')) ||
+                (b.id ?? 0) - (a.id ?? 0),
+        )[0] || null;
+}
+
+function getGoalItems(goalSet, value = {}) {
+    const savedItems = Array.isArray(value?.items) ? value.items : [];
+
+    return [...(goalSet?.diary_goal_items || [])]
+        .sort((a, b) =>
+            (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
+            (a.id ?? 0) - (b.id ?? 0),
+        )
+        .map((goalItem) => {
+            const savedItem = savedItems.find((item) => sameGoalItem(goalItem, item));
+
+            return {
+                id: goalItem.id,
+                name: String(goalItem.name || '').trim(),
+                checked: !!savedItem?.checked,
+            };
+        })
+        .filter((item) => item.name);
+}
+
+function updateGoalItem(value, goalSet, index, checked) {
+    const items = getGoalItems(goalSet, value);
+    items[index] = {
+        ...items[index],
+        checked,
+    };
+
+    return {
+        goalSetId: goalSet?.id ?? null,
+        items,
+    };
+}
+
 function ListActionButton({ type, onClick, disabled }) {
     return (
         <button
@@ -952,6 +1041,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
         open ? diaryDate : null,
     );
     const { data: propertyOptions, isLoading: optionsLoading } = useDiaryPropertyOptions();
+    const { data: goalSets, isLoading: goalSetsLoading } = useDiaryGoals(open);
     const randomPickPropertyIds = useMemo(
         () => (properties || [])
             .filter((property) => property.type === 'random_pick')
@@ -973,6 +1063,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
     const [isCollapsedPropertiesOpen, setIsCollapsedPropertiesOpen] = useState(false);
     const [forceVisiblePropertyIds, setForceVisiblePropertyIds] = useState(() => new Set());
     const [forceCollapsedPropertyIds, setForceCollapsedPropertyIds] = useState(() => new Set());
+    const [expandedGoalPropertyIds, setExpandedGoalPropertyIds] = useState(() => new Set());
 
     const saveTimerRef = useRef(null);
     const latestDraftRef = useRef({
@@ -1008,7 +1099,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
         handleNavigateLink(href);
     }, [handleNavigateLink]);
 
-    const loading = isLoading || valuesLoading || layoutLoading || optionsLoading || randomPickValuesLoading;
+    const loading = isLoading || valuesLoading || layoutLoading || optionsLoading || randomPickValuesLoading || goalSetsLoading;
     const linkCandidates = useMemo(() => buildDiaryLinkCandidates(allDocs || []), [allDocs]);
     const visibleProperties = getVisibleProperties(
         properties || [],
@@ -1027,6 +1118,16 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
 
         return map;
     }, [propertyOptions]);
+    const goalSetsByPropertyId = useMemo(() => {
+        const map = new Map();
+
+        (goalSets || []).forEach((goalSet) => {
+            const propertyId = goalSet.property_id;
+            map.set(propertyId, [...(map.get(propertyId) || []), goalSet]);
+        });
+
+        return map;
+    }, [goalSets]);
     const collapsedProperties = getCollapsedProperties(
         properties || [],
         layout || [],
@@ -1036,6 +1137,8 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
     );
 
     useEffect(() => {
+        setExpandedGoalPropertyIds(new Set());
+
         if (!open) {
             hydratedRef.current = false;
             dirtyRef.current = false;
@@ -1072,6 +1175,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
         if (loading) return;
         if (!properties || !savedPropertyValues) return;
         if (!propertyOptions) return;
+        if (!goalSets) return;
         if (randomPickPropertyIds.length > 0 && !randomPickPropertyValues) return;
         if (hydratedRef.current) return;
 
@@ -1128,6 +1232,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
         properties,
         propertyOptions,
         savedPropertyValues,
+        goalSets,
         randomPickPropertyIds.length,
         randomPickPropertyValues,
         optionsByPropertyId,
@@ -1510,6 +1615,89 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
                             />
                         </div>
                     ))}
+                </div>
+            );
+        }
+
+        if (property.type === 'goal') {
+            const value = propertyValues[property.id] || { items: [] };
+            const goalSet = findActiveGoalSet(goalSetsByPropertyId.get(property.id) || [], diaryDate);
+            const items = getGoalItems(goalSet, value);
+            const isExpanded = expandedGoalPropertyIds.has(property.id);
+            const checkedCount = items.filter((item) => item.checked).length;
+            const toggleExpanded = () => {
+                setExpandedGoalPropertyIds((prev) => {
+                    const next = new Set(prev);
+
+                    if (next.has(property.id)) {
+                        next.delete(property.id);
+                    } else {
+                        next.add(property.id);
+                    }
+
+                    return next;
+                });
+            };
+
+            return (
+                <div className="space-y-1">
+                    <button
+                        type="button"
+                        className="flex min-h-7 w-full items-center justify-between gap-2 rounded-md px-2 py-1 text-left text-xs transition hover:bg-[rgba(127,127,127,0.08)]"
+                        onClick={toggleExpanded}
+                    >
+                        <span className="min-w-0 truncate font-medium text-[var(--color-text-main)]">
+                            {goalSet?.name || '이 기간에 세운 목표가 없어.'}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-[var(--color-text-muted)]">
+                            {items.length > 0 && (
+                                <span>{checkedCount}/{items.length}</span>
+                            )}
+                            <span className={isExpanded ? 'rotate-180 transition' : 'transition'}>
+                                ▾
+                            </span>
+                        </span>
+                    </button>
+
+                    {isExpanded && (
+                        <div className="space-y-1">
+                            {items.map((item, index) => (
+                                <label key={`${item.id ?? item.name}-${index}`} className="diary-editor-check-row flex items-center gap-1.5">
+                                    <span className="relative flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center">
+                                        <input
+                                            type="checkbox"
+                                            className="peer sr-only"
+                                            checked={!!item.checked}
+                                            onChange={(e) =>
+                                                handleChangePropertyValue(
+                                                    property.id,
+                                                    updateGoalItem(value, goalSet, index, e.target.checked),
+                                                )
+                                            }
+                                            disabled={loading}
+                                        />
+                                        <span className="diary-editor-check-box flex h-4 w-4 items-center justify-center rounded border border-border-subtle bg-[var(--color-page-surface)] text-white transition peer-checked:border-[var(--color-accent)] peer-checked:bg-[var(--color-accent)] [&>svg]:peer-checked:opacity-100">
+                                            <svg
+                                                viewBox="0 0 16 16"
+                                                className="h-3 w-3 opacity-0 transition"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2.2"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                aria-hidden="true"
+                                            >
+                                                <path d="M3.5 8.5 6.5 11 12.5 5"/>
+                                            </svg>
+                                        </span>
+                                    </span>
+                                    <span className="min-w-0 break-words text-xs text-[var(--color-text-main)]">
+                                        {item.name}
+                                    </span>
+                                </label>
+                            ))}
+                        </div>
+                    )}
                 </div>
             );
         }

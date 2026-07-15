@@ -35,12 +35,23 @@ function getColorInputValue(color, fallback) {
 export default function PropertyOptionsDialog({
                                                   property,
                                                   options = [],
+                                                  goalSets = [],
                                                   onCreate,
                                                   onUpdate,
                                                   onDelete,
+                                                  onCreateGoalSet,
+                                                  onUpdateGoalSet,
+                                                  onDeleteGoalSet,
+                                                  onCreateGoalItem,
+                                                  onUpdateGoalItem,
+                                                  onDeleteGoalItem,
                                                   onClose,
                                               }) {
     const [newOptionName, setNewOptionName] = useState('');
+    const [newGoalSetName, setNewGoalSetName] = useState('');
+    const [newGoalStartDate, setNewGoalStartDate] = useState('');
+    const [newGoalEndDate, setNewGoalEndDate] = useState('');
+    const [newGoalItemNames, setNewGoalItemNames] = useState({});
     const [optionNames, setOptionNames] = useState({});
     const [editingOptionId, setEditingOptionId] = useState(null);
 
@@ -65,8 +76,15 @@ export default function PropertyOptionsDialog({
 
     if (!property) return null;
 
+    const isGoalProperty = property.type === 'goal';
     const sortedOptions = [...options].sort(
         (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || (a.id ?? 0) - (b.id ?? 0),
+    );
+    const sortedGoalSets = [...(goalSets || [])].sort(
+        (a, b) =>
+            String(b.start_date || '').localeCompare(String(a.start_date || '')) ||
+            (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
+            (a.id ?? 0) - (b.id ?? 0),
     );
 
     const handleCreate = async () => {
@@ -90,7 +108,40 @@ export default function PropertyOptionsDialog({
     const editingOptionName = editingOption
         ? optionNames[editingOption.id] ?? editingOption.name ?? ''
         : '';
-    const isRandomPickProperty = property.type === 'random_pick';
+    const isListOptionProperty = property.type === 'random_pick';
+
+    const handleCreateGoalSet = async () => {
+        const name = String(newGoalSetName || '').trim();
+        if (!name || !newGoalStartDate || !newGoalEndDate) return;
+
+        await onCreateGoalSet?.({
+            propertyId: property.id,
+            name,
+            startDate: newGoalStartDate,
+            endDate: newGoalEndDate,
+            sortOrder: sortedGoalSets.length,
+        });
+
+        setNewGoalSetName('');
+        setNewGoalStartDate('');
+        setNewGoalEndDate('');
+    };
+
+    const handleCreateGoalItem = async (goalSet) => {
+        const name = String(newGoalItemNames[goalSet.id] || '').trim();
+        if (!name) return;
+
+        await onCreateGoalItem?.({
+            goalSetId: goalSet.id,
+            name,
+            sortOrder: goalSet.diary_goal_items?.length || 0,
+        });
+
+        setNewGoalItemNames((prev) => ({
+            ...prev,
+            [goalSet.id]: '',
+        }));
+    };
 
     const saveOptionName = (option, nameValue) => {
         const name = String(nameValue || '').trim();
@@ -110,6 +161,174 @@ export default function PropertyOptionsDialog({
             name,
         });
     };
+
+    if (isGoalProperty) {
+        return createPortal(
+            <div
+                className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20"
+                onMouseDown={(e) => {
+                    e.stopPropagation();
+                    if (e.target === e.currentTarget) {
+                        onClose?.();
+                    }
+                }}
+            >
+                <div
+                    className="property-options-dialog ui-dialog flex max-h-[min(760px,calc(100vh-32px))] w-[min(640px,calc(100vw-32px))] flex-col rounded-2xl p-4"
+                    onMouseDown={(e) => e.stopPropagation()}
+                >
+                    <div className="mb-3">
+                        <p className="text-sm font-semibold text-[var(--color-text-main)]">
+                            목표 관리
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-[var(--color-text-muted)]">
+                            {property.name}
+                        </p>
+                    </div>
+
+                    <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                        <div className="space-y-2">
+                            {sortedGoalSets.map((goalSet) => (
+                                <div key={goalSet.id} className="rounded-lg border border-border-subtle p-2">
+                                    <div className="grid grid-cols-[minmax(0,1fr)_118px_118px_auto] gap-1.5">
+                                        <input
+                                            className="ui-input !h-8 !rounded-md !px-2 !py-0 text-xs"
+                                            defaultValue={goalSet.name || ''}
+                                            onBlur={(e) =>
+                                                onUpdateGoalSet?.({
+                                                    goalSetId: goalSet.id,
+                                                    name: e.target.value,
+                                                })
+                                            }
+                                        />
+                                        <input
+                                            type="date"
+                                            className="ui-input !h-8 !rounded-md !px-2 !py-0 text-xs"
+                                            defaultValue={goalSet.start_date || ''}
+                                            onBlur={(e) =>
+                                                onUpdateGoalSet?.({
+                                                    goalSetId: goalSet.id,
+                                                    startDate: e.target.value,
+                                                })
+                                            }
+                                        />
+                                        <input
+                                            type="date"
+                                            className="ui-input !h-8 !rounded-md !px-2 !py-0 text-xs"
+                                            defaultValue={goalSet.end_date || ''}
+                                            onBlur={(e) =>
+                                                onUpdateGoalSet?.({
+                                                    goalSetId: goalSet.id,
+                                                    endDate: e.target.value,
+                                                })
+                                            }
+                                        />
+                                        <button
+                                            type="button"
+                                            className="h-8 shrink-0 rounded px-2 text-[11px] font-medium text-red-500 transition hover:bg-red-500/10"
+                                            onClick={() => {
+                                                if (window.confirm('이 목표 기간을 삭제할까?')) {
+                                                    onDeleteGoalSet?.({ goalSetId: goalSet.id });
+                                                }
+                                            }}
+                                        >
+                                            삭제
+                                        </button>
+                                    </div>
+
+                                    <div className="mt-2 space-y-1">
+                                        {(goalSet.diary_goal_items || []).map((item) => (
+                                            <div key={item.id} className="flex items-center gap-1.5">
+                                                <input
+                                                    className="ui-input !h-7 !rounded-md !px-2 !py-0 text-xs"
+                                                    defaultValue={item.name || ''}
+                                                    onBlur={(e) =>
+                                                        onUpdateGoalItem?.({
+                                                            goalItemId: item.id,
+                                                            name: e.target.value,
+                                                        })
+                                                    }
+                                                />
+                                                <button
+                                                    type="button"
+                                                    className="h-7 shrink-0 rounded px-2 text-[11px] font-medium text-red-500 transition hover:bg-red-500/10"
+                                                    onClick={() => onDeleteGoalItem?.({ goalItemId: item.id })}
+                                                >
+                                                    삭제
+                                                </button>
+                                            </div>
+                                        ))}
+
+                                        <div className="flex items-center gap-1.5">
+                                            <input
+                                                className="ui-input !h-7 !rounded-md !px-2 !py-0 text-xs"
+                                                value={newGoalItemNames[goalSet.id] || ''}
+                                                onChange={(e) =>
+                                                    setNewGoalItemNames((prev) => ({
+                                                        ...prev,
+                                                        [goalSet.id]: e.target.value,
+                                                    }))
+                                                }
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        handleCreateGoalItem(goalSet);
+                                                    }
+                                                }}
+                                                placeholder="새 목표항목"
+                                            />
+                                            <button
+                                                type="button"
+                                                className="h-7 shrink-0 rounded-md px-2 text-[11px] font-medium transition hover:bg-[rgba(127,127,127,0.08)]"
+                                                onClick={() => handleCreateGoalItem(goalSet)}
+                                            >
+                                                추가
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+
+                            {sortedGoalSets.length === 0 && (
+                                <p className="px-1 py-4 text-xs text-[var(--color-text-muted)]">
+                                    아직 목표 기간이 없어.
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="property-options-divider mt-3 grid grid-cols-[minmax(0,1fr)_118px_118px_auto] gap-1.5 border-t border-border-subtle pt-3">
+                        <input
+                            className="ui-input !h-8 !rounded-md !px-2 !py-0 text-xs"
+                            value={newGoalSetName}
+                            onChange={(e) => setNewGoalSetName(e.target.value)}
+                            placeholder="목표 기간명"
+                        />
+                        <input
+                            type="date"
+                            className="ui-input !h-8 !rounded-md !px-2 !py-0 text-xs"
+                            value={newGoalStartDate}
+                            onChange={(e) => setNewGoalStartDate(e.target.value)}
+                        />
+                        <input
+                            type="date"
+                            className="ui-input !h-8 !rounded-md !px-2 !py-0 text-xs"
+                            value={newGoalEndDate}
+                            onChange={(e) => setNewGoalEndDate(e.target.value)}
+                        />
+                        <button
+                            type="button"
+                            className="h-8 shrink-0 rounded-md px-3 text-xs font-medium transition hover:bg-[rgba(127,127,127,0.08)]"
+                            onClick={handleCreateGoalSet}
+                        >
+                            추가
+                        </button>
+                    </div>
+                </div>
+            </div>,
+            document.body,
+        );
+    }
 
     return createPortal(
         <div
@@ -134,8 +353,8 @@ export default function PropertyOptionsDialog({
                     </p>
                 </div>
 
-                <div className={isRandomPickProperty ? "max-h-[48vh] overflow-y-auto pr-1" : "max-h-[32vh] overflow-y-auto pr-1"}>
-                    {isRandomPickProperty ? (
+                <div className={isListOptionProperty ? "max-h-[48vh] overflow-y-auto pr-1" : "max-h-[32vh] overflow-y-auto pr-1"}>
+                    {isListOptionProperty ? (
                         <div className="space-y-0.5">
                             {sortedOptions.map((option) => {
                                 const draftName = optionNames[option.id] ?? option.name ?? '';
@@ -232,7 +451,7 @@ export default function PropertyOptionsDialog({
                     )}
                 </div>
 
-                {editingOption && !isRandomPickProperty && (
+                {editingOption && !isListOptionProperty && (
                     <div className="property-options-panel mt-3 rounded-lg border border-border-subtle px-3 py-2">
                         <div className="mb-2 flex items-center justify-between gap-2">
                             <OptionBadge
@@ -335,7 +554,7 @@ export default function PropertyOptionsDialog({
                                 handleCreate();
                             }
                         }}
-                        placeholder={isRandomPickProperty ? '새 항목' : '새 옵션'}
+                        placeholder={property.type === 'random_pick' ? '새 항목' : '새 옵션'}
                     />
 
                     <button

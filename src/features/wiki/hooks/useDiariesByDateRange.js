@@ -11,7 +11,7 @@ export function useDiariesByDateRange(startDate, endDate, enabled = true, proper
         queryKey: ['diaries', userId, startDate, endDate, propertyIdKey],
         queryFn: () => fetchDiariesByDateRange({ userId, startDate, endDate, propertyIds }),
         enabled: enabled && !!userId && !!startDate && !!endDate,
-        staleTime: 1000 * 60,
+        staleTime: 1000 * 60 * 30,
         placeholderData: keepPreviousData,
     });
 }

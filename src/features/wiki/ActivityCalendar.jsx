@@ -20,6 +20,7 @@ import {
     normalizeOptionValues,
 } from './DiarySelectUtils';
 import { useDiaryPropertyOptions } from './hooks/useDiaryPropertyOptions';
+import { useDiaryGoals } from './hooks/useDiaryGoals';
 import { parseInternalLinks } from '../../lib/internalLinkParser';
 import { useWikiLinkTooltip, WikiLinkTooltip } from './WikiLinkTooltip';
 import { useAuthStore } from '../../store/authStore';
@@ -31,6 +32,7 @@ const VIEW_LABEL = {
     timeline: 'TIMELINE',
     patchwork: 'PATCHWORK',
     strata: 'STRATA',
+    gradient: 'GRADIENT',
 };
 
 const TIMELINE_GROUP_GAP_DAYS = 31;
@@ -50,7 +52,7 @@ const PATCHWORK_FALLBACK_COLORS = [
     '#f97316',
 ];
 const CALENDAR_VIEW_STORAGE_KEY_PREFIX = 'pediary.diaryCalendar.viewState';
-const CALENDAR_VIEWS = ['weekly', 'monthly', 'timeline', 'patchwork', 'strata'];
+const CALENDAR_VIEWS = ['weekly', 'monthly', 'timeline', 'patchwork', 'strata', 'gradient'];
 const MOBILE_MEDIA_QUERY = '(max-width: 639px)';
 const MOBILE_TIMELINE_MONTH_COUNT = 4;
 const MOBILE_EDGE_TAP_RATIO = 0.24;
@@ -120,6 +122,84 @@ function isInternalLinkClick(e) {
     return !!getInternalLinkHref(e.target);
 }
 
+function sameGoalItem(a, b) {
+    if (a?.id !== null && a?.id !== undefined && b?.id !== null && b?.id !== undefined) {
+        return String(a.id) === String(b.id);
+    }
+
+    return String(a?.name || '').trim().toLowerCase() === String(b?.name || '').trim().toLowerCase();
+}
+
+function findActiveGoalSet(goalSets = [], diaryDate) {
+    if (!diaryDate) return null;
+
+    return [...(goalSets || [])]
+        .filter((goalSet) =>
+            String(goalSet.start_date || '').localeCompare(diaryDate) <= 0 &&
+            String(goalSet.end_date || '').localeCompare(diaryDate) >= 0,
+        )
+        .sort(
+            (a, b) =>
+                String(b.start_date || '').localeCompare(String(a.start_date || '')) ||
+                String(a.end_date || '').localeCompare(String(b.end_date || '')) ||
+                (b.id ?? 0) - (a.id ?? 0),
+        )[0] || null;
+}
+
+function getGoalProgress(value, goalSet) {
+    if (!goalSet) {
+        return {
+            type: 'goal',
+            active: false,
+            checkedCount: 0,
+            total: 0,
+            percent: null,
+        };
+    }
+
+    const options = goalSet.diary_goal_items || [];
+    const savedItems = Array.isArray(value?.items) ? value.items : [];
+    const total = options.length;
+
+    if (total === 0) {
+        return {
+            type: 'goal',
+            active: true,
+            checkedCount: 0,
+            total: 0,
+            percent: 0,
+        };
+    }
+
+    const checkedCount = options.filter((option) => {
+        const savedItem = savedItems.find((item) => sameGoalItem(option, item));
+        return !!savedItem?.checked;
+    }).length;
+
+    return {
+        type: 'goal',
+        active: true,
+        checkedCount,
+        total,
+        percent: (checkedCount / total) * 100,
+    };
+}
+
+function getGoalProgressColor(percent) {
+    const safePercent = Math.max(0, Math.min(100, Number(percent) || 0));
+
+    if (safePercent <= 10) return '#D61921';
+    if (safePercent <= 20) return '#E94A27';
+    if (safePercent <= 30) return '#FF7F39';
+    if (safePercent <= 40) return '#FF9B35';
+    if (safePercent <= 50) return '#ffa90c';
+    if (safePercent <= 60) return '#ffc000';
+    if (safePercent <= 70) return '#a2cb25';
+    if (safePercent <= 80) return '#5eb910';
+    if (safePercent <= 90) return '#229f25';
+    return '#229f25';
+}
+
 function getPropertyValueText(property, value) {
     if (!value) return '';
 
@@ -160,13 +240,24 @@ function getPropertyValueText(property, value) {
             : '';
     }
 
+    if (property?.type === 'goal') {
+        return '';
+    }
+
     if (property?.type === 'number') return value.number ?? '';
     if (property?.type === 'date') return value.date || '';
     return value.text || '';
 }
 
-function getPropertyValueLines(property, value, optionMetaMap) {
-    if (!value) return [];
+function getPropertyValueLines(property, value, optionMetaMap, goalSets, diaryDate) {
+    if (!value && property?.type !== 'goal') return [];
+
+    if (property?.type === 'goal') {
+        const goalSet = findActiveGoalSet(goalSets, diaryDate);
+        if (!goalSet) return [];
+
+        return [getGoalProgress(value, goalSet)];
+    }
 
     if (property?.type === 'select') {
         const option = mergeLatestOptionMeta(value.option, optionMetaMap);
@@ -603,6 +694,82 @@ function buildPatchworkDateCells({
     );
 }
 
+function buildGradientDateCells({
+    rangeStartKey,
+    rangeEndKey,
+    diaryValueMapByDate = new Map(),
+    viewItems = [],
+    goalSetsByPropertyId = new Map(),
+}) {
+    const cellMap = new Map();
+    let date = parseDateKey(rangeStartKey);
+    const endDate = parseDateKey(rangeEndKey);
+    const todayKey = getDateKey(new Date());
+
+    while (date && endDate && date < endDate) {
+        const dateKey = getDateKey(date);
+        const entries = [];
+        let tooltipTone = null;
+
+        if (String(dateKey).localeCompare(todayKey) > 0) {
+            date = addDays(date, 1);
+            continue;
+        }
+
+        viewItems.forEach((item, index) => {
+            const goalSet = findActiveGoalSet(goalSetsByPropertyId.get(item.propertyId) || [], dateKey);
+            if (!goalSet) return;
+
+            const value = diaryValueMapByDate.get(dateKey)?.get(item.propertyId);
+            const progress = getGoalProgress(value, goalSet);
+            const percentText = `${progress.percent.toFixed(2)}%`;
+            const color = getGoalProgressColor(progress.percent);
+            const savedItems = Array.isArray(value?.items) ? value.items : [];
+            const goalItems = (goalSet.diary_goal_items || [])
+                .map((goalItem) => {
+                    const savedItem = savedItems.find((savedItem) => sameGoalItem(goalItem, savedItem));
+                    return {
+                        id: goalItem.id,
+                        name: String(goalItem.name || '').trim(),
+                        checked: !!savedItem?.checked,
+                    };
+                })
+                .filter((goalItem) => goalItem.name);
+
+            entries[index] = {
+                propertyId: item.propertyId,
+                property: item.property,
+                propertyName: getPropertyDisplayName(item.property?.name) || '속성명 없음',
+                text: percentText,
+                displayValues: [{ text: percentText }],
+                goalItems,
+                style: {
+                    backgroundColor: color,
+                },
+            };
+
+            if (!tooltipTone) {
+                tooltipTone = {
+                    background: color,
+                    color: 'var(--color-text-main)',
+                };
+            }
+        });
+
+        if (entries.length > 0) {
+            cellMap.set(dateKey, {
+                dateKey,
+                entries,
+                tooltipTone,
+            });
+        }
+
+        date = addDays(date, 1);
+    }
+
+    return cellMap;
+}
+
 function TimelineTooltip({ tooltip }) {
     const tooltipRef = useRef(null);
     const [position, setPosition] = useState(null);
@@ -837,12 +1004,40 @@ function TimelineSegmentBar({ segment, year, timelineWidth, timelineRange, isMob
     );
 }
 
+function GoalProgressBar({ progress }) {
+    const isActive = progress?.active !== false;
+    const percent = Math.max(0, Math.min(100, Number(progress?.percent) || 0));
+    const percentText = isActive ? `${percent.toFixed(2)}%` : '- %';
+    const color = isActive ? getGoalProgressColor(percent) : 'color-mix(in_srgb,var(--color-text-muted)_62%,transparent)';
+
+    return (
+        <span className="flex w-full min-w-0 items-center gap-1.5">
+            <span className="relative h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-[rgba(127,127,127,0.16)]">
+                <span
+                    className="absolute inset-y-0 left-0 rounded-full transition-[width]"
+                    style={{
+                        width: isActive ? `${percent}%` : '100%',
+                        backgroundColor: color,
+                    }}
+                />
+            </span>
+            <span
+                className="w-[44px] shrink-0 text-right text-[10px] font-semibold leading-none"
+                style={{ color }}
+            >
+                {percentText}
+            </span>
+        </span>
+    );
+}
+
 function renderDiaryProperties(
     diary,
     viewItems,
     showTitle = false,
     viewType = 'monthly',
     optionMapByPropertyId = new Map(),
+    goalSetsByPropertyId = new Map(),
     documents = [],
     categories = [],
     className = '',
@@ -857,6 +1052,8 @@ function renderDiaryProperties(
                 item.property,
                 valueMap.get(item.propertyId),
                 optionMapByPropertyId.get(item.propertyId),
+                goalSetsByPropertyId.get(item.propertyId),
+                diary.diary_date,
             ),
         }))
         .filter((item) => item.lines.length > 0);
@@ -920,6 +1117,7 @@ function renderDiaryProperties(
                 const showName = ['icon_name', 'name'].includes(item.displayMode);
                 const isListProperty = ['check_list', 'number_list'].includes(item.property?.type);
                 const isOptionProperty = ['select', 'multi_select'].includes(item.property?.type);
+                const isGoalProperty = item.property?.type === 'goal';
                 const prevSectionId = rows[index - 1]?.property?.section_id ?? null;
                 const currentSectionId = item.property?.section_id ?? null;
                 const hasSectionSeparator = index > 0 && prevSectionId !== currentSectionId;
@@ -970,6 +1168,31 @@ function renderDiaryProperties(
                             </div>
                         )}
 
+                        {isGoalProperty ? (
+                            <div
+                                className={[
+                                    'flex min-w-0 items-center text-[var(--color-text-muted)]',
+                                    propertyTextClass,
+                                    isWeekly ? 'gap-2 pb-[2px]' : 'gap-1.5 pb-[1px]',
+                                ].join(' ')}
+                            >
+                                {showIcon && item.property?.icon && (
+                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                                        <PropertyIcon icon={item.property.icon}/>
+                                    </span>
+                                )}
+
+                                {showName && name && (
+                                    <span className="shrink-0 font-semibold text-[var(--color-text-main)]">
+                                        {name}
+                                    </span>
+                                )}
+
+                                <div className="min-w-0 flex-1">
+                                    <GoalProgressBar progress={item.lines[0]} />
+                                </div>
+                            </div>
+                        ) : (
                         <div
                             className={[
                                 'min-w-0 break-words text-[var(--color-text-muted)]',
@@ -1147,6 +1370,7 @@ function renderDiaryProperties(
                             </div>
                         )}
                         </div>
+                        )}
                     </Fragment>
                 );
             })}
@@ -1526,41 +1750,83 @@ function PatchworkGridRow({ dayKeys, cellMap, propertyCount, isMobileView, isMid
                             {dateText}
                         </div>
                         {cell.entries.filter(Boolean).map((entry) => (
-                            <div key={entry.propertyId} className="flex min-w-0 items-center gap-1.5">
-                                <span
-                                    aria-hidden
-                                    className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center text-[var(--color-text-muted)]"
-                                >
-                                    {entry.property?.icon ? (
-                                        <PropertyIcon icon={entry.property.icon} />
-                                    ) : (
-                                        <span
-                                            className="inline-block h-2 w-2 rounded-full"
-                                            style={{
-                                                backgroundColor: getPatchworkFallbackColor(entry.propertyId),
-                                            }}
-                                        />
-                                    )}
-                                </span>
-                                <span className="shrink-0 text-[11px] font-semibold text-[var(--color-text-main)]">
-                                    {entry.propertyName}
-                                </span>
-                                <span className="shrink-0 text-[var(--color-text-muted)]">:</span>
-                                <span className="flex min-w-0 flex-wrap items-center gap-1">
-                                    {entry.displayValues?.map((display) => (
-                                        display.option ? (
-                                            <OptionBadge
-                                                key={display.text}
-                                                option={display.option}
-                                                compact
-                                            />
+                            <div key={entry.propertyId} className="min-w-0">
+                                <div className="flex min-w-0 items-center gap-1.5">
+                                    <span
+                                        aria-hidden
+                                        className="inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center text-[var(--color-text-muted)]"
+                                    >
+                                        {entry.property?.icon ? (
+                                            <PropertyIcon icon={entry.property.icon} />
                                         ) : (
-                                            <span key={display.text} className="text-[11px] text-[var(--color-text-main)]">
-                                                {display.text}
-                                            </span>
-                                        )
-                                    ))}
-                                </span>
+                                            <span
+                                                className="inline-block h-2 w-2 rounded-full"
+                                                style={{
+                                                    backgroundColor: getPatchworkFallbackColor(entry.propertyId),
+                                                }}
+                                            />
+                                        )}
+                                    </span>
+                                    <span className="shrink-0 text-[11px] font-semibold text-[var(--color-text-main)]">
+                                        {entry.propertyName}
+                                    </span>
+                                    <span className="shrink-0 text-[var(--color-text-muted)]">:</span>
+                                    <span className="flex min-w-0 flex-wrap items-center gap-1">
+                                        {entry.displayValues?.map((display) => (
+                                            display.option ? (
+                                                <OptionBadge
+                                                    key={display.text}
+                                                    option={display.option}
+                                                    compact
+                                                />
+                                            ) : (
+                                                <span key={display.text} className="text-[11px] text-[var(--color-text-main)]">
+                                                    {display.text}
+                                                </span>
+                                            )
+                                        ))}
+                                    </span>
+                                </div>
+                                {entry.goalItems?.length > 0 && (
+                                    <div className="mt-1 space-y-0.5 pl-5">
+                                        {entry.goalItems.map((goalItem) => (
+                                            <div
+                                                key={goalItem.id || goalItem.name}
+                                                className="flex min-w-0 items-center gap-1.5 text-[11px]"
+                                            >
+                                                <span
+                                                    aria-hidden
+                                                    className={[
+                                                        'inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-[3px] border',
+                                                        goalItem.checked
+                                                            ? 'border-[var(--color-accent)] bg-[var(--color-accent)] text-white'
+                                                            : 'border-border-strong bg-[var(--color-page-surface)] text-transparent',
+                                                    ].join(' ')}
+                                                >
+                                                    <svg viewBox="0 0 12 12" className="h-2.5 w-2.5" fill="none">
+                                                        <path
+                                                            d="M3 6.1 5 8l4-4"
+                                                            stroke="currentColor"
+                                                            strokeWidth="1.8"
+                                                            strokeLinecap="round"
+                                                            strokeLinejoin="round"
+                                                        />
+                                                    </svg>
+                                                </span>
+                                                <span
+                                                    className={[
+                                                        'min-w-0 truncate',
+                                                        goalItem.checked
+                                                            ? 'text-[var(--color-text-main)]'
+                                                            : 'text-[var(--color-text-muted)]',
+                                                    ].join(' ')}
+                                                >
+                                                    {goalItem.name}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -1852,6 +2118,7 @@ export default function ActivityCalendar() {
     const { data: viewLayout } = useDiaryViewLayout(calendarView);
     const { data: viewSetting } = useDiaryViewSetting(calendarView);
     const { data: propertyOptions } = useDiaryPropertyOptions();
+    const { data: goalSets } = useDiaryGoals();
     const [timelineTooltip, setTimelineTooltip] = useState(null);
     const [timelineLinkDialog, setTimelineLinkDialog] = useState(null);
     const [timelineLinkInput, setTimelineLinkInput] = useState('');
@@ -1964,6 +2231,16 @@ export default function ActivityCalendar() {
             ]),
         );
     }, [propertyOptions]);
+    const goalSetsByPropertyId = useMemo(() => {
+        const map = new Map();
+
+        (goalSets || []).forEach((goalSet) => {
+            const propertyId = goalSet.property_id;
+            map.set(propertyId, [...(map.get(propertyId) || []), goalSet]);
+        });
+
+        return map;
+    }, [goalSets]);
 
     const holidayDateSet = new Set((holidays || []).map((holiday) => holiday.holiday_date));
     const isMidnightTheme = theme === 'midnight';
@@ -2035,7 +2312,7 @@ export default function ActivityCalendar() {
             setTimelineStartDate(next);
         }
 
-        if (nextView === 'patchwork' || nextView === 'strata') {
+        if (nextView === 'patchwork' || nextView === 'strata' || nextView === 'gradient') {
             setYear((prev) => prev || today.getFullYear());
         }
 
@@ -2099,7 +2376,7 @@ export default function ActivityCalendar() {
             handleMoveWeek(isMobileView ? -1 : -7);
             return;
         }
-        if (calendarView === 'patchwork' || calendarView === 'strata') {
+        if (calendarView === 'patchwork' || calendarView === 'strata' || calendarView === 'gradient') {
             setYear((y) => y - 1);
             return;
         }
@@ -2119,7 +2396,7 @@ export default function ActivityCalendar() {
             handleMoveWeek(isMobileView ? 1 : 7);
             return;
         }
-        if (calendarView === 'patchwork' || calendarView === 'strata') {
+        if (calendarView === 'patchwork' || calendarView === 'strata' || calendarView === 'gradient') {
             setYear((y) => y + 1);
             return;
         }
@@ -2144,7 +2421,7 @@ export default function ActivityCalendar() {
 
     const handleCalendarTouchStart = (e) => {
         if (!isMobileView) return;
-        if (calendarView !== 'weekly' && calendarView !== 'monthly' && calendarView !== 'timeline' && calendarView !== 'patchwork') return;
+        if (calendarView !== 'weekly' && calendarView !== 'monthly' && calendarView !== 'timeline' && calendarView !== 'patchwork' && calendarView !== 'gradient') return;
 
         const touch = e.touches?.[0];
         if (!touch) return;
@@ -2157,7 +2434,7 @@ export default function ActivityCalendar() {
 
     const handleCalendarTouchEnd = (e) => {
         if (!isMobileView) return;
-        if (calendarView !== 'weekly' && calendarView !== 'monthly' && calendarView !== 'timeline' && calendarView !== 'patchwork') return;
+        if (calendarView !== 'weekly' && calendarView !== 'monthly' && calendarView !== 'timeline' && calendarView !== 'patchwork' && calendarView !== 'gradient') return;
 
         const start = swipeTouchRef.current;
         swipeTouchRef.current = null;
@@ -2198,7 +2475,7 @@ export default function ActivityCalendar() {
 
     const handleCalendarEdgeTapCapture = (e) => {
         if (!isMobileView) return;
-        if (calendarView !== 'monthly' && calendarView !== 'timeline' && calendarView !== 'patchwork') return;
+        if (calendarView !== 'monthly' && calendarView !== 'timeline' && calendarView !== 'patchwork' && calendarView !== 'gradient') return;
         if (swipeBlockClickRef.current) return;
         if (isInternalLinkClick(e)) return;
         if (e.target.closest?.('.diary-timeline-segment')) return;
@@ -2324,7 +2601,7 @@ export default function ActivityCalendar() {
             ? weekStartKey
             : calendarView === 'timeline'
                 ? timelineRange.startKey
-                : calendarView === 'patchwork' || calendarView === 'strata'
+                : calendarView === 'patchwork' || calendarView === 'strata' || calendarView === 'gradient'
                     ? patchworkRange.startKey
                 : getDateKey(visibleWeeks[0][0]);
     const rangeEndKey =
@@ -2332,7 +2609,7 @@ export default function ActivityCalendar() {
             ? weekEndKey
             : calendarView === 'timeline'
                 ? timelineRange.endKey
-                : calendarView === 'patchwork' || calendarView === 'strata'
+                : calendarView === 'patchwork' || calendarView === 'strata' || calendarView === 'gradient'
                     ? patchworkRange.endKey
                 : monthCalendarEndKey;
     const viewItems = useMemo(
@@ -2341,6 +2618,10 @@ export default function ActivityCalendar() {
 
             if (calendarView === 'strata') {
                 return items.filter((item) => item.property?.type === 'random_pick');
+            }
+
+            if (calendarView === 'gradient') {
+                return items.filter((item) => item.property?.type === 'goal');
             }
 
             if (calendarView !== 'timeline' && calendarView !== 'patchwork') return items;
@@ -2356,7 +2637,7 @@ export default function ActivityCalendar() {
     const { data: diaries } = useDiariesByDateRange(
         rangeStartKey,
         rangeEndKey,
-        calendarView === 'weekly' || calendarView === 'monthly' || calendarView === 'timeline' || calendarView === 'patchwork' || calendarView === 'strata',
+        calendarView === 'weekly' || calendarView === 'monthly' || calendarView === 'timeline' || calendarView === 'patchwork' || calendarView === 'strata' || calendarView === 'gradient',
         visiblePropertyIds,
     );
     const hasDiaryInternalLinks = (diaries || []).some(hasInternalLinkValue);
@@ -2399,6 +2680,17 @@ export default function ActivityCalendar() {
             isMidnightTheme,
         });
     }, [calendarView, diaries, diaryValueMapByDate, isMidnightTheme, optionMapByPropertyId, viewItems]);
+    const gradientCellsByDate = useMemo(() => {
+        if (calendarView !== 'gradient') return new Map();
+
+        return buildGradientDateCells({
+            rangeStartKey: patchworkRange.startKey,
+            rangeEndKey: patchworkRange.endKey,
+            diaryValueMapByDate,
+            viewItems,
+            goalSetsByPropertyId,
+        });
+    }, [calendarView, diaryValueMapByDate, goalSetsByPropertyId, patchworkRange.endKey, patchworkRange.startKey, viewItems]);
     const activeStrataPropertyId = useMemo(() => {
         if (calendarView !== 'strata') return null;
         if (viewItems.length === 0) return null;
@@ -2479,6 +2771,8 @@ export default function ActivityCalendar() {
                                             ? 'DAILY'
                                             : view === 'patchwork'
                                                 ? 'PATCH'
+                                                : view === 'gradient'
+                                                    ? 'GRAD'
                                                 : VIEW_LABEL[view]
                                         : VIEW_LABEL[view]}
                                 </button>
@@ -2557,7 +2851,7 @@ export default function ActivityCalendar() {
                                 >
                                     {calendarView === 'timeline'
                                         ? timelineRangeLabel
-                                        : calendarView === 'patchwork' || calendarView === 'strata'
+                                        : calendarView === 'patchwork' || calendarView === 'strata' || calendarView === 'gradient'
                                             ? `${year}년`
                                             : `${year}년 ${month}월`}
                                 </span>
@@ -2754,7 +3048,7 @@ export default function ActivityCalendar() {
                             documents={allDocs || []}
                             categories={categories || []}
                         />
-                    ) : calendarView === 'patchwork' ? (
+                    ) : calendarView === 'patchwork' || calendarView === 'gradient' ? (
                         <div
                             className="diary-timeline-scroll min-h-0 flex-1 overflow-x-auto pb-2 text-[12px]"
                             onTouchStart={handleCalendarTouchStart}
@@ -2833,7 +3127,7 @@ export default function ActivityCalendar() {
                                                 >
                                                     <PatchworkGridRow
                                                         dayKeys={group.months.flatMap((month) => month.dayKeys)}
-                                                        cellMap={patchworkCellsByDate}
+                                                        cellMap={calendarView === 'gradient' ? gradientCellsByDate : patchworkCellsByDate}
                                                         propertyCount={viewItems.length}
                                                         isMobileView={isMobileView}
                                                         isMidnightTheme={isMidnightTheme}
@@ -2850,7 +3144,9 @@ export default function ActivityCalendar() {
 
                                 {viewItems.length === 0 && (
                                     <p className="px-2 py-5 text-xs ui-dialog-message">
-                                        PATCHWORK에 표시할 속성이 없어.
+                                        {calendarView === 'gradient'
+                                            ? 'GRADIENT에 표시할 목표 속성이 없어.'
+                                            : 'PATCHWORK에 표시할 속성이 없어.'}
                                     </p>
                                 )}
                             </div>
@@ -2927,7 +3223,7 @@ export default function ActivityCalendar() {
                                                 </div>
                                                 {diary ? (
                                                     <div className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-1">
-                                                        {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'weekly', optionMapByPropertyId, allDocs || [], categories || [])}
+                                                        {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'weekly', optionMapByPropertyId, goalSetsByPropertyId, allDocs || [], categories || [])}
                                                     </div>
                                                 ) : (
                                                     <div className="flex flex-1 items-center justify-center text-[12px] text-[var(--color-text-muted)]">
@@ -3012,7 +3308,7 @@ export default function ActivityCalendar() {
                                                                 />
                                                             )}
                                                             <div className="diary-monthly-cell-scroll mt-2 hidden min-h-0 min-w-0 flex-1 overflow-y-auto pr-1 sm:block">
-                                                                {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'monthly', optionMapByPropertyId, allDocs || [], categories || [])}
+                                                                {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'monthly', optionMapByPropertyId, goalSetsByPropertyId, allDocs || [], categories || [])}
                                                             </div>
                                                         </>
                                                     )}
@@ -3060,7 +3356,7 @@ export default function ActivityCalendar() {
                                                 </div>
                                                 {diary && (
                                                     <div className="mt-3 min-h-0 min-w-0 flex-1 overflow-y-auto pr-1">
-                                                        {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'weekly', optionMapByPropertyId, allDocs || [], categories || [])}
+                                                        {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'weekly', optionMapByPropertyId, goalSetsByPropertyId, allDocs || [], categories || [])}
                                                     </div>
                                                 )}
                                             </button>

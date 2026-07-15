@@ -26,6 +26,15 @@ import {
     useDiaryPropertyOptions,
     useUpdateDiaryPropertyOption,
 } from './hooks/useDiaryPropertyOptions';
+import {
+    useCreateDiaryGoalItem,
+    useCreateDiaryGoalSet,
+    useDeleteDiaryGoalItem,
+    useDeleteDiaryGoalSet,
+    useDiaryGoals,
+    useUpdateDiaryGoalItem,
+    useUpdateDiaryGoalSet,
+} from './hooks/useDiaryGoals';
 
 const AUTO_SAVE_DELAY = 500;
 const VISIBILITY_OPTIONS = [
@@ -39,6 +48,7 @@ const VIEW_OPTIONS = [
     { value: 'timeline', label: 'TIMELINE' },
     { value: 'patchwork', label: 'PATCHWORK' },
     { value: 'strata', label: 'STRATA' },
+    { value: 'gradient', label: 'GRADIENT' },
 ];
 const SETTINGS_TABS = [
     { value: 'properties', label: '속성 편집' },
@@ -47,6 +57,7 @@ const SETTINGS_TABS = [
     { value: 'timeline', label: 'TIMELINE' },
     { value: 'patchwork', label: 'PATCHWORK' },
     { value: 'strata', label: 'STRATA' },
+    { value: 'gradient', label: 'GRADIENT' },
 ];
 const VIEW_VISIBILITY_OPTIONS = [
     { value: 'visible', label: '내용 표시' },
@@ -611,12 +622,20 @@ export default function DiarySettings({ open, onClose }) {
     const { data: timelineViewLayout } = useDiaryViewLayout('timeline');
     const { data: patchworkViewLayout } = useDiaryViewLayout('patchwork');
     const { data: strataViewLayout } = useDiaryViewLayout('strata');
+    const { data: gradientViewLayout } = useDiaryViewLayout('gradient');
     const { data: weeklyViewSetting } = useDiaryViewSetting('weekly');
     const { data: monthlyViewSetting } = useDiaryViewSetting('monthly');
     const { data: propertyOptions } = useDiaryPropertyOptions();
+    const { data: goalSets } = useDiaryGoals(open);
     const createPropertyOption = useCreateDiaryPropertyOption();
     const updatePropertyOption = useUpdateDiaryPropertyOption();
     const deletePropertyOption = useDeleteDiaryPropertyOption();
+    const createGoalSet = useCreateDiaryGoalSet();
+    const updateGoalSet = useUpdateDiaryGoalSet();
+    const deleteGoalSet = useDeleteDiaryGoalSet();
+    const createGoalItem = useCreateDiaryGoalItem();
+    const updateGoalItem = useUpdateDiaryGoalItem();
+    const deleteGoalItem = useDeleteDiaryGoalItem();
     const createProperty = useCreateDiaryProperty();
     const updateProperty = useUpdateDiaryProperty();
     const deleteProperty = useDeleteDiaryProperty();
@@ -630,6 +649,7 @@ export default function DiarySettings({ open, onClose }) {
     const updateTimelineViewLayout = useUpdateDiaryViewLayout('timeline');
     const updatePatchworkViewLayout = useUpdateDiaryViewLayout('patchwork');
     const updateStrataViewLayout = useUpdateDiaryViewLayout('strata');
+    const updateGradientViewLayout = useUpdateDiaryViewLayout('gradient');
     const updateWeeklyViewSetting = useUpdateDiaryViewSetting('weekly');
     const updateMonthlyViewSetting = useUpdateDiaryViewSetting('monthly');
 
@@ -859,6 +879,50 @@ export default function DiarySettings({ open, onClose }) {
         if (!window.confirm('이 옵션을 삭제할까? 기존 다이어리 기록에서는 삭제되지 않아.')) return;
 
         return deletePropertyOption.mutateAsync({ optionId });
+    };
+
+    const handleCreateGoalSet = async ({ propertyId, name, startDate, endDate, sortOrder }) => {
+        return createGoalSet.mutateAsync({
+            propertyId,
+            name,
+            startDate,
+            endDate,
+            sortOrder,
+        });
+    };
+
+    const handleUpdateGoalSet = async ({ goalSetId, name, startDate, endDate, sortOrder }) => {
+        return updateGoalSet.mutateAsync({
+            goalSetId,
+            name,
+            startDate,
+            endDate,
+            sortOrder,
+        });
+    };
+
+    const handleDeleteGoalSet = async ({ goalSetId }) => {
+        return deleteGoalSet.mutateAsync({ goalSetId });
+    };
+
+    const handleCreateGoalItem = async ({ goalSetId, name, sortOrder }) => {
+        return createGoalItem.mutateAsync({
+            goalSetId,
+            name,
+            sortOrder,
+        });
+    };
+
+    const handleUpdateGoalItem = async ({ goalItemId, name, sortOrder }) => {
+        return updateGoalItem.mutateAsync({
+            goalItemId,
+            name,
+            sortOrder,
+        });
+    };
+
+    const handleDeleteGoalItem = async ({ goalItemId }) => {
+        return deleteGoalItem.mutateAsync({ goalItemId });
     };
 
     const handleCreateSection = async (parentSectionId = null) => {
@@ -1132,6 +1196,7 @@ export default function DiarySettings({ open, onClose }) {
         timeline: timelineViewLayout || [],
         patchwork: patchworkViewLayout || [],
         strata: strataViewLayout || [],
+        gradient: gradientViewLayout || [],
     };
     const viewSettings = {
         weekly: weeklyViewSetting || null,
@@ -1143,6 +1208,7 @@ export default function DiarySettings({ open, onClose }) {
         timeline: updateTimelineViewLayout,
         patchwork: updatePatchworkViewLayout,
         strata: updateStrataViewLayout,
+        gradient: updateGradientViewLayout,
     };
     const updateViewSettings = {
         weekly: updateWeeklyViewSetting,
@@ -1181,6 +1247,8 @@ export default function DiarySettings({ open, onClose }) {
             .filter((item) =>
                 viewOption.value === 'strata'
                     ? item.property?.type === 'random_pick'
+                    : viewOption.value === 'gradient'
+                        ? item.property?.type === 'goal'
                     : (viewOption.value !== 'timeline' && viewOption.value !== 'patchwork') ||
                     TIMELINE_PROPERTY_TYPES.includes(item.property?.type),
             );
@@ -1260,6 +1328,8 @@ export default function DiarySettings({ open, onClose }) {
                     <p className="px-2 py-4 text-xs ui-dialog-message">
                         {viewOption.value === 'strata'
                             ? '랜덤 뽑기 속성을 이 뷰에서 관리할 수 있어.'
+                            : viewOption.value === 'gradient'
+                                ? '목표 속성을 이 뷰에서 관리할 수 있어.'
                             : viewOption.value === 'timeline' || viewOption.value === 'patchwork'
                                 ? '선택/다중선택 속성을 이 뷰에서 관리할 수 있어.'
                                 : '아직 추가된 속성이 없어.'}
@@ -1357,7 +1427,7 @@ export default function DiarySettings({ open, onClose }) {
                         maxLength={10}
                     />
 
-                    {['select', 'multi_select', 'random_pick'].includes(draft.type) && (
+                    {['select', 'multi_select', 'random_pick', 'goal'].includes(draft.type) && (
                         <button
                             type="button"
                             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] hover:text-[var(--color-text-primary)]"
@@ -1563,7 +1633,7 @@ export default function DiarySettings({ open, onClose }) {
             onMouseDown={handleBackdropMouseDown}
         >
             <div
-                className="diary-settings-dialog ui-dialog flex max-h-[86vh] w-[min(760px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl p-0"
+                className="diary-settings-dialog ui-dialog flex min-h-[86vh] max-h-[86vh] w-[min(760px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl p-0"
                 onMouseDown={(e) => e.stopPropagation()}
                 onMouseMove={handleTooltipMouseMove}
                 onMouseLeave={() => setTitleTooltip(null)}
@@ -1651,9 +1721,16 @@ export default function DiarySettings({ open, onClose }) {
                 <PropertyOptionsDialog
                     property={editingOptionProperty}
                     options={optionsByPropertyId.get(editingOptionProperty.id) || []}
+                    goalSets={(goalSets || []).filter((goalSet) => goalSet.property_id === editingOptionProperty.id)}
                     onCreate={handleCreatePropertyOption}
                     onUpdate={handleUpdatePropertyOption}
                     onDelete={handleDeletePropertyOption}
+                    onCreateGoalSet={handleCreateGoalSet}
+                    onUpdateGoalSet={handleUpdateGoalSet}
+                    onDeleteGoalSet={handleDeleteGoalSet}
+                    onCreateGoalItem={handleCreateGoalItem}
+                    onUpdateGoalItem={handleUpdateGoalItem}
+                    onDeleteGoalItem={handleDeleteGoalItem}
                     onClose={() => setEditingOptionProperty(null)}
                 />
             )}
