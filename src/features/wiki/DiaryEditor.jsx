@@ -270,7 +270,7 @@ function hasPropertyValue(property, rawValue) {
     }
 
     if (property.type === 'random_pick') {
-        return String(rawValue?.text || '').trim() !== '';
+        return !!getOptionName(rawValue?.option) || String(rawValue?.text || '').trim() !== '';
     }
 
     if (property.type === 'goal') {
@@ -308,6 +308,10 @@ function getRandomPickAnswerText(value) {
 
 function getRandomPickOptionName(value) {
     return getOptionName(value?.option);
+}
+
+function hasRandomPickSavedValue(value) {
+    return !!getRandomPickOptionName(value) || !!getRandomPickAnswerText(value);
 }
 
 function pickRandomOption(property, optionsByPropertyId, randomPickPropertyValues = []) {
@@ -1185,7 +1189,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
 
             if (
                 property.type === 'random_pick' &&
-                !savedValue
+                (!savedValue || !hasRandomPickSavedValue(savedValue.value))
             ) {
                 nextPropertyValues[property.id] = pickRandomOption(
                     property,
@@ -1210,10 +1214,15 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
 
         hydratedRef.current = true;
         dirtyRef.current = properties.some(
-            (property) =>
-                property.type === 'random_pick' &&
-                !savedPropertyValues.find((item) => item.property_id === property.id) &&
-                getOptionName(nextPropertyValues[property.id]?.option),
+            (property) => {
+                if (property.type !== 'random_pick') return false;
+
+                const savedValue = savedPropertyValues.find((item) => item.property_id === property.id);
+                const nextOptionName = getOptionName(nextPropertyValues[property.id]?.option);
+                if (!nextOptionName) return false;
+
+                return !savedValue || !hasRandomPickSavedValue(savedValue.value);
+            },
         );
 
         if (dirtyRef.current) {
