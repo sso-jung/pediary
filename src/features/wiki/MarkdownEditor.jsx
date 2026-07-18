@@ -2005,6 +2005,26 @@ export default function MarkdownEditor({
         });
     }, [onChange]);
 
+    const insertPlainText = useCallback((text) => {
+        const instance = editorRef.current?.getInstance();
+        if (!instance || !text) return;
+
+        const view = instance?.wwEditor?.view;
+        const schema = view?.state?.schema;
+
+        if (view && schema) {
+            const tr = view.state.tr.replaceSelectionWith(schema.text(text));
+            view.dispatch(tr);
+        } else {
+            instance.replaceSelection(text);
+        }
+
+        requestAnimationFrame(() => {
+            const nextMarkdown = getMarkdownForSave(instance);
+            onChange(nextMarkdown);
+        });
+    }, [onChange]);
+
     // 🔹 부분 폰트 크기 변경 커맨드 등록
     useEffect(() => {
         const instance = editorRef.current?.getInstance();
@@ -2091,7 +2111,7 @@ export default function MarkdownEditor({
         return () => window.removeEventListener('keydown', handleUnderlineShortcut, true);
     }, [applyUnderline]);
 
-    // 🔹 Ctrl+O / Cmd+O → 오늘 날짜 삽입, Ctrl+L / Cmd+L → 숫자 목록
+    // 🔹 Ctrl+O / Cmd+O → 오늘 날짜 삽입, Ctrl+L / Cmd+L → 숫자 목록, Ctrl+' / Cmd+' → ‘’ 삽입
     useEffect(() => {
         const handleDateAndListShortcut = (e) => {
             const isMac = navigator.platform.toUpperCase().includes('MAC');
@@ -2101,8 +2121,9 @@ export default function MarkdownEditor({
 
             const isTodayKey = e.key === 'o' || e.key === 'O';
             const isOrderedListKey = e.key === 'l' || e.key === 'L';
+            const isQuoteKey = e.code === 'Quote';
 
-            if (!isTodayKey && !isOrderedListKey) return;
+            if (!isTodayKey && !isOrderedListKey && !isQuoteKey) return;
 
             const instance = editorRef.current?.getInstance();
             const root = editorRef.current?.getRootElement?.();
@@ -2120,12 +2141,17 @@ export default function MarkdownEditor({
                 return;
             }
 
+            if (isQuoteKey) {
+                insertPlainText('‘’');
+                return;
+            }
+
             instance.exec('orderedList');
         };
 
         window.addEventListener('keydown', handleDateAndListShortcut, true);
         return () => window.removeEventListener('keydown', handleDateAndListShortcut, true);
-    }, [insertTodayDate]);
+    }, [insertPlainText, insertTodayDate]);
 
     // =========================
     // 폰트 팝업 위치/열림 상태
