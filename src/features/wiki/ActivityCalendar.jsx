@@ -195,9 +195,9 @@ function getGoalProgressColor(percent) {
     if (safePercent <= 50) return '#ffa90c';
     if (safePercent <= 60) return '#ffc000';
     if (safePercent <= 70) return '#a2cb25';
-    if (safePercent <= 80) return '#5eb910';
-    if (safePercent <= 90) return '#229f25';
-    return '#229f25';
+    if (safePercent <= 80) return '#6dcc1b';
+    if (safePercent <= 90) return '#2cb430';
+    return '#09880e';
 }
 
 function getPropertyValueText(property, value) {
