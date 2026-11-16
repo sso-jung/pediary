@@ -721,11 +721,11 @@ export default function DiarySettings({ open, onClose }) {
 
     const viewTabs = useMemo(() => getDiaryViewTabs(allViewSettings || []), [allViewSettings]);
     const mobileViewTabs = useMemo(() => getMobileDiaryViewTabs(allViewSettings || []), [allViewSettings]);
-    const orderedViewTabs = useMemo(() => viewTabOrder?.base === allViewSettings
+    const orderedViewTabs = useMemo(() => viewTabOrder && viewTabOrder.base === allViewSettings
         ? viewTabOrder.values.map((value) => viewTabs.find((tab) => tab.value === value)).filter(Boolean)
         : viewTabs, [allViewSettings, viewTabOrder, viewTabs]);
     const visibleViewTabs = useMemo(() => orderedViewTabs.filter((tab) => tab.isVisible), [orderedViewTabs]);
-    const orderedMobileViewTabs = useMemo(() => mobileViewTabOrder?.base === allViewSettings
+    const orderedMobileViewTabs = useMemo(() => mobileViewTabOrder && mobileViewTabOrder.base === allViewSettings
         ? mobileViewTabOrder.values.map((value) => mobileViewTabs.find((tab) => tab.value === value)).filter(Boolean)
         : mobileViewTabs, [allViewSettings, mobileViewTabOrder, mobileViewTabs]);
     const visibleMobileViewTabs = orderedMobileViewTabs.filter((tab) => tab.isVisible);
