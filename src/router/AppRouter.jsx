@@ -12,6 +12,7 @@ import FriendsPage from "../features/friends/FriendsPage.jsx";
 import DocumentsPage from '../features/wiki/DocumentsPage.jsx';
 import TrashPage from '../features/wiki/TrashPage.jsx';
 import MaterialAnalysisPage from '../features/wiki/MaterialAnalysisPage.jsx';
+import CarePage from '../features/care/CarePage.jsx';
 
 function ProtectedRoute({ children }) {
     const { user, loading } = useAuthStore();
@@ -54,6 +55,18 @@ export default function AppRouter() {
                         <ProtectedRoute>
                             <AppLayout>
                                 <DocumentsPage />
+                            </AppLayout>
+                        </ProtectedRoute>
+                    }
+                />
+
+                {/* CARE */}
+                <Route
+                    path="/care"
+                    element={
+                        <ProtectedRoute>
+                            <AppLayout>
+                                <CarePage />
                             </AppLayout>
                         </ProtectedRoute>
                     }

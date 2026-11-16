@@ -2049,7 +2049,7 @@ function CalendarDropdown({ value, label, options, onChange, className = '' }) {
         <div className={'relative ' + className} ref={menuRef}>
             <button
                 type="button"
-                className="ui-input flex h-[30px] w-full items-center justify-between gap-2 !rounded-md !px-2.5 !py-0 !text-left !text-[12px]"
+                className="ui-input flex h-[30px] w-full items-center justify-between gap-1 !rounded-md !px-2 !py-0 !text-left !text-[11.5px] sm:gap-2 sm:!px-2.5 sm:!text-[12px]"
                 onClick={(e) => {
                     e.stopPropagation();
                     setIsOpen((prev) => !prev);
@@ -2678,7 +2678,7 @@ export default function ActivityCalendar() {
         () => new Map((diaries || []).map((diary) => [diary.diary_date, getDiaryValueMap(diary)])),
         [diaries],
     );
-    const previewViewItems = useMemo(() => (properties || []).map((property) => ({
+    const previewViewItems = useMemo(() => (properties || []).filter((property) => property.type !== 'random_pick').map((property) => ({
         propertyId: property.id,
         property,
         displayMode: 'icon_name',
@@ -2858,14 +2858,14 @@ export default function ActivityCalendar() {
                             {calendarView === 'monthly' ? (
                                 <>
                                     <CalendarDropdown
-                                        className="w-[78px] sm:w-[86px]"
+                                        className="w-[82px] sm:w-[86px]"
                                         value={year}
                                         label={`${year}년`}
                                         options={yearOptions.map((y) => ({ value: y, label: `${y}년` }))}
                                         onChange={(value) => { setSelectedMonthlyDate(null); setYear(value); }}
                                     />
                                     <CalendarDropdown
-                                        className="w-[58px] sm:w-[70px]"
+                                        className="w-[64px] sm:w-[70px]"
                                         value={month}
                                         label={`${month}월`}
                                         options={monthOptions.map((m) => ({ value: m, label: `${m}월` }))}
@@ -3312,7 +3312,7 @@ export default function ActivityCalendar() {
                                                         if (isMobileView) setSelectedMonthlyDate(key);
                                                         else handleOpenDiary(key);
                                                     }}
-                                                    className="diary-calendar-cell flex h-[60px] min-w-0 flex-col overflow-hidden border-b border-r border-border-subtle px-0.5 py-0.5 text-left transition hover:bg-[var(--color-panel-bg)] sm:h-[146px] sm:px-2 sm:py-1.5"
+                                                    className="diary-calendar-cell flex min-h-[60px] min-w-0 flex-col overflow-hidden border-b border-r border-border-subtle px-0.5 py-0.5 text-left transition hover:bg-[var(--color-panel-bg)] sm:h-[146px] sm:px-2 sm:py-1.5"
                                                     style={selectedMonthlyDate === key && isMobileView ? { backgroundColor: 'var(--color-page-surface-2)' } : isCurrentMonth ? undefined : { backgroundColor: 'rgba(148, 163, 184, 0.08)' }}
                                                 >
                                                     <div className="flex items-start justify-end">
@@ -3339,7 +3339,7 @@ export default function ActivityCalendar() {
                                                             {mobileMonthOptions.length > 0 ? (
                                                                 <span className="mt-0.5 flex min-w-0 flex-col gap-0.5 sm:hidden">
                                                                     {mobileMonthOptions.map((option, index) => (
-                                                                        <span key={`${option.name}-${index}`} className="min-w-0 overflow-hidden"><OptionBadge option={option} compact /></span>
+                                                                        <span key={`${option.name}-${index}`} className="min-w-0 overflow-hidden"><OptionBadge option={option} mobileMonth /></span>
                                                                     ))}
                                                                 </span>
                                                             ) : !mobileMonthlyProperty ? (

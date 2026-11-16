@@ -35,6 +35,7 @@ export default function Header({
                 : pediaryMark;
 
     const isMaterials = path.startsWith('/materials');
+    const isCare = path.startsWith('/care');
 
     const isDocs =
         !isMaterials &&
@@ -46,6 +47,7 @@ export default function Header({
     let activeTab = 'home';
     if (isDocs) activeTab = 'docs';
     if (isMaterials) activeTab = 'materials';
+    if (isCare) activeTab = 'care';
 
     const isFriendsOpen = activeSidePanel === 'friends';
     const isMyInfoOpen = activeSidePanel === 'me';
@@ -60,7 +62,7 @@ export default function Header({
         try {
             setExporting(true);
             await downloadMyDocumentsExcel(user.id);
-            showSnackbar?.('엑셀 백업 파일을 내려받았어.');
+            showSnackbar?.('문서 엑셀 파일을 내려받았어.');
         } catch (e) {
             console.error(e);
             showSnackbar?.('엑셀 내보내기에 실패했어. 잠시 후 다시 시도해줘.');
@@ -72,7 +74,7 @@ export default function Header({
     return (
         <div
             className="
-        mx-auto flex max-w-[100rem] items-center justify-between
+        mx-auto flex max-w-[100rem] flex-wrap items-center justify-between sm:flex-nowrap
         px-3 py-2 sm:px-4 lg:px-8
         gap-1.5
       "
@@ -97,14 +99,14 @@ export default function Header({
                 </Link>
 
                 {/* 상단 탭 (홈 / 문서 / 자료 분석) */}
-                <div className="header-pill h-7 items-center">
+                <div className="hidden sm:block"><div className="header-pill h-7 items-center">
                     <button
                         type="button"
                         onClick={() => navigate('/')}
                         className="header-tab"
                         data-active={activeTab === 'home'}
                     >
-                        홈
+                        다이어리
                     </button>
                     <button
                         type="button"
@@ -114,6 +116,14 @@ export default function Header({
                     >
                         문서
                     </button>
+                    <button
+                        type="button"
+                        onClick={() => navigate('/care')}
+                        className="header-tab"
+                        data-active={activeTab === 'care'}
+                    >
+                        가꿈
+                    </button>
                     {/*<button*/}
                     {/*    type="button"*/}
                     {/*    onClick={() => navigate('/materials')}*/}
@@ -122,7 +132,7 @@ export default function Header({
                     {/*>*/}
                     {/*    자료 분석*/}
                     {/*</button>*/}
-                </div>
+                </div></div>
 
                 {activeTab === 'home' && (
                     <button
@@ -146,7 +156,7 @@ export default function Header({
                             <path d="M6 14l3 3-3 3" />
                             <path d="M10 20h8" />
                         </svg>
-                        <span>{exporting ? '내보내는 중...' : '엑셀로 백업'}</span>
+                        <span>{exporting ? '내보내는 중...' : '문서 엑셀 내보내기'}</span>
                     </button>
                 )}
 

@@ -1,7 +1,7 @@
 // src/components/layout/AppLayout.jsx
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import Header from './Header';
 import Sidebar from './Sidebar';
 import FriendsPage from '../../features/friends/FriendsPage';
@@ -462,6 +462,20 @@ export default function AppLayout({ children }) {
                     </main>
                 )}
             </div>
+            <nav aria-label="모바일 주요 메뉴" className="grid w-full min-w-0 shrink-0 grid-cols-3 border-t border-border-subtle bg-surface-elevated px-2 pt-1.5 sm:hidden" style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
+                <Link to="/" aria-current={path === '/' || path.startsWith('/calendar') ? 'page' : undefined} className={`flex min-w-0 flex-col items-center gap-0.5 py-1 text-[10px] ${path === '/' || path.startsWith('/calendar') ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'}`}>
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 5h16v15H4zM8 3v4M16 3v4M4 10h16M8 14h3M8 17h3" /></svg>
+                    다이어리
+                </Link>
+                <Link to="/docs" aria-current={isDocsLayout ? 'page' : undefined} className={`flex min-w-0 flex-col items-center gap-0.5 py-1 text-[10px] ${isDocsLayout ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'}`}>
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 3h9l3 3v15H6zM14 3v4h4M9 11h6M9 15h6" /></svg>
+                    문서
+                </Link>
+                <Link to="/care" aria-current={path.startsWith('/care') ? 'page' : undefined} className={`flex min-w-0 flex-col items-center gap-0.5 py-1 text-[10px] ${path.startsWith('/care') ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-muted)]'}`}>
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 21s-8-4.6-8-10.4A4.4 4.4 0 0 1 12 7.7a4.4 4.4 0 0 1 8 2.9C20 16.4 12 21 12 21z" /></svg>
+                    가꿈
+                </Link>
+            </nav>
             <div id="portal-root" />
         </div>
     );
