@@ -56,13 +56,14 @@ export function useUpdateDiaryPropertyOption() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async ({ optionId, name, color, textColor, sortOrder }) => {
+        mutationFn: async ({ optionId, name, color, backgroundColors, textColor, sortOrder }) => {
             const payload = {
                 updated_at: new Date().toISOString(),
             };
 
             if (name !== undefined) payload.name = name;
             if (color !== undefined) payload.color = color;
+            if (backgroundColors !== undefined) payload.background_colors = backgroundColors;
             if (textColor !== undefined) payload.text_color = textColor;
             if (sortOrder !== undefined) payload.sort_order = sortOrder;
 
@@ -79,6 +80,7 @@ export function useUpdateDiaryPropertyOption() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['diary_property_options'] });
         },
+        scope: { id: 'diary_property_option_update' },
     });
 }
 

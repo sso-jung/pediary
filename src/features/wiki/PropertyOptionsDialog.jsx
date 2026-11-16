@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
     DEFAULT_OPTION_COLOR,
@@ -52,8 +52,14 @@ export default function PropertyOptionsDialog({
     const [newGoalStartDate, setNewGoalStartDate] = useState('');
     const [newGoalEndDate, setNewGoalEndDate] = useState('');
     const [newGoalItemNames, setNewGoalItemNames] = useState({});
+    const [goalPage, setGoalPage] = useState(0);
+    const [expandedGoalSetId, setExpandedGoalSetId] = useState(null);
     const [optionNames, setOptionNames] = useState({});
     const [editingOptionId, setEditingOptionId] = useState(null);
+    const [editingColors, setEditingColors] = useState([]);
+    const [editingColorIndex, setEditingColorIndex] = useState(0);
+    const [editingTextColor, setEditingTextColor] = useState('');
+    const colorSaveTimerRef = useRef(null);
 
     useEffect(() => {
         setOptionNames((prev) => {
@@ -86,6 +92,9 @@ export default function PropertyOptionsDialog({
             (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
             (a.id ?? 0) - (b.id ?? 0),
     );
+    const goalPageCount = Math.ceil(sortedGoalSets.length / 10);
+    const currentGoalPage = Math.min(goalPage, Math.max(0, goalPageCount - 1));
+    const visibleGoalSets = sortedGoalSets.slice(currentGoalPage * 10, (currentGoalPage + 1) * 10);
 
     const handleCreate = async () => {
         const name = newOptionName.trim();
@@ -103,12 +112,37 @@ export default function PropertyOptionsDialog({
     };
 
     const editingOption = sortedOptions.find((option) => option.id === editingOptionId);
-    const editingOptionBg = editingOption?.color || DEFAULT_OPTION_COLOR;
-    const editingOptionText = getSavedTextColor(editingOption, editingOptionBg);
+    const editingOptionBg = editingColors[0] || editingOption?.color || DEFAULT_OPTION_COLOR;
+    const editingOptionText = editingTextColor || getSavedTextColor(editingOption, editingOptionBg);
     const editingOptionName = editingOption
         ? optionNames[editingOption.id] ?? editingOption.name ?? ''
         : '';
     const isListOptionProperty = property.type === 'random_pick';
+
+    const selectEditingOption = (option) => {
+        if (editingOptionId === option.id) return;
+        if (colorSaveTimerRef.current) saveEditingColors(editingColors);
+        setEditingOptionId(option.id);
+        setEditingColors(option.background_colors?.length > 1 ? [...option.background_colors] : [option.color || DEFAULT_OPTION_COLOR]);
+        setEditingColorIndex(0);
+        setEditingTextColor(getSavedTextColor(option, option.color || DEFAULT_OPTION_COLOR));
+    };
+
+    const saveEditingColors = (colors, textColor = editingOptionText) => {
+        window.clearTimeout(colorSaveTimerRef.current);
+        colorSaveTimerRef.current = null;
+        onUpdate({
+            optionId: editingOption.id,
+            color: colors[0],
+            backgroundColors: colors.length > 1 ? colors : null,
+            textColor,
+        });
+    };
+
+    const queueEditingColorsSave = (colors, textColor = editingOptionText) => {
+        window.clearTimeout(colorSaveTimerRef.current);
+        colorSaveTimerRef.current = window.setTimeout(() => saveEditingColors(colors, textColor), 180);
+    };
 
     const handleCreateGoalSet = async () => {
         const name = String(newGoalSetName || '').trim();
@@ -125,6 +159,7 @@ export default function PropertyOptionsDialog({
         setNewGoalSetName('');
         setNewGoalStartDate('');
         setNewGoalEndDate('');
+        setGoalPage(0);
     };
 
     const handleCreateGoalItem = async (goalSet) => {
@@ -186,106 +221,126 @@ export default function PropertyOptionsDialog({
                         </p>
                     </div>
 
-                    <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                    <div key={currentGoalPage} className="min-h-0 flex-1 overflow-y-auto pr-1">
                         <div className="space-y-2">
-                            {sortedGoalSets.map((goalSet) => (
+                            {visibleGoalSets.map((goalSet) => (
                                 <div key={goalSet.id} className="rounded-lg border border-border-subtle p-2">
-                                    <div className="grid grid-cols-[minmax(0,1fr)_118px_118px_auto] gap-1.5">
-                                        <input
-                                            className="ui-input !h-8 !rounded-md !px-2 !py-0 text-xs"
-                                            defaultValue={goalSet.name || ''}
-                                            onBlur={(e) =>
-                                                onUpdateGoalSet?.({
-                                                    goalSetId: goalSet.id,
-                                                    name: e.target.value,
-                                                })
-                                            }
-                                        />
-                                        <input
-                                            type="date"
-                                            className="ui-input !h-8 !rounded-md !px-2 !py-0 text-xs"
-                                            defaultValue={goalSet.start_date || ''}
-                                            onBlur={(e) =>
-                                                onUpdateGoalSet?.({
-                                                    goalSetId: goalSet.id,
-                                                    startDate: e.target.value,
-                                                })
-                                            }
-                                        />
-                                        <input
-                                            type="date"
-                                            className="ui-input !h-8 !rounded-md !px-2 !py-0 text-xs"
-                                            defaultValue={goalSet.end_date || ''}
-                                            onBlur={(e) =>
-                                                onUpdateGoalSet?.({
-                                                    goalSetId: goalSet.id,
-                                                    endDate: e.target.value,
-                                                })
-                                            }
-                                        />
+                                    <div className="flex items-center gap-1.5">
                                         <button
                                             type="button"
-                                            className="h-8 shrink-0 rounded px-2 text-[11px] font-medium text-red-500 transition hover:bg-red-500/10"
-                                            onClick={() => {
-                                                if (window.confirm('이 목표 기간을 삭제할까?')) {
-                                                    onDeleteGoalSet?.({ goalSetId: goalSet.id });
-                                                }
-                                            }}
+                                            className="flex min-w-0 flex-1 items-center gap-2 rounded px-1 text-left text-xs text-[var(--color-text-main)] hover:bg-[rgba(127,127,127,0.08)]"
+                                            onClick={() => setExpandedGoalSetId((prev) => prev === goalSet.id ? null : goalSet.id)}
+                                            aria-expanded={expandedGoalSetId === goalSet.id}
+                                            aria-controls={`goal-items-${goalSet.id}`}
                                         >
-                                            삭제
+                                            <span className="shrink-0">{expandedGoalSetId === goalSet.id ? '▾' : '▸'}</span>
+                                            <span className="min-w-0 flex-1 truncate">{goalSet.name || '목표 기간명 없음'}</span>
+                                            <span className="shrink-0 text-[var(--color-text-muted)]">
+                                                {goalSet.start_date || '시작일 없음'} ~ {goalSet.end_date || '종료일 없음'}
+                                            </span>
                                         </button>
                                     </div>
 
-                                    <div className="mt-2 space-y-1">
-                                        {(goalSet.diary_goal_items || []).map((item) => (
-                                            <div key={item.id} className="flex items-center gap-1.5">
+                                    {expandedGoalSetId === goalSet.id && (
+                                        <div id={`goal-items-${goalSet.id}`}>
+                                            <div className="mt-2 grid grid-cols-[minmax(0,1fr)_118px_118px_auto] gap-1.5">
                                                 <input
-                                                    className="ui-input !h-7 !rounded-md !px-2 !py-0 text-xs"
-                                                    defaultValue={item.name || ''}
+                                                    className="ui-input !h-8 !rounded-md !px-2 !py-0 text-xs"
+                                                    defaultValue={goalSet.name || ''}
                                                     onBlur={(e) =>
-                                                        onUpdateGoalItem?.({
-                                                            goalItemId: item.id,
+                                                        onUpdateGoalSet?.({
+                                                            goalSetId: goalSet.id,
                                                             name: e.target.value,
+                                                        })
+                                                    }
+                                                />
+                                                <input
+                                                    type="date"
+                                                    className="ui-input !h-8 !rounded-md !px-2 !py-0 text-xs"
+                                                    defaultValue={goalSet.start_date || ''}
+                                                    onBlur={(e) =>
+                                                        onUpdateGoalSet?.({
+                                                            goalSetId: goalSet.id,
+                                                            startDate: e.target.value,
+                                                        })
+                                                    }
+                                                />
+                                                <input
+                                                    type="date"
+                                                    className="ui-input !h-8 !rounded-md !px-2 !py-0 text-xs"
+                                                    defaultValue={goalSet.end_date || ''}
+                                                    onBlur={(e) =>
+                                                        onUpdateGoalSet?.({
+                                                            goalSetId: goalSet.id,
+                                                            endDate: e.target.value,
                                                         })
                                                     }
                                                 />
                                                 <button
                                                     type="button"
-                                                    className="h-7 shrink-0 rounded px-2 text-[11px] font-medium text-red-500 transition hover:bg-red-500/10"
-                                                    onClick={() => onDeleteGoalItem?.({ goalItemId: item.id })}
+                                                    className="h-8 shrink-0 rounded px-2 text-[11px] font-medium text-red-500 transition hover:bg-red-500/10"
+                                                    onClick={() => {
+                                                        if (window.confirm('이 목표 기간을 삭제할까?')) {
+                                                            onDeleteGoalSet?.({ goalSetId: goalSet.id });
+                                                        }
+                                                    }}
                                                 >
                                                     삭제
                                                 </button>
                                             </div>
-                                        ))}
 
-                                        <div className="flex items-center gap-1.5">
-                                            <input
-                                                className="ui-input !h-7 !rounded-md !px-2 !py-0 text-xs"
-                                                value={newGoalItemNames[goalSet.id] || ''}
-                                                onChange={(e) =>
-                                                    setNewGoalItemNames((prev) => ({
-                                                        ...prev,
-                                                        [goalSet.id]: e.target.value,
-                                                    }))
-                                                }
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                        e.preventDefault();
-                                                        handleCreateGoalItem(goalSet);
-                                                    }
-                                                }}
-                                                placeholder="새 목표항목"
-                                            />
-                                            <button
-                                                type="button"
-                                                className="h-7 shrink-0 rounded-md px-2 text-[11px] font-medium transition hover:bg-[rgba(127,127,127,0.08)]"
-                                                onClick={() => handleCreateGoalItem(goalSet)}
-                                            >
-                                                추가
-                                            </button>
+                                            <div className="mt-2 space-y-1">
+                                                {(goalSet.diary_goal_items || []).map((item) => (
+                                                    <div key={item.id} className="flex items-center gap-1.5">
+                                                        <input
+                                                            className="ui-input !h-7 !rounded-md !px-2 !py-0 text-xs"
+                                                            defaultValue={item.name || ''}
+                                                            onBlur={(e) =>
+                                                                onUpdateGoalItem?.({
+                                                                    goalItemId: item.id,
+                                                                    name: e.target.value,
+                                                                })
+                                                            }
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            className="h-7 shrink-0 rounded px-2 text-[11px] font-medium text-red-500 transition hover:bg-red-500/10"
+                                                            onClick={() => onDeleteGoalItem?.({ goalItemId: item.id })}
+                                                        >
+                                                            삭제
+                                                        </button>
+                                                    </div>
+                                                ))}
+
+                                                <div className="flex items-center gap-1.5">
+                                                    <input
+                                                        className="ui-input !h-7 !rounded-md !px-2 !py-0 text-xs"
+                                                        value={newGoalItemNames[goalSet.id] || ''}
+                                                        onChange={(e) =>
+                                                            setNewGoalItemNames((prev) => ({
+                                                                ...prev,
+                                                                [goalSet.id]: e.target.value,
+                                                            }))
+                                                        }
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                                e.preventDefault();
+                                                                handleCreateGoalItem(goalSet);
+                                                            }
+                                                        }}
+                                                        placeholder="새 목표항목"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        className="h-7 shrink-0 rounded-md px-2 text-[11px] font-medium transition hover:bg-[rgba(127,127,127,0.08)]"
+                                                        onClick={() => handleCreateGoalItem(goalSet)}
+                                                    >
+                                                        추가
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             ))}
 
@@ -296,6 +351,28 @@ export default function PropertyOptionsDialog({
                             )}
                         </div>
                     </div>
+
+                    {goalPageCount > 1 && (
+                        <div className="mt-3 flex items-center justify-center gap-3 text-xs text-[var(--color-text-muted)]">
+                            <button
+                                type="button"
+                                className="rounded px-2 py-1 transition hover:bg-[rgba(127,127,127,0.08)] disabled:opacity-40"
+                                onClick={() => setGoalPage(currentGoalPage - 1)}
+                                disabled={currentGoalPage === 0}
+                            >
+                                이전
+                            </button>
+                            <span>{currentGoalPage + 1} / {goalPageCount}</span>
+                            <button
+                                type="button"
+                                className="rounded px-2 py-1 transition hover:bg-[rgba(127,127,127,0.08)] disabled:opacity-40"
+                                onClick={() => setGoalPage(currentGoalPage + 1)}
+                                disabled={currentGoalPage >= goalPageCount - 1}
+                            >
+                                다음
+                            </button>
+                        </div>
+                    )}
 
                     <div className="property-options-divider mt-3 grid grid-cols-[minmax(0,1fr)_118px_118px_auto] gap-1.5 border-t border-border-subtle pt-3">
                         <input
@@ -429,12 +506,13 @@ export default function PropertyOptionsDialog({
                                                 ? "bg-[rgba(127,127,127,0.16)]"
                                                 : "hover:bg-[rgba(127,127,127,0.08)]",
                                         ].join(" ")}
-                                        onClick={() => setEditingOptionId(option.id)}
+                                        onClick={() => selectEditingOption(option)}
                                     >
                                         <OptionBadge
                                             option={{
                                                 name: draftName || option.name,
                                                 color: currentBg,
+                                                backgroundColors: option.background_colors,
                                                 textColor: currentText,
                                             }}
                                         />
@@ -458,6 +536,7 @@ export default function PropertyOptionsDialog({
                                 option={{
                                     name: editingOptionName || editingOption.name,
                                     color: editingOptionBg,
+                                    backgroundColors: editingColors.length > 1 ? editingColors : null,
                                     textColor: editingOptionText,
                                 }}
                             />
@@ -495,48 +574,76 @@ export default function PropertyOptionsDialog({
                                 <ColorDot
                                     key={preset.color}
                                     color={preset.color}
-                                    selected={editingOptionBg === preset.color}
-                                    onClick={() =>
-                                        onUpdate({
-                                            optionId: editingOption.id,
-                                            color: preset.color,
-                                            textColor: preset.textColor,
-                                        })
-                                    }
+                                    selected={editingColors[editingColorIndex] === preset.color}
+                                    onClick={() => {
+                                        const colors = [...editingColors];
+                                        colors[editingColorIndex] = preset.color;
+                                        setEditingColors(colors);
+                                        if (editingColorIndex === 0) setEditingTextColor(preset.textColor);
+                                        saveEditingColors(colors, editingColorIndex === 0 ? preset.textColor : editingOptionText);
+                                    }}
                                 />
                             ))}
                         </div>
 
-                        <div className="property-options-divider mt-2 flex flex-wrap items-center gap-2 border-t border-border-subtle pt-2">
-                            <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-muted)]">
-                                <span>배경</span>
-                                <input
-                                    type="color"
-                                    className="h-6 w-8 cursor-pointer rounded border border-border-subtle bg-transparent p-0"
-                                    value={getColorInputValue(editingOptionBg, DEFAULT_OPTION_COLOR)}
-                                    onChange={(e) =>
-                                        onUpdate({
-                                            optionId: editingOption.id,
-                                            color: e.target.value,
-                                            textColor: editingOptionText,
-                                        })
-                                    }
-                                />
-                            </label>
-
-                            <label className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-muted)]">
-                                <span>글자</span>
+                        <div className="property-options-divider mt-2 space-y-1.5 border-t border-border-subtle pt-2">
+                            {editingColors.map((color, index) => (
+                                <div key={index} className="flex items-center gap-2">
+                                    <span className="w-12 text-[11px] text-[var(--color-text-muted)]">배경 {index + 1}</span>
+                                    <input
+                                        type="color"
+                                        className={`h-6 w-8 cursor-pointer rounded border border-border-subtle bg-transparent p-0 ${editingColorIndex === index ? 'ring-1 ring-[var(--color-text-main)]' : ''}`}
+                                        value={getColorInputValue(color, DEFAULT_OPTION_COLOR)}
+                                        onFocus={() => setEditingColorIndex(index)}
+                                        onChange={(e) => {
+                                            const colors = editingColors.map((item, i) => i === index ? e.target.value : item);
+                                            setEditingColors(colors);
+                                            queueEditingColorsSave(colors);
+                                        }}
+                                        onBlur={() => saveEditingColors(editingColors)}
+                                        aria-label={`배경색 ${index + 1}`}
+                                    />
+                                    <button
+                                        type="button"
+                                        className="ml-auto h-6 rounded px-2 text-xs text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] disabled:opacity-40"
+                                        onClick={() => {
+                                            const colors = editingColors.filter((_, i) => i !== index);
+                                            setEditingColors(colors);
+                                            setEditingColorIndex((prev) => prev > index ? prev - 1 : Math.min(prev, colors.length - 1));
+                                            saveEditingColors(colors);
+                                        }}
+                                        disabled={editingColors.length <= 1}
+                                        aria-label={`배경색 ${index + 1} 제거`}
+                                    >
+                                        −
+                                    </button>
+                                </div>
+                            ))}
+                            <button
+                                type="button"
+                                className="rounded px-1 text-xs text-[var(--color-text-muted)] transition hover:bg-[rgba(127,127,127,0.08)] disabled:opacity-40"
+                                onClick={() => {
+                                    const colors = [...editingColors, editingColors[editingColors.length - 1]];
+                                    setEditingColors(colors);
+                                    setEditingColorIndex(colors.length - 1);
+                                    saveEditingColors(colors);
+                                }}
+                                disabled={editingColors.length >= 3}
+                                aria-label="배경색 추가"
+                            >
+                                + 배경색 추가
+                            </button>
+                            <label className="flex items-center gap-1.5 border-t border-border-subtle pt-2 text-[11px] text-[var(--color-text-muted)]">
+                                <span className="w-12">글자</span>
                                 <input
                                     type="color"
                                     className="h-6 w-8 cursor-pointer rounded border border-border-subtle bg-transparent p-0"
                                     value={getColorInputValue(editingOptionText, DEFAULT_OPTION_TEXT_COLOR)}
-                                    onChange={(e) =>
-                                        onUpdate({
-                                            optionId: editingOption.id,
-                                            color: editingOptionBg,
-                                            textColor: e.target.value,
-                                        })
-                                    }
+                                    onChange={(e) => {
+                                        setEditingTextColor(e.target.value);
+                                        queueEditingColorsSave(editingColors, e.target.value);
+                                    }}
+                                    onBlur={() => saveEditingColors(editingColors)}
                                 />
                             </label>
                         </div>

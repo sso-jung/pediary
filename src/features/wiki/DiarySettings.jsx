@@ -16,9 +16,13 @@ import { useDiaryLayout, useUpdateDiaryLayout } from './hooks/useDiaryLayout';
 import {
     useDiaryViewLayout,
     useDiaryViewSetting,
+    useDiaryViewSettings,
     useUpdateDiaryViewLayout,
     useUpdateDiaryViewSetting,
+    useUpdateDiaryViewTab,
+    useUpdateDiaryViewTabOrder,
 } from './hooks/useDiaryViewLayout';
+import { DIARY_VIEW_TABS, getDiaryViewTabs, getMobileDiaryViewTabs } from './DiaryViewTabs';
 import PropertyOptionsDialog from './PropertyOptionsDialog';
 import {
     useCreateDiaryPropertyOption,
@@ -42,23 +46,7 @@ const VISIBILITY_OPTIONS = [
     { value: 'when_filled', label: '값 있을 때' },
     { value: 'hidden', label: '숨김' },
 ];
-const VIEW_OPTIONS = [
-    { value: 'weekly', label: 'WEEKLY' },
-    { value: 'monthly', label: 'MONTHLY' },
-    { value: 'timeline', label: 'TIMELINE' },
-    { value: 'patchwork', label: 'PATCHWORK' },
-    { value: 'strata', label: 'STRATA' },
-    { value: 'gradient', label: 'GRADIENT' },
-];
-const SETTINGS_TABS = [
-    { value: 'properties', label: '속성 편집' },
-    { value: 'weekly', label: 'WEEKLY' },
-    { value: 'monthly', label: 'MONTHLY' },
-    { value: 'timeline', label: 'TIMELINE' },
-    { value: 'patchwork', label: 'PATCHWORK' },
-    { value: 'strata', label: 'STRATA' },
-    { value: 'gradient', label: 'GRADIENT' },
-];
+const VIEW_OPTIONS = DIARY_VIEW_TABS;
 const VIEW_VISIBILITY_OPTIONS = [
     { value: 'visible', label: '내용 표시' },
     { value: 'hidden', label: '내용 숨김' },
@@ -224,7 +212,7 @@ function moveLayoutItem(items, sourcePropertyId, targetPropertyId, position = 'b
     return next;
 }
 
-function SettingsDropdown({ value, options, onChange }) {
+function SettingsDropdown({ value, options, onChange, disabled = false }) {
     const dropdownId = useId();
     const [isOpen, setIsOpen] = useState(false);
     const buttonRef = useRef(null);
@@ -294,6 +282,7 @@ function SettingsDropdown({ value, options, onChange }) {
             <button
                 ref={buttonRef}
                 type="button"
+                disabled={disabled}
                 className="diary-settings-input ui-input flex h-[30px] w-full items-center justify-between gap-2 !rounded-md !px-2.5 !py-0 !text-left !text-[12px]"
                 onClick={(e) => {
                     e.stopPropagation();
@@ -346,6 +335,7 @@ function SettingsDropdown({ value, options, onChange }) {
                         <button
                             key={option.value}
                             type="button"
+                            disabled={disabled}
                             className={
                                 'block w-full whitespace-normal break-keep px-2 py-1.5 text-left leading-snug ui-side-subitem ' +
                                 (option.value === value ? 'ui-side-subitem-active' : '')
@@ -625,6 +615,7 @@ export default function DiarySettings({ open, onClose }) {
     const { data: gradientViewLayout } = useDiaryViewLayout('gradient');
     const { data: weeklyViewSetting } = useDiaryViewSetting('weekly');
     const { data: monthlyViewSetting } = useDiaryViewSetting('monthly');
+    const { data: allViewSettings, isFetching: isFetchingViewSettings } = useDiaryViewSettings();
     const { data: propertyOptions } = useDiaryPropertyOptions();
     const { data: goalSets } = useDiaryGoals(open);
     const createPropertyOption = useCreateDiaryPropertyOption();
@@ -652,6 +643,8 @@ export default function DiarySettings({ open, onClose }) {
     const updateGradientViewLayout = useUpdateDiaryViewLayout('gradient');
     const updateWeeklyViewSetting = useUpdateDiaryViewSetting('weekly');
     const updateMonthlyViewSetting = useUpdateDiaryViewSetting('monthly');
+    const updateViewTab = useUpdateDiaryViewTab();
+    const updateViewTabOrder = useUpdateDiaryViewTabOrder();
 
     const [propertyDrafts, setPropertyDrafts] = useState({});
     const [sectionDrafts, setSectionDrafts] = useState({});
@@ -662,6 +655,10 @@ export default function DiarySettings({ open, onClose }) {
     const [sectionDropIndicator, setSectionDropIndicator] = useState(null);
     const [titleTooltip, setTitleTooltip] = useState(null);
     const [activeSettingsTab, setActiveSettingsTab] = useState('properties');
+    const [viewTabOrder, setViewTabOrder] = useState(null);
+    const [mobileViewTabOrder, setMobileViewTabOrder] = useState(null);
+    const [draggingViewTab, setDraggingViewTab] = useState(null);
+    const [viewTabTitles, setViewTabTitles] = useState({});
     const saveTimersRef = useRef({});
     const latestDraftsRef = useRef({});
     const tooltipTargetRef = useRef(null);
@@ -722,6 +719,22 @@ export default function DiarySettings({ open, onClose }) {
         }
     }, [open]);
 
+    const viewTabs = useMemo(() => getDiaryViewTabs(allViewSettings || []), [allViewSettings]);
+    const mobileViewTabs = useMemo(() => getMobileDiaryViewTabs(allViewSettings || []), [allViewSettings]);
+    const orderedViewTabs = useMemo(() => viewTabOrder?.base === allViewSettings
+        ? viewTabOrder.values.map((value) => viewTabs.find((tab) => tab.value === value)).filter(Boolean)
+        : viewTabs, [allViewSettings, viewTabOrder, viewTabs]);
+    const visibleViewTabs = useMemo(() => orderedViewTabs.filter((tab) => tab.isVisible), [orderedViewTabs]);
+    const orderedMobileViewTabs = useMemo(() => mobileViewTabOrder?.base === allViewSettings
+        ? mobileViewTabOrder.values.map((value) => mobileViewTabs.find((tab) => tab.value === value)).filter(Boolean)
+        : mobileViewTabs, [allViewSettings, mobileViewTabOrder, mobileViewTabs]);
+    const visibleMobileViewTabs = orderedMobileViewTabs.filter((tab) => tab.isVisible);
+
+    const selectedSettingsTab = activeSettingsTab === 'properties' || activeSettingsTab === 'tabs' || activeSettingsTab === 'mobile' ||
+        visibleViewTabs.some((tab) => tab.value === activeSettingsTab)
+        ? activeSettingsTab
+        : visibleViewTabs[0]?.value || 'properties';
+
     useEffect(() => {
         return () => {
             Object.values(saveTimersRef.current).forEach((timerId) => {
@@ -749,7 +762,36 @@ export default function DiarySettings({ open, onClose }) {
         updateTimelineViewLayout.isPending ||
         updatePatchworkViewLayout.isPending ||
         updateWeeklyViewSetting.isPending ||
-        updateMonthlyViewSetting.isPending;
+        updateMonthlyViewSetting.isPending ||
+        updateViewTab.isPending ||
+        updateViewTabOrder.isPending;
+
+    const handleDropViewTab = (targetView) => {
+        if (updateViewTab.isPending || updateViewTabOrder.isPending ||
+            updateWeeklyViewSetting.isPending || updateMonthlyViewSetting.isPending ||
+            isFetchingViewSettings) return;
+        if (!draggingViewTab || draggingViewTab === targetView) return;
+        const values = orderedViewTabs.map((tab) => tab.value).filter((value) => value !== draggingViewTab);
+        values.splice(values.indexOf(targetView), 0, draggingViewTab);
+        setViewTabOrder({ values, base: allViewSettings });
+        setDraggingViewTab(null);
+        updateViewTabOrder.mutate({ tabs: values }, {
+            onError: () => setViewTabOrder(null),
+        });
+    };
+
+    const handleMoveMobileViewTab = (viewType, direction) => {
+        if (updateViewTab.isPending || updateViewTabOrder.isPending || isFetchingViewSettings) return;
+        const values = orderedMobileViewTabs.map((tab) => tab.value);
+        const index = values.indexOf(viewType);
+        const nextIndex = index + direction;
+        if (nextIndex < 0 || nextIndex >= values.length) return;
+        [values[index], values[nextIndex]] = [values[nextIndex], values[index]];
+        setMobileViewTabOrder({ values, base: allViewSettings });
+        updateViewTabOrder.mutate({ tabs: values, mobile: true }, {
+            onError: () => setMobileViewTabOrder(null),
+        });
+    };
 
     const getOriginalProperty = (propertyId) =>
         (properties || []).find((property) => property.id === propertyId);
@@ -865,11 +907,12 @@ export default function DiarySettings({ open, onClose }) {
         });
     };
 
-    const handleUpdatePropertyOption = async ({ optionId, name, color, textColor, sortOrder }) => {
+    const handleUpdatePropertyOption = async ({ optionId, name, color, backgroundColors, textColor, sortOrder }) => {
         return updatePropertyOption.mutateAsync({
             optionId,
             name,
             color,
+            backgroundColors,
             textColor,
             sortOrder,
         });
@@ -1256,8 +1299,17 @@ export default function DiarySettings({ open, onClose }) {
 
         return (
             <div key={viewOption.value}>
+                <div className="border-b border-border-subtle px-2 py-3">
+                    <div className="font-semibold text-[var(--color-text-main)]">
+                        {viewTabs.find((tab) => tab.value === viewOption.value)?.customTitle || viewOption.label}
+                        {viewTabs.find((tab) => tab.value === viewOption.value)?.customTitle && (
+                            <span className="ml-2 text-[11px] font-normal text-[var(--color-text-muted)]">{viewOption.label}</span>
+                        )}
+                    </div>
+                    <p className="mt-1 text-xs text-[var(--color-text-muted)]">{viewOption.description}</p>
+                </div>
                 {canShowTitle && (
-                    <div className="grid grid-cols-[minmax(0,1fr)_112px_132px] items-center border-b border-border-subtle px-2 py-1.5 text-xs">
+                    <div className="grid grid-cols-[minmax(0,1fr)_112px_150px] items-center border-b border-border-subtle px-2 py-1.5 text-xs">
                         <div className="min-w-0 break-words font-medium text-[var(--color-text-main)]">
                             다이어리 제목
                         </div>
@@ -1265,6 +1317,7 @@ export default function DiarySettings({ open, onClose }) {
                         <SettingsDropdown
                             value={viewSettings[viewOption.value]?.show_title ? 'visible' : 'hidden'}
                             options={VIEW_VISIBILITY_OPTIONS}
+                            disabled={updateViewTabOrder.isPending || isFetchingViewSettings}
                             onChange={(value) =>
                                 handleChangeViewSetting(
                                     viewOption.value,
@@ -1281,7 +1334,7 @@ export default function DiarySettings({ open, onClose }) {
                 {viewItems.map((item) => (
                     <div
                         key={item.propertyId}
-                        className="diary-settings-row grid grid-cols-[minmax(0,1fr)_112px_132px] items-center border-b border-border-subtle px-2 py-1.5 text-xs last:border-b-0"
+                        className="diary-settings-row grid grid-cols-[minmax(0,1fr)_112px_150px] items-center border-b border-border-subtle px-2 py-1.5 text-xs last:border-b-0"
                     >
                         <div className="flex min-w-0 items-center gap-2">
                             <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md">
@@ -1641,13 +1694,18 @@ export default function DiarySettings({ open, onClose }) {
             >
                 <div className="diary-settings-divider flex items-center justify-between border-b border-border-subtle px-5 py-3">
                     <div className="flex flex-wrap items-center gap-1">
-                        {SETTINGS_TABS.map((tab) => (
+                        {[
+                            { value: 'properties', label: '속성 편집' },
+                            { value: 'tabs', label: '탭 관리' },
+                            ...visibleViewTabs.map((tab) => ({ value: tab.value, label: tab.customTitle || tab.label })),
+                            { value: 'mobile', label: '모바일 설정' },
+                        ].map((tab) => (
                             <button
                                 key={tab.value}
                                 type="button"
                                 className={[
                                     "rounded-md px-3 py-1.5 text-xs font-semibold transition",
-                                    activeSettingsTab === tab.value
+                                    selectedSettingsTab === tab.value
                                         ? "bg-[rgba(127,127,127,0.10)] text-[var(--color-text-main)]"
                                         : "text-[var(--color-text-muted)] hover:bg-[rgba(127,127,127,0.08)] hover:text-[var(--color-text-primary)]",
                                 ].join(" ")}
@@ -1660,7 +1718,127 @@ export default function DiarySettings({ open, onClose }) {
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-2 pb-4">
-                    {activeSettingsTab === 'properties' ? (
+                    {selectedSettingsTab === 'tabs' ? (
+                        <div className="mt-1">
+                            <h3 className="px-2 pt-2 text-sm font-semibold text-[var(--color-text-main)]">PC 버전</h3>
+                            <p className="px-2 py-2 text-xs text-[var(--color-text-muted)]">탭을 드래그해서 순서를 바꾸고, 메인 화면에 표시할 탭과 제목을 설정해.</p>
+                            {orderedViewTabs.map((tab) => (
+                                <div
+                                    key={tab.value}
+                                    className="flex flex-wrap items-center gap-2 border-b border-border-subtle px-2 py-2 text-xs sm:flex-nowrap"
+                                    onDragOver={(e) => {
+                                        if (!draggingViewTab || updateViewTab.isPending || updateViewTabOrder.isPending ||
+                                            updateWeeklyViewSetting.isPending || updateMonthlyViewSetting.isPending ||
+                                            isFetchingViewSettings) return;
+                                        e.preventDefault();
+                                    }}
+                                    onDrop={(e) => {
+                                        e.preventDefault();
+                                        handleDropViewTab(tab.value);
+                                    }}
+                                >
+                                    <span
+                                        draggable={!updateViewTab.isPending && !updateViewTabOrder.isPending &&
+                                            !updateWeeklyViewSetting.isPending && !updateMonthlyViewSetting.isPending &&
+                                            !isFetchingViewSettings}
+                                        onDragStart={(e) => {
+                                            if (updateViewTab.isPending || updateViewTabOrder.isPending ||
+                                                updateWeeklyViewSetting.isPending || updateMonthlyViewSetting.isPending ||
+                                                isFetchingViewSettings) {
+                                                e.preventDefault();
+                                                return;
+                                            }
+                                            setDraggingViewTab(tab.value);
+                                            e.dataTransfer.effectAllowed = 'move';
+                                            e.dataTransfer.setData('text/plain', tab.value);
+                                        }}
+                                        onDragEnd={() => setDraggingViewTab(null)}
+                                        className="cursor-grab select-none px-1 text-[var(--color-text-muted)]"
+                                        title="드래그해서 순서 변경"
+                                        aria-label={`${tab.label} 순서 변경`}
+                                    >☰</span>
+                                    <span className="w-16 shrink-0 font-semibold text-[var(--color-text-main)] sm:w-24">{tab.label}</span>
+                                    <input
+                                        className="diary-settings-input order-3 h-8 min-w-0 w-full rounded-md px-2 outline-none sm:order-none sm:w-auto sm:flex-1"
+                                        disabled={updateViewTab.isPending || updateViewTabOrder.isPending || isFetchingViewSettings}
+                                        value={viewTabTitles[tab.value]?.original === tab.customTitle
+                                            ? viewTabTitles[tab.value].value
+                                            : tab.customTitle}
+                                        onChange={(e) => setViewTabTitles((prev) => ({
+                                            ...prev,
+                                            [tab.value]: { original: tab.customTitle, value: e.target.value },
+                                        }))}
+                                        onBlur={(e) => {
+                                            const title = e.target.value.trim();
+                                            if (title !== tab.customTitle) updateViewTab.mutate({ viewType: tab.value, changes: { custom_title: title || null } });
+                                        }}
+                                        placeholder={tab.label}
+                                        aria-label={`${tab.label} 제목`}
+                                    />
+                                    <label className="flex shrink-0 items-center gap-1 text-[var(--color-text-muted)]">
+                                        <input
+                                            type="checkbox"
+                                            checked={tab.isVisible}
+                                            disabled={updateViewTab.isPending || updateViewTabOrder.isPending ||
+                                                isFetchingViewSettings || (tab.isVisible && visibleViewTabs.length === 1)}
+                                            onChange={(e) => updateViewTab.mutate({ viewType: tab.value, changes: { is_visible: e.target.checked } })}
+                                        />
+                                        표시
+                                    </label>
+                                </div>
+                            ))}
+                            <h3 className="px-2 pt-6 text-sm font-semibold text-[var(--color-text-main)]">모바일 버전</h3>
+                            <p className="px-2 py-2 text-xs text-[var(--color-text-muted)]">위아래 버튼으로 순서를 바꾸고, 모바일 화면에 표시할 탭과 제목을 설정해.</p>
+                            {orderedMobileViewTabs.map((tab, index) => (
+                                <div key={tab.value} className="flex flex-wrap items-center gap-2 border-b border-border-subtle px-2 py-2 text-xs sm:flex-nowrap">
+                                    <div className="flex shrink-0 flex-col">
+                                        <button type="button" className="text-[var(--color-text-muted)] disabled:opacity-30" disabled={index === 0 || updateViewTab.isPending || updateViewTabOrder.isPending || isFetchingViewSettings} onClick={() => handleMoveMobileViewTab(tab.value, -1)} aria-label={`${tab.label} 위로`}>▲</button>
+                                        <button type="button" className="text-[var(--color-text-muted)] disabled:opacity-30" disabled={index === orderedMobileViewTabs.length - 1 || updateViewTab.isPending || updateViewTabOrder.isPending || isFetchingViewSettings} onClick={() => handleMoveMobileViewTab(tab.value, 1)} aria-label={`${tab.label} 아래로`}>▼</button>
+                                    </div>
+                                    <span className="w-16 shrink-0 font-semibold text-[var(--color-text-main)] sm:w-24">{tab.label}</span>
+                                    <input
+                                        className="diary-settings-input order-3 h-8 min-w-0 w-full rounded-md px-2 outline-none sm:order-none sm:w-auto sm:flex-1"
+                                        disabled={updateViewTab.isPending || updateViewTabOrder.isPending || isFetchingViewSettings}
+                                        value={viewTabTitles[`mobile-${tab.value}`]?.original === tab.customTitle
+                                            ? viewTabTitles[`mobile-${tab.value}`].value
+                                            : tab.customTitle}
+                                        onChange={(e) => setViewTabTitles((prev) => ({ ...prev, [`mobile-${tab.value}`]: { original: tab.customTitle, value: e.target.value } }))}
+                                        onBlur={(e) => {
+                                            const title = e.target.value.trim();
+                                            if (title !== tab.customTitle) updateViewTab.mutate({ viewType: tab.value, changes: { mobile_custom_title: title || null } });
+                                        }}
+                                        placeholder={tab.label}
+                                        aria-label={`${tab.label} 모바일 제목`}
+                                    />
+                                    <label className="flex shrink-0 items-center gap-1 text-[var(--color-text-muted)]">
+                                        <input type="checkbox" checked={tab.isVisible}
+                                            disabled={updateViewTab.isPending || updateViewTabOrder.isPending || isFetchingViewSettings || (tab.isVisible && visibleMobileViewTabs.length === 1)}
+                                            onChange={(e) => updateViewTab.mutate({ viewType: tab.value, changes: { mobile_is_visible: e.target.checked } })}
+                                        />
+                                        표시
+                                    </label>
+                                </div>
+                            ))}
+                        </div>
+                    ) : selectedSettingsTab === 'mobile' ? (
+                        <div className="mt-1 px-2 py-3 text-xs">
+                            <h3 className="font-semibold text-[var(--color-text-main)]">MONTHLY</h3>
+                            <p className="mt-1 text-[var(--color-text-muted)]">모바일 월간 달력의 날짜 칸에 표시할 선택 속성을 정해.</p>
+                            <label className="mt-4 flex items-center gap-3 text-[var(--color-text-main)]">
+                                표시할 속성
+                                <select className="diary-settings-input h-8 min-w-0 flex-1 rounded-md px-2"
+                                    value={(allViewSettings || []).find((setting) => setting.view_type === 'monthly')?.mobile_monthly_property_id || ''}
+                                    disabled={updateViewTab.isPending || isFetchingViewSettings}
+                                    onChange={(e) => updateViewTab.mutate({ viewType: 'monthly', changes: { mobile_monthly_property_id: e.target.value ? Number(e.target.value) : null } })}
+                                >
+                                    <option value="">표시 안 함</option>
+                                    {(properties || []).filter((property) => TIMELINE_PROPERTY_TYPES.includes(property.type)).map((property) => (
+                                        <option key={property.id} value={property.id}>{property.name}</option>
+                                    ))}
+                                </select>
+                            </label>
+                        </div>
+                    ) : selectedSettingsTab === 'properties' ? (
                         <>
                             <div
                                 className="diary-settings-panel mt-1 rounded-md border border-dashed border-border-subtle"
@@ -1710,7 +1888,7 @@ export default function DiarySettings({ open, onClose }) {
                     ) : (
                         <div className="mt-1">
                             {renderViewSettings(
-                                VIEW_OPTIONS.find((option) => option.value === activeSettingsTab),
+                                VIEW_OPTIONS.find((option) => option.value === selectedSettingsTab),
                             )}
                         </div>
                     )}

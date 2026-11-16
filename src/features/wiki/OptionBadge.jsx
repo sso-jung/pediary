@@ -1,3 +1,5 @@
+import { getOptionBackground } from './DiarySelectUtils';
+
 function isWhiteColor(color) {
     return String(color || '').trim().toLowerCase() === '#ffffff';
 }
@@ -18,7 +20,7 @@ export default function OptionBadge({ option, compact = false, onRemove }) {
                     : 'px-1.5 py-[3px] text-[11px] sm:px-2 sm:py-1 sm:text-[12px]',
             ].join(' ')}
             style={{
-                backgroundColor,
+                background: getOptionBackground(option),
                 borderColor: hasTextColorBorder ? textColor : 'transparent',
                 color: textColor,
             }}

@@ -1084,6 +1084,18 @@ export async function fetchDiaryViewSetting({ userId, viewType }) {
     return data;
 }
 
+export async function fetchDiaryViewSettings({ userId }) {
+    if (!userId) return [];
+
+    const { data, error } = await supabase
+        .from('diary_view_settings')
+        .select('*')
+        .eq('user_id', userId);
+
+    if (error) throw error;
+    return data ?? [];
+}
+
 export async function updateDiaryViewLayout({ userId, viewType, items }) {
     if (!userId || !viewType || !Array.isArray(items)) return [];
 
@@ -1114,24 +1126,114 @@ export async function updateDiaryViewLayout({ userId, viewType, items }) {
 export async function updateDiaryViewSetting({ userId, viewType, showTitle }) {
     if (!userId || !viewType) return null;
 
+    const values = { show_title: !!showTitle, updated_at: new Date().toISOString() };
+    const { data: updated, error: updateError } = await supabase
+        .from('diary_view_settings')
+        .update(values)
+        .eq('user_id', userId)
+        .eq('view_type', viewType)
+        .select('*')
+        .maybeSingle();
+
+    if (updateError) throw updateError;
+    if (updated) return updated;
+
     const { data, error } = await supabase
         .from('diary_view_settings')
-        .upsert(
-            {
-                user_id: userId,
-                view_type: viewType,
-                show_title: !!showTitle,
-                updated_at: new Date().toISOString(),
-            },
-            {
-                onConflict: 'user_id,view_type',
-            },
-        )
+        .insert({ user_id: userId, view_type: viewType, ...values })
         .select('*')
         .single();
 
-    if (error) throw error;
-    return data;
+    if (!error) return data;
+    if (error.code !== '23505') throw error;
+
+    const { data: retryData, error: retryError } = await supabase
+        .from('diary_view_settings')
+        .update(values)
+        .eq('user_id', userId)
+        .eq('view_type', viewType)
+        .select('*')
+        .single();
+
+    if (retryError) throw retryError;
+    return retryData;
+}
+
+export async function updateDiaryViewTab({ userId, viewType, changes }) {
+    if (!userId || !viewType) return null;
+
+    const values = { ...changes, updated_at: new Date().toISOString() };
+    const { data: updated, error: updateError } = await supabase
+        .from('diary_view_settings')
+        .update(values)
+        .eq('user_id', userId)
+        .eq('view_type', viewType)
+        .select('*')
+        .maybeSingle();
+
+    if (updateError) throw updateError;
+    if (updated) return updated;
+
+    const { data, error } = await supabase
+        .from('diary_view_settings')
+        .insert({ user_id: userId, view_type: viewType, ...values })
+        .select('*')
+        .single();
+
+    if (!error) return data;
+    if (error.code !== '23505') throw error;
+
+    const { data: retryData, error: retryError } = await supabase
+        .from('diary_view_settings')
+        .update(values)
+        .eq('user_id', userId)
+        .eq('view_type', viewType)
+        .select('*')
+        .single();
+
+    if (retryError) throw retryError;
+    return retryData;
+}
+
+export async function updateDiaryViewTabOrder({ userId, tabs, mobile = false }) {
+    if (!userId || !Array.isArray(tabs)) return [];
+
+    const results = await Promise.allSettled(tabs.map(async (viewType, index) => {
+        const values = { [mobile ? 'mobile_sort_order' : 'sort_order']: index, updated_at: new Date().toISOString() };
+        const { data: updated, error: updateError } = await supabase
+            .from('diary_view_settings')
+            .update(values)
+            .eq('user_id', userId)
+            .eq('view_type', viewType)
+            .select('*')
+            .maybeSingle();
+
+        if (updateError) throw updateError;
+        if (updated) return updated;
+
+        const { data, error } = await supabase
+            .from('diary_view_settings')
+            .insert({ user_id: userId, view_type: viewType, ...values })
+            .select('*')
+            .single();
+
+        if (!error) return data;
+        if (error.code !== '23505') throw error;
+
+        const { data: retryData, error: retryError } = await supabase
+            .from('diary_view_settings')
+            .update(values)
+            .eq('user_id', userId)
+            .eq('view_type', viewType)
+            .select('*')
+            .single();
+
+        if (retryError) throw retryError;
+        return retryData;
+    }));
+    const failed = results.find((result) => result.status === 'rejected');
+    if (failed) throw failed.reason;
+    return results.map((result) => result.value);
 }
 
 export async function fetchDiaryPropertyValues({ userId, diaryDate }) {

@@ -62,6 +62,13 @@ export function getOptionTextColor(color = DEFAULT_OPTION_COLOR) {
     return getOptionPresetTextColor(color) || DEFAULT_OPTION_TEXT_COLOR;
 }
 
+export function getOptionBackground(option) {
+    const colors = option?.backgroundColors || option?.background_colors;
+    return Array.isArray(colors) && colors.length > 1
+        ? `linear-gradient(90deg, ${colors.join(', ')})`
+        : option?.color || DEFAULT_OPTION_COLOR;
+}
+
 export function normalizeOptionValue(value) {
     if (!value) return null;
 
@@ -94,6 +101,7 @@ export function normalizeOptionValue(value) {
         id: value.id ?? null,
         name,
         color,
+        backgroundColors: value.backgroundColors ?? value.background_colors ?? null,
         textColor,
         link: String(value.link || '').trim(),
     };
@@ -129,6 +137,7 @@ export function makeOptionValue(option) {
         id: option?.id ?? null,
         name,
         color,
+        backgroundColors: option?.backgroundColors ?? option?.background_colors ?? null,
         textColor,
         link: String(option?.link || '').trim(),
     };
@@ -160,6 +169,7 @@ export function mergeLatestOptionMeta(value, optionMetaMap) {
     return {
         ...normalized,
         color: latest?.color || normalized.color,
+        backgroundColors: latest ? latest.backgroundColors : normalized.backgroundColors,
         textColor: latest?.textColor || normalized.textColor,
         link: normalized.link || '',
     };

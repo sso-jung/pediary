@@ -1,20 +1,25 @@
 // src/features/wiki/ActivityCalendar.jsx
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Viewer } from '@toast-ui/react-editor';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import DiaryEditor from './DiaryEditor';
 import DiarySettings from './DiarySettings';
 import { PropertyIcon } from './DiaryPropertyUtils';
 import { useDiariesByDateRange } from './hooks/useDiariesByDateRange';
+import { useDiary } from './hooks/useDiary';
+import { useDiaryPropertyValues } from './hooks/useDiaryPropertyValues';
 import { useDiaryProperties } from './hooks/useDiaryProperties';
-import { useDiaryViewLayout, useDiaryViewSetting } from './hooks/useDiaryViewLayout';
+import { useDiaryViewLayout, useDiaryViewSetting, useDiaryViewSettings } from './hooks/useDiaryViewLayout';
+import { getDiaryViewTabs, getMobileDiaryViewTabs } from './DiaryViewTabs';
 import { useHolidays } from './hooks/useHolidays';
 import { useAllDocuments } from './hooks/useAllDocuments';
 import { useCategories } from './hooks/useCategories';
 import OptionBadge from './OptionBadge';
 import {
     buildOptionMetaMap,
+    getOptionBackground,
     mergeLatestOptionMeta,
     normalizeOptionValue,
     normalizeOptionValues,
@@ -896,7 +901,7 @@ function TimelineSegmentBar({ segment, year, timelineWidth, timelineRange, isMob
             x: anchorX + (scrollRect ? 34 : 0),
             anchorX,
             y: rect.bottom + (isSingleDay ? 8 : 0),
-            backgroundColor: segmentColor,
+            background: segment.option ? getOptionBackground(segment.option) : segmentColor,
             color: segmentTextColor,
             minX: scrollRect ? scrollRect.left + 12 : undefined,
             maxX: rootRect ? rootRect.right - 2 : scrollRect ? scrollRect.right - 4 : undefined,
@@ -954,7 +959,7 @@ function TimelineSegmentBar({ segment, year, timelineWidth, timelineRange, isMob
                 style={{
                     left: `${left}%`,
                     top: laneY,
-                    backgroundColor: segmentColor,
+                    background: segment.option ? getOptionBackground(segment.option) : segmentColor,
                 }}
                 onTouchStart={handleTouchStart}
                 onTouchEnd={handleTouchEnd}
@@ -983,7 +988,7 @@ function TimelineSegmentBar({ segment, year, timelineWidth, timelineRange, isMob
                 top: `calc(50% + ${laneOffset * laneGap}px - 12px)`,
                 width: `${width}%`,
                 minWidth: showText ? undefined : 6,
-                backgroundColor: segmentColor,
+                background: segment.option ? getOptionBackground(segment.option) : segmentColor,
                 borderColor: hasTextColorBorder ? segmentTextColor : 'transparent',
                 color: segmentTextColor,
             }}
@@ -2117,6 +2122,7 @@ export default function ActivityCalendar() {
     const { data: properties } = useDiaryProperties();
     const { data: viewLayout } = useDiaryViewLayout(calendarView);
     const { data: viewSetting } = useDiaryViewSetting(calendarView);
+    const { data: allViewSettings } = useDiaryViewSettings();
     const { data: propertyOptions } = useDiaryPropertyOptions();
     const { data: goalSets } = useDiaryGoals();
     const [timelineTooltip, setTimelineTooltip] = useState(null);
@@ -2125,6 +2131,7 @@ export default function ActivityCalendar() {
     const [timelineWidth, setTimelineWidth] = useState(0);
     const [selectedStrataPropertyId, setSelectedStrataPropertyId] = useState(null);
     const [selectedStrataOptionName, setSelectedStrataOptionName] = useState('');
+    const [selectedMonthlyDate, setSelectedMonthlyDate] = useState(null);
     const [theme, setTheme] = useState(() => {
         if (typeof document === 'undefined') return 'noon';
         return document.documentElement.getAttribute('data-theme') || 'noon';
@@ -2136,6 +2143,19 @@ export default function ActivityCalendar() {
         if (typeof window === 'undefined') return false;
         return window.matchMedia(MOBILE_MEDIA_QUERY).matches;
     });
+    const visibleViewTabs = useMemo(
+        () => getDiaryViewTabs(allViewSettings || []).filter((tab) => tab.isVisible),
+        [allViewSettings],
+    );
+    const visibleMobileViewTabs = useMemo(
+        () => getMobileDiaryViewTabs(allViewSettings || []).filter((tab) => tab.isVisible),
+        [allViewSettings],
+    );
+    const mobileMonthlyPropertyId = (allViewSettings || []).find((setting) => setting.view_type === 'monthly')?.mobile_monthly_property_id;
+    const mobileMonthlyProperty = (properties || []).find((property) => property.id === mobileMonthlyPropertyId && TIMELINE_PROPERTY_TYPES.includes(property.type));
+    const previewDate = isMobileView && calendarView === 'monthly' ? selectedMonthlyDate : null;
+    const { data: previewDiary, isLoading: previewDiaryLoading } = useDiary(previewDate);
+    const { data: previewValues, isLoading: previewValuesLoading } = useDiaryPropertyValues(previewDate);
     const rootRef = useRef(null);
     const timelineAreaRef = useRef(null);
     const swipeTouchRef = useRef(null);
@@ -2171,10 +2191,14 @@ export default function ActivityCalendar() {
     }, []);
 
     useEffect(() => {
-        if (!isMobileView || calendarView !== 'strata') return;
+        if (isMobileView || visibleViewTabs.some((tab) => tab.value === calendarView)) return;
+        setCalendarView(visibleViewTabs[0]?.value || 'weekly');
+    }, [calendarView, isMobileView, visibleViewTabs]);
 
-        setCalendarView('weekly');
-    }, [calendarView, isMobileView]);
+    useEffect(() => {
+        if (!isMobileView || visibleMobileViewTabs.some((tab) => tab.value === calendarView)) return;
+        setCalendarView(visibleMobileViewTabs[0]?.value || 'weekly');
+    }, [calendarView, isMobileView, visibleMobileViewTabs]);
 
     useEffect(() => {
         if (typeof document === 'undefined') return;
@@ -2298,6 +2322,7 @@ export default function ActivityCalendar() {
     }, [calendarView, month, viewStorageKey, weekDate, year]);
 
     const handleChangeCalendarView = (nextView) => {
+        if (nextView !== calendarView) setSelectedMonthlyDate(null);
         if (nextView === 'weekly' && calendarView !== 'weekly') {
             const isThisMonth =
                 year === today.getFullYear() &&
@@ -2339,6 +2364,7 @@ export default function ActivityCalendar() {
     const monthCalendarEndKey = getNextDateKey(getDateKey(visibleWeeks[visibleWeeks.length - 1][6]));
 
     const handlePrevMonth = () => {
+        setSelectedMonthlyDate(null);
         setMonth((m) => {
             if (m === 1) {
                 setYear((y) => y - 1);
@@ -2349,6 +2375,7 @@ export default function ActivityCalendar() {
     };
 
     const handleNextMonth = () => {
+        setSelectedMonthlyDate(null);
         setMonth((m) => {
             if (m === 12) {
                 setYear((y) => y + 1);
@@ -2412,6 +2439,7 @@ export default function ActivityCalendar() {
     };
 
     const handleToday = () => {
+        setSelectedMonthlyDate(null);
         const next = new Date(today.getFullYear(), today.getMonth(), today.getDate());
         setYear(next.getFullYear());
         setMonth(next.getMonth() + 1);
@@ -2453,9 +2481,7 @@ export default function ActivityCalendar() {
             swipeBlockClickRef.current = false;
         }, 0);
 
-        const swipeViews = isMobileView
-            ? CALENDAR_VIEWS.filter((view) => view !== 'strata')
-            : CALENDAR_VIEWS;
+        const swipeViews = (isMobileView ? visibleMobileViewTabs : visibleViewTabs).map((tab) => tab.value);
         const currentIndex = swipeViews.indexOf(calendarView);
         const nextIndex = diffX > 0
             ? Math.max(currentIndex - 1, 0)
@@ -2475,7 +2501,7 @@ export default function ActivityCalendar() {
 
     const handleCalendarEdgeTapCapture = (e) => {
         if (!isMobileView) return;
-        if (calendarView !== 'monthly' && calendarView !== 'timeline' && calendarView !== 'patchwork' && calendarView !== 'gradient') return;
+        if (calendarView !== 'timeline' && calendarView !== 'patchwork' && calendarView !== 'gradient') return;
         if (swipeBlockClickRef.current) return;
         if (isInternalLinkClick(e)) return;
         if (e.target.closest?.('.diary-timeline-segment')) return;
@@ -2630,10 +2656,11 @@ export default function ActivityCalendar() {
         },
         [calendarView, properties, viewLayout],
     );
-    const visiblePropertyIds = useMemo(
-        () => viewItems.map((item) => item.propertyId),
-        [viewItems],
-    );
+    const visiblePropertyIds = useMemo(() => {
+        const ids = viewItems.map((item) => item.propertyId);
+        if (isMobileView && calendarView === 'monthly' && mobileMonthlyProperty && !ids.includes(mobileMonthlyProperty.id)) ids.push(mobileMonthlyProperty.id);
+        return ids;
+    }, [calendarView, isMobileView, mobileMonthlyProperty, viewItems]);
     const { data: diaries } = useDiariesByDateRange(
         rangeStartKey,
         rangeEndKey,
@@ -2651,6 +2678,16 @@ export default function ActivityCalendar() {
         () => new Map((diaries || []).map((diary) => [diary.diary_date, getDiaryValueMap(diary)])),
         [diaries],
     );
+    const previewViewItems = useMemo(() => (properties || []).map((property) => ({
+        propertyId: property.id,
+        property,
+        displayMode: 'icon_name',
+    })), [properties]);
+    const fullPreviewDiary = previewDate ? {
+        ...(previewDiary || {}),
+        diary_date: previewDate,
+        diary_property_values: previewValues || [],
+    } : null;
     const showDiaryTitle = ['weekly', 'monthly'].includes(calendarView) && !!viewSetting?.show_title;
     const timelineSegmentsByPropertyId = useMemo(() => {
         if (calendarView !== 'timeline') return new Map();
@@ -2736,27 +2773,30 @@ export default function ActivityCalendar() {
     return (
         <div
             ref={rootRef}
-            className="diary-calendar-root h-full min-h-0 text-xs"
+            className="diary-calendar-root h-full min-h-0 min-w-0 w-full text-xs"
             onMouseDownCapture={handleInternalLinkClickCapture}
             onClickCapture={handleInternalLinkClickCapture}
         >
-            <div className="flex h-full min-h-0 flex-col">
+            <div className="flex h-full min-h-0 min-w-0 flex-col">
                 <div className="diary-calendar-toolbar-divider shrink-0 border-b border-border-subtle pb-3">
                     <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
-                        <div className="flex min-w-0 flex-nowrap items-center gap-0.5 sm:gap-2">
-                            {CALENDAR_VIEWS.filter((view) => !isMobileView || view !== 'strata').map((view) => (
+                        <div className="flex min-w-0 flex-wrap items-center gap-0.5 sm:flex-nowrap sm:gap-2">
+                            {(isMobileView
+                                ? visibleMobileViewTabs
+                                : visibleViewTabs
+                            ).map((tab) => (
                                 <button
-                                    key={view}
+                                    key={tab.value}
                                     type="button"
-                                    onClick={() => handleChangeCalendarView(view)}
+                                    onClick={() => handleChangeCalendarView(tab.value)}
                                     className={
-                                        'rounded-full border px-1.5 py-1 text-[11px] font-semibold tracking-[0.01em] transition sm:px-3.5 sm:text-[13px] ' +
-                                        (calendarView === view
+                                        'max-w-[120px] truncate rounded-full border px-1.5 py-1 text-[11px] font-semibold tracking-[0.01em] transition sm:max-w-none sm:px-3.5 sm:text-[13px] ' +
+                                        (calendarView === tab.value
                                             ? 'text-[var(--color-text-main)]'
                                             : 'text-[var(--color-text-muted)] hover:bg-[var(--color-panel-bg)]')
                                     }
                                     style={
-                                        calendarView === view
+                                        calendarView === tab.value
                                             ? {
                                                 backgroundColor: 'var(--color-page-surface-2)',
                                                 borderColor: 'var(--color-border-subtle)',
@@ -2766,15 +2806,7 @@ export default function ActivityCalendar() {
                                             }
                                     }
                                 >
-                                    {isMobileView
-                                        ? view === 'weekly'
-                                            ? 'DAILY'
-                                            : view === 'patchwork'
-                                                ? 'PATCH'
-                                                : view === 'gradient'
-                                                    ? 'GRAD'
-                                                : VIEW_LABEL[view]
-                                        : VIEW_LABEL[view]}
+                                    {tab.customTitle || tab.label}
                                 </button>
                             ))}
                             <button
@@ -2822,22 +2854,22 @@ export default function ActivityCalendar() {
                             </button>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 sm:gap-2">
                             {calendarView === 'monthly' ? (
                                 <>
                                     <CalendarDropdown
-                                        className="w-[86px]"
+                                        className="w-[78px] sm:w-[86px]"
                                         value={year}
                                         label={`${year}년`}
                                         options={yearOptions.map((y) => ({ value: y, label: `${y}년` }))}
-                                        onChange={setYear}
+                                        onChange={(value) => { setSelectedMonthlyDate(null); setYear(value); }}
                                     />
                                     <CalendarDropdown
-                                        className="w-[70px]"
+                                        className="w-[58px] sm:w-[70px]"
                                         value={month}
                                         label={`${month}월`}
                                         options={monthOptions.map((m) => ({ value: m, label: `${m}월` }))}
-                                        onChange={setMonth}
+                                        onChange={(value) => { setSelectedMonthlyDate(null); setMonth(value); }}
                                     />
                                 </>
                             ) : (
@@ -2906,7 +2938,7 @@ export default function ActivityCalendar() {
                     </div>
                 </div>
 
-                <div className="flex min-h-0 flex-1 flex-col overflow-auto pt-3">
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto pt-3 sm:overflow-auto">
                     {calendarView === 'timeline' ? (
                         <div
                             className="diary-timeline-scroll min-h-0 flex-1 overflow-x-hidden pb-2 text-[12px] sm:overflow-x-auto"
@@ -3153,7 +3185,7 @@ export default function ActivityCalendar() {
                         </div>
                     ) : (
                         <div
-                            className="min-h-0 flex-1 overflow-x-auto pb-2"
+                            className="min-h-0 min-w-0 flex-1 overflow-x-hidden pb-2 sm:overflow-x-auto"
                             onTouchStart={handleCalendarTouchStart}
                             onTouchEnd={handleCalendarTouchEnd}
                             onClickCapture={(e) => {
@@ -3161,7 +3193,7 @@ export default function ActivityCalendar() {
                                 handleCalendarClickCapture(e);
                             }}
                         >
-                            <div className={calendarView === 'weekly' ? (isMobileView ? 'flex h-full min-w-0 flex-col' : 'flex h-full min-w-[720px] flex-col sm:min-w-0') : 'min-w-0'}>
+                            <div className={calendarView === 'weekly' ? (isMobileView ? 'flex h-full min-w-0 flex-col' : 'flex h-full min-w-[720px] flex-col sm:min-w-0') : 'min-w-0 w-full'}>
                                 {calendarView === 'weekly' && isMobileView ? (
                                     (() => {
                                         const key = getDateKey(weekDate);
@@ -3249,7 +3281,7 @@ export default function ActivityCalendar() {
 
                                 <div
                                     className={
-                                        'diary-calendar-grid grid grid-cols-7 border-l border-t border-border-subtle text-[11px] ' +
+                                        'diary-calendar-grid grid min-w-0 grid-cols-7 border-l border-t border-border-subtle text-[11px] ' +
                                         (calendarView === 'weekly' ? 'min-h-0 flex-1' : '')
                                     }
                                 >
@@ -3261,6 +3293,15 @@ export default function ActivityCalendar() {
                                             const isToday = key === todayKey;
                                             const isHoliday = holidayDateSet.has(key);
                                             const diary = diaryMap.get(key);
+                                            const mobileMonthOptions = isMobileView && diary && mobileMonthlyProperty
+                                                ? getPropertyValueLines(
+                                                    mobileMonthlyProperty,
+                                                    diaryValueMapByDate.get(key)?.get(mobileMonthlyProperty.id),
+                                                    optionMapByPropertyId.get(mobileMonthlyProperty.id),
+                                                    null,
+                                                    key,
+                                                ).slice(0, 2)
+                                                : [];
 
                                             return (
                                                 <button
@@ -3268,15 +3309,16 @@ export default function ActivityCalendar() {
                                                     key={`${wi}-${di}`}
                                                     onClick={(e) => {
                                                         if (isInternalLinkClick(e)) return;
-                                                        handleOpenDiary(key);
+                                                        if (isMobileView) setSelectedMonthlyDate(key);
+                                                        else handleOpenDiary(key);
                                                     }}
-                                                    className="diary-calendar-cell flex h-[64px] flex-col overflow-hidden border-b border-r border-border-subtle px-1 py-1 text-left transition hover:bg-[var(--color-panel-bg)] sm:h-[146px] sm:px-2 sm:py-1.5"
-                                                    style={isCurrentMonth ? undefined : { backgroundColor: 'rgba(148, 163, 184, 0.08)' }}
+                                                    className="diary-calendar-cell flex h-[60px] min-w-0 flex-col overflow-hidden border-b border-r border-border-subtle px-0.5 py-0.5 text-left transition hover:bg-[var(--color-panel-bg)] sm:h-[146px] sm:px-2 sm:py-1.5"
+                                                    style={selectedMonthlyDate === key && isMobileView ? { backgroundColor: 'var(--color-page-surface-2)' } : isCurrentMonth ? undefined : { backgroundColor: 'rgba(148, 163, 184, 0.08)' }}
                                                 >
                                                     <div className="flex items-start justify-end">
                                                         <span
                                                             className={
-                                                                'diary-today-marker inline-flex h-[20px] w-[20px] items-center justify-center rounded-full text-[12px] leading-none ' +
+                                                                 'diary-today-marker inline-flex h-[16px] w-[16px] items-center justify-center rounded-full text-[11px] leading-none sm:h-[20px] sm:w-[20px] sm:text-[12px] ' +
                                                                 (isToday ? 'bg-red-500 text-white' : '')
                                                             }
                                                             style={
@@ -3294,19 +3336,18 @@ export default function ActivityCalendar() {
                                                     </div>
                                                     {diary && (
                                                         <>
-                                                            {diary.title ? (
-                                                                <p
-                                                                    className="mt-1 line-clamp-2 min-w-0 break-words text-[9px] font-semibold leading-tight text-[var(--color-text-main)] sm:hidden"
-                                                                    title={diary.title}
-                                                                >
-                                                                    {diary.title}
-                                                                </p>
-                                                            ) : (
+                                                            {mobileMonthOptions.length > 0 ? (
+                                                                <span className="mt-0.5 flex min-w-0 flex-col gap-0.5 sm:hidden">
+                                                                    {mobileMonthOptions.map((option, index) => (
+                                                                        <span key={`${option.name}-${index}`} className="min-w-0 overflow-hidden"><OptionBadge option={option} compact /></span>
+                                                                    ))}
+                                                                </span>
+                                                            ) : !mobileMonthlyProperty ? (
                                                                 <div
-                                                                    className="mx-auto mt-2 h-1.5 w-1.5 rounded-full sm:hidden"
+                                                                    className="mx-auto mt-1 h-1.5 w-1.5 rounded-full sm:hidden"
                                                                     style={{ backgroundColor: 'var(--color-accent)' }}
                                                                 />
-                                                            )}
+                                                            ) : null}
                                                             <div className="diary-monthly-cell-scroll mt-2 hidden min-h-0 min-w-0 flex-1 overflow-y-auto pr-1 sm:block">
                                                                 {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'monthly', optionMapByPropertyId, goalSetsByPropertyId, allDocs || [], categories || [])}
                                                             </div>
@@ -3364,6 +3405,37 @@ export default function ActivityCalendar() {
                                     })
                                 )}
                                 </div>
+                                {isMobileView && calendarView === 'monthly' && selectedMonthlyDate && (
+                                    <div
+                                        className="mt-3 min-w-0 rounded-lg border border-border-subtle p-3 text-left text-xs text-[var(--color-text-main)]"
+                                        onClick={(e) => { if (!e.target.closest?.('a, button')) handleOpenDiary(selectedMonthlyDate); }}
+                                    >
+                                        <div className="flex items-center justify-between gap-2 font-semibold">
+                                            <span>{formatPatchworkDate(selectedMonthlyDate)}</span>
+                                            <button type="button" className="ui-control rounded-md px-2 py-1" onClick={(e) => { e.stopPropagation(); handleOpenDiary(selectedMonthlyDate); }}>작성</button>
+                                        </div>
+                                        {previewDiaryLoading || previewValuesLoading ? (
+                                            <p className="mt-2 text-[var(--color-text-muted)]">불러오는 중...</p>
+                                        ) : (
+                                            <>
+                                                {previewDiary?.title && <p className="mt-2 font-semibold">{previewDiary.title}</p>}
+                                                {previewDiary?.content_markdown && (
+                                                    <div className="mt-2 min-w-0 overflow-x-auto">
+                                                        <Viewer key={previewDiary.content_markdown} initialValue={previewDiary.content_markdown} />
+                                                    </div>
+                                                )}
+                                                {(previewDiary || (previewValues || []).length > 0) && (
+                                                    <div className="mt-2">
+                                                        {renderDiaryProperties(fullPreviewDiary, previewViewItems, false, 'monthly', optionMapByPropertyId, goalSetsByPropertyId, allDocs || [], categories || [])}
+                                                    </div>
+                                                )}
+                                                {!previewDiary && (!previewValues || previewValues.length === 0) && (
+                                                    <p className="mt-2 text-[var(--color-text-muted)]">기록이 없어. 눌러서 작성해.</p>
+                                                )}
+                                            </>
+                                        )}
+                                    </div>
+                                )}
                                     </>
                                 )}
                             </div>

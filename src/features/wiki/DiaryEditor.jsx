@@ -21,8 +21,11 @@ import { useWikiLinkTooltip, WikiLinkTooltip } from './WikiLinkTooltip';
 import {
     DEFAULT_OPTION_COLOR,
     DEFAULT_OPTION_TEXT_COLOR,
+    buildOptionMetaMap,
+    getOptionBackground,
     getOptionName,
     makeOptionValue,
+    mergeLatestOptionMeta,
     normalizeOptionValue,
     normalizeOptionValues,
 } from './DiarySelectUtils';
@@ -1770,7 +1773,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
 
         if (property.type === 'random_pick') {
             const value = propertyValues[property.id] || { option: null, text: '' };
-            const option = normalizeOptionValue(value.option);
+            const option = mergeLatestOptionMeta(value.option, buildOptionMetaMap(optionsByPropertyId.get(property.id) || []));
 
             return (
                 <div className="space-y-1.5">
@@ -1779,7 +1782,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
                             <span
                                 className="inline-flex max-w-full items-center rounded-md px-2 py-1 text-xs font-medium"
                                 style={{
-                                    backgroundColor: option.color || DEFAULT_OPTION_COLOR,
+                                    background: getOptionBackground(option),
                                     color: option.textColor || DEFAULT_OPTION_TEXT_COLOR,
                                 }}
                             >

@@ -2,8 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     fetchDiaryViewLayout,
     fetchDiaryViewSetting,
+    fetchDiaryViewSettings,
     updateDiaryViewLayout,
     updateDiaryViewSetting,
+    updateDiaryViewTab,
+    updateDiaryViewTabOrder,
 } from '../../../lib/wikiApi';
 import { useAuthStore } from '../../../store/authStore';
 
@@ -29,6 +32,17 @@ export function useDiaryViewSetting(viewType) {
     });
 }
 
+export function useDiaryViewSettings() {
+    const user = useAuthStore((state) => state.user);
+    const userId = user?.id;
+
+    return useQuery({
+        queryKey: ['diaryViewSettings', userId],
+        queryFn: () => fetchDiaryViewSettings({ userId }),
+        enabled: !!userId,
+    });
+}
+
 export function useUpdateDiaryViewLayout(viewType) {
     const user = useAuthStore((state) => state.user);
     const userId = user?.id;
@@ -51,6 +65,35 @@ export function useUpdateDiaryViewSetting(viewType) {
         mutationFn: ({ showTitle }) => updateDiaryViewSetting({ userId, viewType, showTitle }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['diaryViewSetting', userId, viewType] });
+            queryClient.invalidateQueries({ queryKey: ['diaryViewSettings', userId] });
+        },
+    });
+}
+
+export function useUpdateDiaryViewTab() {
+    const user = useAuthStore((state) => state.user);
+    const userId = user?.id;
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ viewType, changes }) => updateDiaryViewTab({ userId, viewType, changes }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['diaryViewSettings', userId] });
+            queryClient.invalidateQueries({ queryKey: ['diaryViewSetting', userId] });
+        },
+    });
+}
+
+export function useUpdateDiaryViewTabOrder() {
+    const user = useAuthStore((state) => state.user);
+    const userId = user?.id;
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ tabs, mobile }) => updateDiaryViewTabOrder({ userId, tabs, mobile }),
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['diaryViewSettings', userId] });
+            queryClient.invalidateQueries({ queryKey: ['diaryViewSetting', userId] });
         },
     });
 }

@@ -3,6 +3,7 @@ import OptionBadge from './OptionBadge';
 import {
     DEFAULT_OPTION_COLOR,
     buildOptionMetaMap,
+    getOptionBackground,
     getOptionTextColor,
     makeOptionValue,
     mergeLatestOptionMeta,
@@ -259,7 +260,7 @@ export default function DiaryOptionSelectField({
                         >
                             <span
                                 className="h-2.5 w-2.5 shrink-0 rounded-full"
-                                style={{ backgroundColor: option.color || DEFAULT_OPTION_COLOR }}
+                                style={{ background: getOptionBackground(option) }}
                             />
                             <span className="min-w-0 truncate">{option.name}</span>
                         </button>
