@@ -3,7 +3,7 @@ import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, use
 import { createPortal } from 'react-dom';
 import { Viewer } from '@toast-ui/react-editor';
 import { useNavigate } from 'react-router-dom';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import DiaryEditor from './DiaryEditor';
 import DiarySettings from './DiarySettings';
 import { PropertyIcon } from './DiaryPropertyUtils';
@@ -30,6 +30,7 @@ import { parseInternalLinks } from '../../lib/internalLinkParser';
 import { useWikiLinkTooltip, WikiLinkTooltip } from './WikiLinkTooltip';
 import { useAuthStore } from '../../store/authStore';
 import { upsertDiaryPropertyValue } from '../../lib/wikiApi';
+import { fetchCareRoutineRange } from '../../lib/careApi';
 
 const VIEW_LABEL = {
     weekly: 'WEEKLY',
@@ -1046,6 +1047,7 @@ function renderDiaryProperties(
     documents = [],
     categories = [],
     className = '',
+    careRowsByDate = new Map(),
 ) {
     if (!diary || (viewItems.length === 0 && !showTitle)) return null;
 
@@ -1053,7 +1055,9 @@ function renderDiaryProperties(
     const rows = viewItems
         .map((item) => ({
             ...item,
-            lines: getPropertyValueLines(
+            lines: item.property?.type === 'care'
+                ? (careRowsByDate.get(diary.diary_date) || []).map((row) => ({ checked: row.status === 'done', skipped: row.status === 'skipped', text: row.name }))
+                : getPropertyValueLines(
                 item.property,
                 valueMap.get(item.propertyId),
                 optionMapByPropertyId.get(item.propertyId),
@@ -1120,7 +1124,7 @@ function renderDiaryProperties(
                 const name = getPropertyDisplayName(item.property?.name);
                 const showIcon = ['icon_name', 'icon'].includes(item.displayMode);
                 const showName = ['icon_name', 'name'].includes(item.displayMode);
-                const isListProperty = ['check_list', 'number_list'].includes(item.property?.type);
+                const isListProperty = ['check_list', 'number_list', 'care'].includes(item.property?.type);
                 const isOptionProperty = ['select', 'multi_select'].includes(item.property?.type);
                 const isGoalProperty = item.property?.type === 'goal';
                 const prevSectionId = rows[index - 1]?.property?.section_id ?? null;
@@ -1131,7 +1135,7 @@ function renderDiaryProperties(
                 const isTextProperty = textValueTypes.includes(propertyType);
                 const isBlockTextProperty = blockTextTypes.includes(propertyType);
                 const hasCheckListItem =
-                    item.property?.type === 'check_list' &&
+                    ['check_list', 'care'].includes(item.property?.type) &&
                     item.lines.length > 0;
                 const hasPropertyHeader = (showIcon && item.property?.icon) || (showName && name);
                 const shouldRenderTextAsBlock = isBlockTextProperty && hasPropertyHeader;
@@ -1307,7 +1311,7 @@ function renderDiaryProperties(
                                         key={index}
                                         className={['flex min-w-0 items-start break-words', listItemGapClass].join(' ')}
                                     >
-                                        {item.property?.type === 'check_list' ? (
+                                        {['check_list', 'care'].includes(item.property?.type) ? (
                                             <span
                                                 className="mt-[1px] ml-[1px] flex h-[18px] w-[18px] shrink-0 items-center justify-center">
                                             {line.checked ? (
@@ -1369,6 +1373,7 @@ function renderDiaryProperties(
                                                 documents={documents}
                                                 categories={categories}
                                             />
+                                            {line.skipped && <span className="ml-1 text-[var(--color-text-muted)]">· 건너뜀</span>}
                                         </span>
                                     </div>
                                 ))}
@@ -2656,6 +2661,20 @@ export default function ActivityCalendar() {
         },
         [calendarView, properties, viewLayout],
     );
+    const careVisible = ['weekly', 'monthly'].includes(calendarView) && viewItems.some((item) => item.property?.type === 'care');
+    const { data: careRangeRows } = useQuery({
+        queryKey: ['care-routine-range', userId, rangeStartKey, rangeEndKey],
+        queryFn: () => fetchCareRoutineRange(rangeStartKey, rangeEndKey),
+        enabled: !!userId && careVisible,
+    });
+    const careRowsByDate = useMemo(() => {
+        const map = new Map();
+        if (!careVisible) return map;
+        (careRangeRows || []).filter((row) => !row.hidden).forEach((row) =>
+            map.set(row.routine_date, [...(map.get(row.routine_date) || []), row]),
+        );
+        return map;
+    }, [careRangeRows, careVisible]);
     const visiblePropertyIds = useMemo(() => {
         const ids = viewItems.map((item) => item.propertyId);
         if (isMobileView && calendarView === 'monthly' && mobileMonthlyProperty && !ids.includes(mobileMonthlyProperty.id)) ids.push(mobileMonthlyProperty.id);
@@ -3255,7 +3274,7 @@ export default function ActivityCalendar() {
                                                 </div>
                                                 {diary ? (
                                                     <div className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-1">
-                                                        {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'weekly', optionMapByPropertyId, goalSetsByPropertyId, allDocs || [], categories || [])}
+                                                        {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'weekly', optionMapByPropertyId, goalSetsByPropertyId, allDocs || [], categories || [], '', careRowsByDate)}
                                                     </div>
                                                 ) : (
                                                     <div className="flex flex-1 items-center justify-center text-[12px] text-[var(--color-text-muted)]">
@@ -3293,6 +3312,7 @@ export default function ActivityCalendar() {
                                             const isToday = key === todayKey;
                                             const isHoliday = holidayDateSet.has(key);
                                             const diary = diaryMap.get(key);
+                                            const careRows = careRowsByDate.get(key) || [];
                                             const mobileMonthOptions = isMobileView && diary && mobileMonthlyProperty
                                                 ? getPropertyValueLines(
                                                     mobileMonthlyProperty,
@@ -3342,14 +3362,16 @@ export default function ActivityCalendar() {
                                                                         <span key={`${option.name}-${index}`} className="min-w-0 overflow-hidden"><OptionBadge option={option} mobileMonth /></span>
                                                                     ))}
                                                                 </span>
-                                                            ) : !mobileMonthlyProperty ? (
+                                                            ) : careRows.length > 0 ? (
+                                                                <span className="mt-0.5 truncate text-[10px] text-[var(--color-text-muted)] sm:hidden">가꿈 {careRows.filter((row) => row.status === 'done').length}/{careRows.length}</span>
+                                                            ) : !mobileMonthlyProperty && diary ? (
                                                                 <div
                                                                     className="mx-auto mt-1 h-1.5 w-1.5 rounded-full sm:hidden"
                                                                     style={{ backgroundColor: 'var(--color-accent)' }}
                                                                 />
                                                             ) : null}
                                                             <div className="diary-monthly-cell-scroll mt-2 hidden min-h-0 min-w-0 flex-1 overflow-y-auto pr-1 sm:block">
-                                                                {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'monthly', optionMapByPropertyId, goalSetsByPropertyId, allDocs || [], categories || [])}
+                                                                {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'monthly', optionMapByPropertyId, goalSetsByPropertyId, allDocs || [], categories || [], '', careRowsByDate)}
                                                             </div>
                                                         </>
                                                     )}
@@ -3397,7 +3419,7 @@ export default function ActivityCalendar() {
                                                 </div>
                                                 {diary && (
                                                     <div className="mt-3 min-h-0 min-w-0 flex-1 overflow-y-auto pr-1">
-                                                        {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'weekly', optionMapByPropertyId, goalSetsByPropertyId, allDocs || [], categories || [])}
+                                                        {renderDiaryProperties(diary, viewItems, showDiaryTitle, 'weekly', optionMapByPropertyId, goalSetsByPropertyId, allDocs || [], categories || [], '', careRowsByDate)}
                                                     </div>
                                                 )}
                                             </button>
@@ -3424,12 +3446,12 @@ export default function ActivityCalendar() {
                                                         <Viewer key={previewDiary.content_markdown} initialValue={previewDiary.content_markdown} />
                                                     </div>
                                                 )}
-                                                {(previewDiary || (previewValues || []).length > 0) && (
+                                                {previewDiary && (
                                                     <div className="mt-2">
-                                                        {renderDiaryProperties(fullPreviewDiary, previewViewItems, false, 'monthly', optionMapByPropertyId, goalSetsByPropertyId, allDocs || [], categories || [])}
+                                                        {renderDiaryProperties(fullPreviewDiary, previewViewItems, false, 'monthly', optionMapByPropertyId, goalSetsByPropertyId, allDocs || [], categories || [], '', careRowsByDate)}
                                                     </div>
                                                 )}
-                                                {!previewDiary && (!previewValues || previewValues.length === 0) && (
+                                                {!previewDiary && (
                                                     <p className="mt-2 text-[var(--color-text-muted)]">기록이 없어. 눌러서 작성해.</p>
                                                 )}
                                             </>

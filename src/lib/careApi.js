@@ -32,6 +32,10 @@ export async function archiveCareFood(userId, id) {
     return result(await supabase.from('care_foods').update({ archived: true }).eq('id', id).eq('user_id', userId).select().single());
 }
 
+export async function setCareFoodFavorite(userId, id, isFavorite) {
+    return result(await supabase.from('care_foods').update({ is_favorite: isFavorite }).eq('id', id).eq('user_id', userId).select().single());
+}
+
 export async function fetchCareMeals(userId, date) {
     return result(await supabase.from('care_meals').select('*, care_meal_items (*)')
         .eq('user_id', userId).eq('meal_date', date).order('eaten_at', { nullsFirst: false }));
@@ -82,6 +86,12 @@ export async function deleteCareMeal(userId, id) {
 export async function fetchCareMeasurements(userId, date) {
     return result(await supabase.from('care_measurements').select('*')
         .eq('user_id', userId).eq('measurement_date', date).order('measured_at'));
+}
+
+export async function fetchLatestCareMeasurement(userId, date) {
+    return result(await supabase.from('care_measurements').select('*').eq('user_id', userId)
+        .lte('measurement_date', date).order('measurement_date', { ascending: false })
+        .order('measured_at', { ascending: false }).order('id', { ascending: false }).limit(1).maybeSingle());
 }
 
 export async function fetchCareMeasurementChart(userId, metric, start, end) {
@@ -159,6 +169,10 @@ export async function fetchCareRoutineDay(date) {
     return result(await supabase.rpc('list_care_routine_day', { p_date: date }));
 }
 
+export async function fetchCareRoutineRange(start, endExclusive) {
+    return result(await supabase.rpc('list_care_routine_range', { p_start: start, p_end_exclusive: endExclusive }));
+}
+
 export async function fetchCareRoutineSettings(date) {
     return result(await supabase.rpc('list_care_routine_settings', { p_date: date }));
 }
@@ -170,8 +184,9 @@ export async function saveCareRoutine(routine, date) {
         p_date: date,
         p_name: routine.name,
         p_repeat_type: routine.repeat_type,
-        p_weekdays: routine.repeat_type === 'weekdays' ? routine.weekdays : null,
+        p_weekdays: ['weekdays', 'odd_week', 'even_week'].includes(routine.repeat_type) ? routine.weekdays : null,
         p_interval_days: routine.repeat_type === 'interval' ? Number(routine.interval_days) : null,
+        p_month_day: routine.repeat_type === 'monthly' ? Number(routine.month_day) : null,
     }));
 }
 

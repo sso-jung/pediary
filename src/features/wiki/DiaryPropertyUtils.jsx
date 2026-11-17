@@ -4,6 +4,7 @@ export const PROPERTY_TYPES = [
     { value: 'number', label: '숫자' },
     { value: 'number_list', label: '숫자목록' },
     { value: 'check_list', label: '체크목록' },
+    { value: 'care', label: '가꿈' },
     { value: 'goal', label: '목표' },
     { value: 'date', label: '날짜' },
     { value: 'period', label: '기간' },

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { PropertyIcon } from './DiaryPropertyUtils';
 import { useDiary } from './hooks/useDiary';
 import { useDeleteDiary } from './hooks/useDeleteDiary';
@@ -18,6 +19,8 @@ import { buildInternalLink } from '../../lib/internalLinkFormat';
 import { parseInternalLinks } from '../../lib/internalLinkParser';
 import { extractSectionsFromMarkdown } from '../../lib/wikiSectionUtils';
 import { useWikiLinkTooltip, WikiLinkTooltip } from './WikiLinkTooltip';
+import { useAuthStore } from '../../store/authStore';
+import { fetchCareRoutineDay, patchCareRoutineDay, setCareOneoffStatus } from '../../lib/careApi';
 import {
     DEFAULT_OPTION_COLOR,
     DEFAULT_OPTION_TEXT_COLOR,
@@ -297,10 +300,10 @@ function hasPropertyValue(property, rawValue) {
 
 function hasDraftContent({ title, properties = [], propertyValues = {}, contentMarkdown = '' }) {
     const titleText = String(title || '').trim();
-    if (titleText && titleText !== '다이어리') return true;
+    if (titleText && titleText !== '-') return true;
     if (String(contentMarkdown || '').trim()) return true;
 
-    return (properties || []).some((property) =>
+    return (properties || []).some((property) => property.type !== 'care' &&
         hasPropertyValue(property, propertyValues[property.id]),
     );
 }
@@ -374,6 +377,7 @@ function getVisibleProperties(
     propertyValues = {},
     forceVisiblePropertyIds = new Set(),
     forceCollapsedPropertyIds = new Set(),
+    careRows = [],
 ) {
     return getDiaryPropertyItems(properties, layout, propertyValues)
         .filter(({ property, visibility }) => {
@@ -381,7 +385,7 @@ function getVisibleProperties(
             if (visibility === 'when_filled') {
                 if (forceVisiblePropertyIds.has(property.id)) return true;
                 if (forceCollapsedPropertyIds.has(property.id)) return false;
-                return hasPropertyValue(property, propertyValues[property.id]);
+                return property.type === 'care' ? careRows.some((row) => !row.hidden) : hasPropertyValue(property, propertyValues[property.id]);
             }
             return true;
         })
@@ -394,6 +398,7 @@ function getCollapsedProperties(
     propertyValues = {},
     forceVisiblePropertyIds = new Set(),
     forceCollapsedPropertyIds = new Set(),
+    careRows = [],
 ) {
     return getDiaryPropertyItems(properties, layout, propertyValues)
         .filter(({ property, visibility }) => {
@@ -401,7 +406,7 @@ function getCollapsedProperties(
             if (visibility === 'when_filled') {
                 if (forceVisiblePropertyIds.has(property.id)) return false;
                 if (forceCollapsedPropertyIds.has(property.id)) return true;
-                return !hasPropertyValue(property, propertyValues[property.id]);
+                return property.type === 'care' ? !careRows.some((row) => !row.hidden) : !hasPropertyValue(property, propertyValues[property.id]);
             }
             return false;
         })
@@ -1040,8 +1045,15 @@ function ListActionButton({ type, onClick, disabled }) {
 }
 
 export default function DiaryEditor({ open, diaryDate, onClose }) {
+    const userId = useAuthStore((state) => state.user?.id);
+    const queryClient = useQueryClient();
     const { data: diary, isLoading } = useDiary(open ? diaryDate : null);
     const { data: properties } = useDiaryProperties();
+    const careQuery = useQuery({
+        queryKey: ['care-routine-day', userId, diaryDate],
+        queryFn: () => fetchCareRoutineDay(diaryDate),
+        enabled: !!userId && !!open && !!diaryDate && (properties || []).some((property) => property.type === 'care'),
+    });
     const { data: sections } = useDiaryPropertySections();
     const { data: layout, isLoading: layoutLoading } = useDiaryLayout();
     const { data: savedPropertyValues, isLoading: valuesLoading } = useDiaryPropertyValues(
@@ -1066,15 +1078,17 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
     const deleteDiary = useDeleteDiary();
 
     const [propertyValues, setPropertyValues] = useState({});
-    const [title, setTitle] = useState('다이어리');
+    const [title, setTitle] = useState('-');
     const [isCollapsedPropertiesOpen, setIsCollapsedPropertiesOpen] = useState(false);
     const [forceVisiblePropertyIds, setForceVisiblePropertyIds] = useState(() => new Set());
     const [forceCollapsedPropertyIds, setForceCollapsedPropertyIds] = useState(() => new Set());
     const [expandedGoalPropertyIds, setExpandedGoalPropertyIds] = useState(() => new Set());
+    const [careBusyId, setCareBusyId] = useState(null);
+    const [careError, setCareError] = useState(null);
 
     const saveTimerRef = useRef(null);
     const latestDraftRef = useRef({
-        title: '다이어리',
+        title: '-',
         propertyValues: {},
     });
     const hydratedRef = useRef(false);
@@ -1107,6 +1121,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
     }, [handleNavigateLink]);
 
     const loading = isLoading || valuesLoading || layoutLoading || optionsLoading || randomPickValuesLoading || goalSetsLoading;
+    const careRowsForVisibility = careQuery.isPending || careQuery.isError ? [{ hidden: false }] : careQuery.data || [];
     const linkCandidates = useMemo(() => buildDiaryLinkCandidates(allDocs || []), [allDocs]);
     const visibleProperties = getVisibleProperties(
         properties || [],
@@ -1114,6 +1129,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
         propertyValues,
         forceVisiblePropertyIds,
         forceCollapsedPropertyIds,
+        careRowsForVisibility,
     );
     const optionsByPropertyId = useMemo(() => {
         const map = new Map();
@@ -1141,6 +1157,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
         propertyValues,
         forceVisiblePropertyIds,
         forceCollapsedPropertyIds,
+        careRowsForVisibility,
     );
 
     useEffect(() => {
@@ -1154,7 +1171,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
             setForceCollapsedPropertyIds(new Set());
             setPullOffset(0);
             latestDraftRef.current = {
-                title: '다이어리',
+                title: '-',
                 propertyValues: {},
             };
 
@@ -1205,7 +1222,7 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
             nextPropertyValues[property.id] = getValueForInput(property, savedPropertyValues);
         });
 
-        const nextTitle = diary?.title || '다이어리';
+        const nextTitle = diary?.title || '-';
 
         setTitle(nextTitle);
         setPropertyValues(nextPropertyValues);
@@ -1279,9 +1296,9 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
 
         await saveDiary.mutateAsync({
             diaryDate,
-            title: String(draft.title || '').trim() || '다이어리',
+            title: String(draft.title || '').trim() || '-',
             contentMarkdown: diary?.content_markdown || '',
-            propertyValues: (properties || []).map((property) => {
+            propertyValues: (properties || []).filter((property) => property.type !== 'care').map((property) => {
                 const savedValue = savedPropertyValues?.find((item) => item.property_id === property.id)?.value;
 
                 return {
@@ -1311,6 +1328,33 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
         }
 
         await saveDraft();
+    };
+
+    const toggleCare = async (item) => {
+        if (careBusyId) return;
+        const itemId = item.routine_id ? `routine-${item.routine_id}` : `once-${item.day_id}`;
+        const nextStatus = item.status === 'done' ? 'pending' : 'done';
+        const queryKey = ['care-routine-day', userId, diaryDate];
+        setCareBusyId(itemId);
+        setCareError(null);
+        await queryClient.cancelQueries({ queryKey });
+        const previous = queryClient.getQueryData(queryKey);
+        queryClient.setQueryData(queryKey, (rows) => (rows || []).map((row) =>
+            row.routine_id === item.routine_id && row.day_id === item.day_id ? { ...row, status: nextStatus } : row,
+        ));
+        try {
+            if (item.routine_id) await patchCareRoutineDay(item.routine_id, diaryDate, nextStatus);
+            else await setCareOneoffStatus(userId, item.day_id, nextStatus);
+        } catch (error) {
+            queryClient.setQueryData(queryKey, previous);
+            setCareError({ date: diaryDate, message: error.message || '가꿈 항목을 변경하지 못했습니다.' });
+        } finally {
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey }),
+                queryClient.invalidateQueries({ queryKey: ['care-routine-range', userId] }),
+            ]);
+            setCareBusyId(null);
+        }
     };
 
     const resetPullClose = () => {
@@ -1530,6 +1574,24 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
     };
 
     const renderPropertyInput = (property) => {
+        if (property.type === 'care') {
+            const items = (careQuery.data || []).filter((item) => !item.hidden);
+            return <div className="space-y-1">
+                {careQuery.isPending && <p className="text-xs text-[var(--color-text-muted)]">가꿈 항목을 불러오는 중...</p>}
+                {careQuery.isError && <p role="alert" className="text-xs text-red-500">가꿈 항목을 불러오지 못했습니다: {careQuery.error.message}</p>}
+                {careError?.date === diaryDate && <p role="alert" className="text-xs text-red-500">{careError.message}</p>}
+                {careQuery.isSuccess && !items.length && <p className="text-xs text-[var(--color-text-muted)]">이 날짜의 가꿈 항목이 없습니다.</p>}
+                {items.map((item) => <div key={item.routine_id ? `routine-${item.routine_id}` : `once-${item.day_id}`} className="diary-editor-check-row flex items-center gap-1.5">
+                    <label className="relative flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center">
+                        <input type="checkbox" className="peer sr-only" checked={item.status === 'done'} onChange={() => void toggleCare(item)} disabled={!!careBusyId} aria-label={`${item.name} 완료`} />
+                        <span className="diary-editor-check-box flex h-4 w-4 items-center justify-center rounded border border-border-subtle bg-[var(--color-page-surface)] text-white transition peer-checked:border-[var(--color-accent)] peer-checked:bg-[var(--color-accent)] [&>svg]:peer-checked:opacity-100"><svg viewBox="0 0 16 16" className="h-3 w-3 opacity-0 transition" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3.5 8.5 6.5 11 12.5 5" /></svg></span>
+                    </label>
+                    <span className="min-w-0 break-words text-xs">{item.name}</span>
+                    {item.status === 'skipped' && <span className="shrink-0 text-[11px] text-[var(--color-text-muted)]">건너뜀</span>}
+                </div>)}
+            </div>;
+        }
+
         if (property.type === 'period') {
             return (
                 <div className="grid grid-cols-2 gap-2">

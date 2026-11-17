@@ -1,3 +1,5 @@
+import { CareButton } from './CareControls';
+import { CareSelect } from './CareControls';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchCareMeasurementChart, fetchCarePeriodSummary } from '../../lib/careApi';
@@ -8,6 +10,7 @@ const metrics = [
 ];
 const periods = [7, 30, 90, 365];
 const buttonClass = 'ui-control rounded-lg border px-3 py-2 text-sm';
+const inputClass = 'ui-input rounded-lg border px-3 py-2 text-sm';
 const dateNumber = (date) => Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10))) / 86400000;
 const localDate = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 const addDays = (date, days) => {
@@ -50,7 +53,7 @@ function Chart({ points, start, end, unit, selectedDate, onSelect, includeZero =
             {points.map((point) => <circle key={point.date} cx={x(point)} cy={y(point)} r={selected.date === point.date ? 6 : 4} fill="var(--color-accent)" stroke="var(--color-surface, white)" strokeWidth="2" role="button" tabIndex="0" aria-label={`${point.date} ${format(point.value)} ${unit} 선택`} onClick={() => onSelect(point.date)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(point.date); } }} />)}
         </svg>
         <div className="flex flex-wrap items-center gap-2 text-sm">
-            <label>날짜 <select value={selected.date} onChange={(event) => onSelect(event.target.value)} className={`${buttonClass} ml-1`}>{points.map((point) => <option key={point.date} value={point.date}>{point.date}</option>)}</select></label>
+            <label>날짜 <CareSelect value={selected.date} onChange={(event) => onSelect(event.target.value)} className={`${inputClass} ml-1 w-auto`}>{points.map((point) => <option key={point.date} value={point.date}>{point.date}</option>)}</CareSelect></label>
             <strong>{format(selected.value)} {unit}</strong>
             {selected.provisional && <span className="page-text-muted text-xs">잠정</span>}
         </div>
@@ -79,21 +82,19 @@ export default function CareAnalysis({ userId, date }) {
         return points;
     }, []);
 
-    return <section className="min-w-0 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-            <div><h2 className="text-lg font-semibold">기록 분석</h2><p className="page-text-muted mt-1 text-xs">선택한 날짜까지의 변화를 봅니다.</p></div>
-        </div>
-        <div className="flex flex-wrap gap-1" role="group" aria-label="분석 기간">{periods.map((days) => <button key={days} type="button" className={buttonClass} aria-pressed={period === days} onClick={() => setPeriod(days)}>{days}일</button>)}</div>
+    return <section className="care-analysis min-w-0 space-y-4">
+        <div className="care-section-head"><div><h2>기록 분석</h2><p className="page-text-muted mt-1 text-xs">선택한 날짜까지의 변화를 봅니다.</p></div></div>
+        <div className="flex flex-wrap gap-1" role="group" aria-label="분석 기간">{periods.map((days) => <CareButton key={days} type="button" className={buttonClass} aria-pressed={period === days} onClick={() => setPeriod(days)}>{days}일</CareButton>)}</div>
         <div className="grid min-w-0 gap-5 lg:grid-cols-2">
             <div className="min-w-0 space-y-2">
-                <label className="text-sm font-semibold">신체 지표 <select value={metric} onChange={(event) => { setMetric(event.target.value); setSelectedMeasurement(null); }} className={`${buttonClass} ml-1`}>{metrics.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+                <label className="care-section-title">신체 지표 <CareSelect value={metric} onChange={(event) => { setMetric(event.target.value); setSelectedMeasurement(null); }} className={`${inputClass} ml-1 w-auto`}>{metrics.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</CareSelect></label>
                 {measurementsQuery.isPending && <p className="page-text-muted text-sm">측정 기록을 불러오는 중...</p>}
                 {measurementsQuery.isError && <p role="alert" className="ui-danger-text text-sm">측정 기록을 불러오지 못했습니다: {measurementsQuery.error.message}</p>}
                 {measurementsQuery.isSuccess && <Chart points={measurementPoints} start={start} end={date} unit="kg" selectedDate={selectedMeasurement} onSelect={setSelectedMeasurement} />}
                 {measurementPoints.length > 1 && <p className="page-text-muted text-xs">하루에 여러 번 측정했다면 마지막 값을 표시합니다. 기록이 없는 날 사이에는 점선을 표시합니다.</p>}
             </div>
             <div className="min-w-0 space-y-2">
-                <h3 className="text-sm font-semibold">에너지 수지 누적</h3>
+                <h3 className="care-section-title">누적 부족·초과 열량</h3>
                 {energyQuery.isPending && <p className="page-text-muted text-sm">에너지 기록을 불러오는 중...</p>}
                 {energyQuery.isError && <p role="alert" className="ui-danger-text text-sm">에너지 기록을 불러오지 못했습니다: {energyQuery.error.message}</p>}
                 {energyQuery.isSuccess && <Chart points={energyPoints} start={start} end={date} unit="kcal" selectedDate={selectedEnergy} onSelect={setSelectedEnergy} includeZero />}

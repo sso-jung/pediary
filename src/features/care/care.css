@@ -1,0 +1,680 @@
+.care-page,
+.care-dialog { color-scheme: light; }
+
+.care-page .care-selected,
+.care-dialog .care-selected {
+    background-color: var(--color-accent);
+    border-color: var(--color-accent);
+    color: var(--color-accent-contrast, var(--color-text-main));
+}
+
+.care-page .care-toolbar { padding: 2px 0 14px; }
+.care-page .care-toolbar-controls { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 12px; }
+
+.care-page .care-tabs {
+    gap: 2px;
+    padding: 2px;
+    border-color: color-mix(in srgb, var(--color-text-main) 7%, transparent);
+    background-color: color-mix(in srgb, var(--color-text-main) 5%, var(--color-surface-elevated));
+    border-radius: 8px;
+}
+
+.care-page .care-tab {
+    min-height: 30px;
+    padding: 4px 11px;
+    border-radius: 6px;
+    font-size: 12px;
+    transition: background-color 150ms, color 150ms, box-shadow 150ms;
+}
+
+.care-page .care-tabs .care-selected {
+    background-color: var(--color-surface-elevated);
+    color: var(--color-text-main);
+    box-shadow: 0 1px 4px rgba(12, 26, 53, 0.1);
+}
+
+.care-page .care-date-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--color-text-muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.care-page .care-date-field input {
+    width: 146px;
+    font-size: 13px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+}
+.care-page .care-date-nav { display: inline-flex; align-items: center; gap: 6px; }
+.care-page .care-control.care-date-arrow,
+.care-page .care-control.care-date-today { display: inline-flex; min-height: 30px; align-items: center; justify-content: center; border: 1px solid var(--color-control-border); border-radius: 7px; background: var(--color-surface-elevated); color: var(--color-text-main); }
+.care-page button.care-control.care-date-arrow { width: 26px; height: 26px; min-height: 26px; padding: 0; border-radius: 999px; }
+.care-page .care-date-arrow svg { width: 16px; height: 16px; }
+.care-page .care-control.care-date-today { padding: 0 10px; font-size: 12px; }
+.care-page .care-date-arrow:hover,
+.care-page .care-date-today:hover { border-color: var(--color-accent); color: var(--color-accent); }
+.care-page .care-history-month { min-width: 78px; text-align: center; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.care-page .care-history-total { margin-right: 8px; border: 1px solid color-mix(in srgb, var(--color-accent) 15%, var(--color-border-subtle)); border-radius: 7px; background: color-mix(in srgb, var(--color-accent) 7%, var(--color-surface-elevated)); padding: 5px 9px; color: var(--color-text-main); font-size: 12px; white-space: nowrap; }
+.care-page .care-history-total strong { color: var(--color-accent); font-size: 13px; font-variant-numeric: tabular-nums; }
+@media (max-width: 639px) {
+    .care-page .care-toolbar-controls { width: 100%; justify-content: space-between; gap: 8px; }
+    .care-page .care-date-nav { gap: 4px; }
+    .care-page .care-date-field input { width: 120px; }
+    .care-page .care-control.care-food-button { padding-left: 8px; }
+}
+
+.care-page .care-tile {
+    min-height: 158px;
+    padding: 20px 22px;
+    border: 1px solid color-mix(in srgb, var(--color-text-main) 11%, transparent);
+    border-radius: 14px;
+    background-color: var(--color-surface-elevated);
+    box-shadow: 0 3px 12px rgba(12, 26, 53, 0.035);
+    transition: border-color 160ms, box-shadow 160ms, transform 160ms;
+}
+
+.care-page .care-tile:hover {
+    border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-control-border));
+    box-shadow: 0 10px 24px rgba(12, 26, 53, 0.08);
+    transform: translateY(-2px);
+}
+
+.care-page .care-tile-number {
+    color: var(--color-accent);
+    font-variant-numeric: tabular-nums;
+}
+
+.care-page .care-tile-value {
+    font-size: 26px;
+    line-height: 1.16;
+}
+
+.care-page .care-meal-tile { position: relative; }
+.care-page .care-meal-open {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border: 0;
+    border-radius: inherit;
+    background: transparent;
+    cursor: pointer;
+}
+.care-page .care-meal-content { position: relative; z-index: 2; pointer-events: none; }
+.care-page .care-meal-summary { display: flex; min-height: 78px; flex: 1; flex-direction: column; justify-content: center; padding: 14px 0; }
+.care-page .care-tile-note { margin-top: 5px; }
+.care-page .care-meal-preview {
+    border-top: 1px solid var(--color-border-subtle);
+    padding-top: 5px;
+}
+.care-page .care-meal-entry { display: grid; grid-template-columns: max-content minmax(0, 1fr) auto; align-items: start; gap: 7px; padding: 5px 0; line-height: 1.4; }
+.care-page .care-meal-entry + .care-meal-entry { border-top: 1px solid var(--color-border-subtle); }
+.care-page .care-meal-foods { min-width: 0; overflow-wrap: anywhere; }
+.care-page .care-meal-foods span { display: block; }
+.care-page .care-meal-foods span + span { margin-top: 3px; }
+.care-page .care-meal-entry-actions { display: flex; gap: 7px; white-space: nowrap; }
+.care-page .care-meal-entry-actions button { pointer-events: auto; font-size: 11px; }
+.care-page .care-meal-entry-actions button:first-child { color: var(--color-accent); }
+.care-page .care-meal-entry-actions button:hover { text-decoration: underline; }
+.care-page .care-meal-preview-label { color: var(--color-accent); font-weight: 700; }
+.care-page .care-meal-protein { font-size: 11px; }
+.care-page .care-tile-link { color: var(--color-accent); }
+.care-page .care-summary-main { display: flex; min-height: 78px; flex: 1; flex-direction: column; justify-content: center; padding: 14px 0; }
+.care-page .care-summary-preview { display: flex; min-height: 27px; flex-direction: column; gap: 3px; border-top: 1px solid var(--color-border-subtle); padding-top: 7px; line-height: 1.4; overflow-wrap: anywhere; }
+.care-page .care-summary-preview strong { color: var(--color-accent); font-weight: 700; }
+
+.care-page .care-body-grid { display: grid; flex: 1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 12px; align-content: center; padding: 12px 0 6px; }
+.care-page .care-body-grid > div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.care-page .care-body-grid span { color: var(--color-text-muted); font-size: 11px; }
+.care-page .care-body-grid strong { font-size: 18px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.care-page .care-body-grid small { color: var(--color-text-muted); font-size: 11px; font-weight: 400; }
+.care-page .care-body-time { align-self: flex-end; color: var(--color-accent); font-size: 10px; }
+.care-page .care-analysis-tile { min-height: 190px; }
+.care-page .care-body-chart { display: flex; min-width: 0; flex: 1; flex-direction: column; justify-content: flex-end; padding-top: 8px; }
+.care-page .care-body-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.care-page .care-body-chart-legend { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; font-size: 10px; }
+.care-page .care-body-chart-legend span { min-width: 0; white-space: nowrap; }
+.care-page .care-body-chart-legend i { display: inline-block; width: 7px; height: 7px; margin-right: 4px; border-radius: 50%; }
+.care-page .care-body-chart-legend strong { font-weight: 600; }
+.care-page .care-body-chart-axis { display: flex; justify-content: space-between; gap: 4px; padding-top: 8px; font-size: 10px; }
+.care-dialog .care-record-row.care-body-record { display: block; padding: 12px 0; }
+.care-dialog .care-body-record-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.care-dialog .care-body-record-head > div:first-child { display: flex; align-items: baseline; gap: 8px; }
+.care-dialog .care-body-record-head strong { color: var(--color-text-main); font-size: 13px; }
+.care-dialog .care-body-record-head span { color: var(--color-text-muted); font-size: 11px; }
+.care-dialog .care-body-record-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 13px; }
+.care-dialog .care-body-metric { min-width: 0; }
+.care-dialog .care-body-metric + .care-body-metric { border-left: 1px solid var(--color-border-subtle); padding-left: 12px; }
+.care-dialog .care-body-metric > span:first-child { display: block; color: var(--color-text-muted); font-size: 11px; }
+.care-dialog .care-body-metric > strong { display: block; margin-top: 3px; color: var(--color-text-main); font-size: 18px; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.care-dialog .care-body-metric > strong small { color: var(--color-text-muted); font-size: 11px; font-weight: 400; }
+.care-dialog .care-body-metric > span:last-child:not(:first-child) { display: block; margin-top: 4px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.care-dialog .care-body-metric .care-body-good { color: var(--color-success-fg); }
+.care-dialog .care-body-metric .care-body-bad { color: var(--color-danger-fg); }
+@media (max-width: 639px) {
+    .care-dialog .care-body-record-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .care-dialog .care-body-metric:nth-child(3) { border-left: 0; padding-left: 0; }
+}
+
+.care-page .care-history-weekdays { border: 1px solid var(--color-border-subtle); border-bottom: 0; background: color-mix(in srgb, var(--color-accent) 5%, var(--color-surface-elevated)); color: var(--color-text-main); font-weight: 700; }
+.care-page .care-history-weekdays > div { padding-block: 9px; font-weight: 700; }
+.care-page .care-history-weekdays > div + div { border-left: 1px solid var(--color-border-subtle); }
+.care-page .care-history-calendar-wrap { overflow-x: auto; }
+.care-page .care-history-blank { min-height: 124px; border-right: 1px solid var(--color-border-subtle); border-bottom: 1px solid var(--color-border-subtle); background: color-mix(in srgb, var(--color-text-muted) 8%, var(--color-surface-elevated)); }
+.care-page .care-history-day {
+    height: 124px;
+    background-color: var(--color-surface-elevated);
+    transition: background-color 150ms;
+}
+.care-page .care-history-day:hover { background: var(--color-panel-bg); }
+.care-page .care-history-day[data-selected="true"] { background: color-mix(in srgb, #d9c8ef 28%, var(--color-surface-elevated)); }
+.care-page .care-history-day .care-control.care-history-date { width: 100%; min-height: 30px; color: var(--color-text-main); }
+.care-page .care-history-day-head { display: flex; width: 100%; min-width: 0; align-items: center; justify-content: space-between; gap: 4px; }
+.care-page .care-history-date:hover .care-history-number:not(.bg-red-500) { color: var(--color-accent); }
+.care-page .care-history-mark { display: block; min-width: 0; overflow: hidden; color: var(--color-accent); font-size: 10px; font-weight: 700; line-height: 1.4; white-space: nowrap; text-overflow: ellipsis; }
+.care-page .care-history-mark.care-history-over { color: var(--color-danger-fg); }
+.care-page .care-history-number { flex-shrink: 0; }
+.care-page .care-history-routines { min-height: 0; overflow-y: auto; }
+.care-page .care-history-routine { display: flex; width: 100%; min-width: 0; min-height: 16px; align-items: center; gap: 5px; border: 0; padding: 0; background: none; font-size: 10px; line-height: 1.3; text-align: left; }
+.care-page .care-history-routine + .care-history-routine { margin-top: 3px; }
+.care-page .care-history-routine > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.care-page .care-history-check svg { opacity: 0; }
+.care-page .care-history-checked { border-color: var(--color-accent); background: var(--color-accent); }
+.care-page .care-history-checked svg { opacity: 1; }
+.care-page .care-routine-content { position: relative; z-index: 2; pointer-events: none; }
+.care-page .care-routine-preview-row { display: flex; align-items: center; gap: 5px; pointer-events: auto; }
+.care-page .care-routine-preview-row span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.care-page .care-routine-tile .care-summary-main { flex: 0 0 auto; min-height: 0; padding: 8px 0 12px; }
+.care-page .care-routine-tile .care-summary-preview { min-height: 0; max-height: 106px; overflow-y: auto; padding-top: 11px; pointer-events: auto; scrollbar-width: none; }
+.care-page .care-routine-tile .care-summary-preview::-webkit-scrollbar { display: none; }
+.care-page .care-routine-complete { color: var(--color-success-fg); }
+
+.care-page .care-food-list { border-top: 1px solid var(--color-border-subtle); }
+.care-page .care-food-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 1px 8px;
+    min-height: 30px;
+    padding: 2px 5px;
+    border-bottom: 1px solid var(--color-border-subtle);
+}
+.care-page .care-food-row:hover { background: color-mix(in srgb, var(--color-accent) 5%, transparent); }
+.care-page .care-food-name { font-size: 12px; font-weight: 600; line-height: 1.3; }
+.care-page .care-food-name-with-favorite { display: flex; min-width: 0; align-items: center; gap: 6px; }
+.care-page .care-food-favorite { flex: none; padding: 0; font-size: 17px; line-height: 1; }
+.care-page .care-food-meta { display: flex; flex-wrap: wrap; gap: 1px 8px; grid-column: 1; font-size: 11px; line-height: 1.3; }
+.care-page .care-food-row button { grid-column: 2; grid-row: 1 / span 2; }
+.care-page .care-food-row button.care-food-add {
+    min-height: 22px;
+    padding: 1px 5px;
+    border: 0;
+    background: transparent;
+    color: var(--color-accent);
+    font-size: 11px;
+    line-height: 1.3;
+}
+.care-page .care-food-row button.care-food-add:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+
+@media (min-width: 640px) {
+    .care-page .care-food-row { grid-template-columns: minmax(0, 1fr) 64px 72px 92px 36px; gap: 7px; }
+    .care-page .care-food-meta { display: contents; }
+    .care-page .care-food-meta span { color: var(--color-text-muted); }
+    .care-page .care-food-row button { grid-column: 5; grid-row: 1; }
+}
+
+@media (max-width: 639px) {
+    .care-page .care-tile { min-height: 146px; padding: 18px; }
+    .care-page .care-history-weekdays,
+    .care-page .care-history-calendar { min-width: 630px; }
+    .care-page .care-history-blank { min-height: 114px; }
+    .care-page .care-history-day { height: 114px; }
+}
+
+.app-shell[data-theme="midnight"] .care-page,
+.app-shell[data-theme="midnight"] .care-dialog,
+.app-shell[data-theme="twilight"] .care-page,
+.app-shell[data-theme="twilight"] .care-dialog { color-scheme: dark; }
+
+.care-page .care-control,
+.care-dialog .care-control {
+    font-family: inherit;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.care-page .care-control:not(.care-tile),
+.care-dialog .care-control {
+    transition: background-color 150ms, border-color 150ms, color 150ms;
+}
+
+.care-page .care-control:is(.ui-control, .ui-btn-success),
+.care-dialog .care-control:is(.ui-control, .ui-btn-success) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    padding: 4px 10px;
+    border-radius: 7px;
+    font-size: 12px;
+    line-height: 1.3;
+    white-space: nowrap;
+}
+
+.care-page .care-control:not(:where(.ui-control, .ui-btn-success, .care-tile, .care-tab, .care-history-day, .care-history-routine, .care-calendar-day, .care-meal-open, .care-food-add, .care-selected)),
+.care-dialog .care-control:not(:where(.ui-control, .ui-btn-success, .care-tile, .care-tab, .care-history-day, .care-history-routine, .care-calendar-day, .care-meal-open, .care-food-add, .care-selected)) {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    color: var(--color-accent);
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.care-page .care-control.ui-danger-text,
+.care-dialog .care-control.ui-danger-text { color: var(--color-danger-fg); }
+
+.care-page .ui-control,
+.care-dialog .ui-control {
+    border-radius: 7px;
+    box-shadow: none;
+    font-weight: 500;
+}
+
+.care-page button.ui-control,
+.care-dialog button.ui-control,
+.care-page button.ui-btn-success,
+.care-dialog button.ui-btn-success {
+    min-height: 30px;
+    padding: 4px 10px;
+    font-size: 12px;
+    line-height: 1.3;
+    transition: background-color 150ms, border-color 150ms, box-shadow 150ms;
+}
+
+.care-page button.care-selected:not(.care-tab) {
+    min-height: 30px;
+    padding: 4px 11px;
+    border-radius: 7px;
+    font-size: 12px;
+}
+
+.care-page .care-control.care-food-button { min-height: 28px; border: 0; border-left: 1px solid var(--color-border-subtle); border-radius: 0; background: none; padding: 0 0 0 14px; color: var(--color-text-muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.care-page .care-food-button:hover { color: var(--color-accent); }
+
+.care-page .ui-control[aria-pressed="true"],
+.care-dialog .ui-control[aria-pressed="true"] {
+    background-color: color-mix(in srgb, var(--color-accent) 12%, var(--color-control-bg));
+    border-color: color-mix(in srgb, var(--color-accent) 45%, var(--color-control-border));
+    color: var(--color-text-main);
+}
+
+.care-page .ui-btn-success,
+.care-dialog .ui-btn-success {
+    background-color: var(--color-accent);
+    border-color: var(--color-accent);
+    border-radius: 7px;
+    color: var(--color-accent-contrast, var(--color-text-main));
+    font-weight: 600;
+}
+
+.care-page .ui-btn-success:hover,
+.care-dialog .ui-btn-success:hover {
+    background-color: color-mix(in srgb, var(--color-accent) 86%, var(--color-text-main));
+}
+
+.care-page .ui-input,
+.care-dialog .ui-input {
+    min-height: 30px;
+    padding: 4px 9px;
+    border-radius: 7px;
+    box-shadow: none;
+    font-size: 13px;
+    line-height: 1.35;
+}
+
+.care-page .care-field,
+.care-dialog .care-field {
+    box-sizing: border-box;
+    border-color: var(--color-control-border);
+    background-color: var(--color-control-bg);
+    color: var(--color-text-main);
+    font-family: inherit;
+}
+
+.care-page .care-field:disabled,
+.care-dialog .care-field:disabled { cursor: not-allowed; opacity: 0.5; }
+
+.care-page textarea.ui-input,
+.care-dialog textarea.ui-input { resize: vertical; }
+.care-page select.ui-input,
+.care-dialog select.ui-input {
+    appearance: none;
+    padding-right: 28px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 9px center;
+    background-size: 12px;
+    cursor: pointer;
+}
+.care-page input[type="date"],
+.care-page input[type="time"],
+.care-dialog input[type="date"],
+.care-dialog input[type="time"] { cursor: pointer; }
+
+.care-routine-form,
+.care-routine-options {
+    background-color: color-mix(in srgb, var(--color-accent) 3%, var(--color-surface-elevated));
+}
+
+.care-routine-options {
+    border-radius: 0.65rem;
+    padding: 0.5rem;
+}
+
+.care-routine-row,
+.care-routine-setting {
+    border-color: color-mix(in srgb, var(--color-text-main) 8%, transparent);
+}
+
+.care-routine-setting {
+    border-bottom: 1px solid color-mix(in srgb, var(--color-text-main) 8%, transparent);
+    padding-block: 0.5rem;
+}
+
+.care-routine-badge {
+    display: inline-block;
+    border-radius: 999px;
+    background-color: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface-elevated));
+    color: var(--color-text-muted);
+    padding: 0.125rem 0.5rem;
+    text-decoration: none;
+    vertical-align: middle;
+}
+
+.care-page input[type="date"]::-webkit-calendar-picker-indicator,
+.care-page input[type="time"]::-webkit-calendar-picker-indicator {
+    width: 13px;
+    height: 13px;
+    margin: 0;
+    opacity: 0.65;
+    cursor: pointer;
+}
+
+.care-page input[type="checkbox"],
+.care-dialog input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--color-accent);
+}
+
+.care-page button:focus-visible,
+.care-dialog button:focus-visible,
+.care-page input:focus-visible,
+.care-page select:focus-visible,
+.care-page textarea:focus-visible,
+.care-dialog input:focus-visible,
+.care-dialog select:focus-visible,
+.care-dialog textarea:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+}
+
+.care-page button:disabled,
+.care-dialog button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.care-dialog {
+    top: 50%;
+    right: auto;
+    bottom: auto;
+    left: 50%;
+    margin: 0;
+    transform: translate(-50%, -50%);
+    height: fit-content;
+    border-color: color-mix(in srgb, var(--color-text-main) 12%, transparent);
+    background: var(--color-surface-elevated);
+    background-image: none;
+    border-radius: 16px;
+    box-shadow: 0 20px 64px rgba(12, 26, 53, 0.17);
+}
+
+.care-dialog > div > div:first-child { border-color: color-mix(in srgb, var(--color-text-main) 9%, transparent); }
+.care-dialog h2 { flex: 1; min-width: 0; font-size: 16px; letter-spacing: -0.025em; }
+.care-dialog .care-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--color-border-subtle); padding-bottom: 10px; }
+.care-dialog .care-section-head h2 { font-size: 15px; font-weight: 700; }
+.care-dialog .care-section-head h2 span { margin-left: 6px; color: var(--color-text-muted); font-size: 11px; font-weight: 400; }
+.care-dialog .care-section-title { border-left: 3px solid var(--color-accent); padding-left: 9px; color: var(--color-text-main); font-size: 12px; font-weight: 700; line-height: 1.4; }
+.care-dialog .care-dialog-section { border-top: 1px solid var(--color-border-subtle); padding-top: 15px; }
+.care-dialog .care-record-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--color-border-subtle); padding: 10px 1px; font-size: 12px; }
+.care-dialog .care-record-info { display: flex; min-width: 0; flex: 1; flex-wrap: wrap; align-items: baseline; gap: 3px 10px; overflow-wrap: anywhere; }
+.care-dialog .care-record-info strong { color: var(--color-text-main); font-weight: 700; }
+.care-dialog .care-record-info span { color: var(--color-text-muted); font-size: 11px; }
+.care-dialog .care-record-info span:empty { display: none; }
+.care-dialog .care-text-actions { display: flex; flex-shrink: 0; gap: 10px; }
+.care-dialog .care-text-actions button { color: var(--color-accent); font-size: 11px; }
+.care-dialog .care-text-actions button.ui-danger-text { color: var(--color-danger-fg); }
+.care-dialog .care-text-actions button:hover { text-decoration: underline; }
+.care-dialog .care-edit-form { border-top: 1px solid var(--color-border-subtle); padding-top: 14px; }
+.care-dialog .care-edit-form h2,
+.care-dialog .care-edit-form h3 { border-left: 3px solid var(--color-accent); padding-left: 9px; font-size: 12px; font-weight: 700; }
+.care-dialog .care-measurement-form-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.care-dialog .care-measurement-form-head h2 { font-size: 13px; }
+.care-dialog .care-measurement-form-head span { color: var(--color-text-muted); font-size: 12px; white-space: nowrap; }
+.care-dialog .care-edit-form label { color: var(--color-text-main); font-size: 12px; font-weight: 600; }
+.care-dialog .care-edit-form label .ui-input { margin-top: 6px; }
+.care-dialog .care-routine-row { align-items: flex-start; padding-block: 9px; font-size: 12px; }
+.care-dialog .care-routine-row > span { padding-top: 5px; }
+.care-dialog .care-routine-row button { min-height: 25px; padding: 3px 7px; font-size: 11px; }
+.care-dialog .care-routine-setting { padding-block: 9px; font-size: 12px; }
+.care-dialog .care-routine-setting button { min-height: 25px; padding: 3px 7px; font-size: 11px; }
+.care-dialog:has(.care-routine-columns:not(.care-routine-day-only)) { max-width: 980px; }
+.care-dialog .care-routine-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; }
+.care-dialog .care-routine-column { min-width: 0; }
+.care-dialog .care-routine-column + .care-routine-column { border-left: 1px solid var(--color-border-subtle); padding-left: 24px; }
+.care-dialog .care-routine-column-head { display: flex; min-height: 48px; align-items: flex-start; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--color-border-subtle); padding-bottom: 10px; }
+.care-dialog .care-routine-column-head h2 { font-size: 13px; font-weight: 700; }
+.care-dialog .care-routine-column-head p { margin-top: 4px; }
+.care-dialog .care-routine-column-head button { flex-shrink: 0; min-height: 26px; padding: 3px 8px; font-size: 11px; }
+.care-dialog .care-routine-row { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 10px; border-bottom: 1px solid var(--color-border-subtle); padding: 8px 0; }
+.care-dialog .care-routine-name { display: flex; min-width: 0; flex: 1; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; }
+.care-dialog .care-routine-name span { min-width: 0; overflow-wrap: anywhere; }
+.care-dialog .care-routine-name input { flex-shrink: 0; }
+.care-dialog .care-routine-row-actions,
+.care-dialog .care-routine-setting-actions { display: flex; flex-shrink: 0; align-items: center; gap: 8px; }
+.care-dialog .care-routine-row-actions button,
+.care-dialog .care-routine-setting-actions button { min-height: 0; padding: 0; border: 0; background: none; color: var(--color-accent); font-size: 11px; }
+.care-dialog .care-routine-row-actions button:last-child,
+.care-dialog .care-routine-setting-actions button:last-child { color: var(--color-danger-fg); }
+.care-dialog .care-routine-row-actions button:first-child { color: var(--color-text-muted); }
+.care-dialog .care-routine-row-actions button:hover,
+.care-dialog .care-routine-setting-actions button:hover { text-decoration: underline; }
+.care-dialog .care-routine-row-actions .care-routine-active { font-weight: 700; }
+.care-dialog .care-routine-options { background: color-mix(in srgb, var(--color-accent) 3%, var(--color-surface-elevated)); }
+.care-dialog .care-routine-hidden { margin-top: 14px; border-top: 1px solid var(--color-border-subtle); padding-top: 10px; }
+.care-dialog .care-routine-hidden h3 { color: var(--color-text-muted); font-size: 11px; font-weight: 700; }
+.care-dialog .care-routine-hidden-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 0; color: var(--color-text-muted); font-size: 11px; }
+.care-dialog .care-routine-hidden-row button { color: var(--color-accent); font-size: 11px; }
+.care-dialog .care-routine-settings { margin-top: 3px; }
+.care-dialog .care-routine-setting { display: grid; grid-template-columns: minmax(0, 1fr) minmax(62px, auto) auto; align-items: center; gap: 8px; border-bottom: 1px solid var(--color-border-subtle); padding: 8px 0; font-size: 12px; }
+.care-dialog .care-routine-setting strong { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.care-dialog .care-routine-rule { color: var(--color-text-muted); font-size: 11px; text-align: right; }
+.care-dialog .care-routine-form { margin-top: 14px; }
+@media (max-width: 767px) {
+    .care-dialog .care-routine-columns { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+    .care-dialog .care-routine-column + .care-routine-column { border-left: 0; border-top: 1px solid var(--color-border-subtle); padding-top: 16px; padding-left: 0; }
+}
+.care-dialog .care-energy-stats { border-top: 1px solid var(--color-border-subtle); font-size: 12px; }
+.care-dialog .care-energy .care-edit-form { border-top: 0; padding-top: 0; }
+.care-dialog .care-energy-stats > div { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 12px; border-bottom: 1px solid var(--color-border-subtle); padding: 9px 2px; line-height: 1.45; }
+.care-dialog .care-energy-stats strong { color: var(--color-text-muted); font-weight: 600; }
+.care-dialog .care-energy-stats span { min-width: 0; overflow-wrap: anywhere; }
+.care-dialog .care-analysis .care-section-title { display: block; }
+.care-dialog .care-analysis svg { border: 1px solid var(--color-border-subtle); border-radius: 10px; padding: 8px; background: color-mix(in srgb, var(--color-accent) 2%, var(--color-surface-elevated)); }
+.care-dialog .care-analysis .grid > div { min-width: 0; }
+.care-dialog .care-analysis .grid > div + div { border-top: 1px solid var(--color-border-subtle); padding-top: 15px; }
+.care-dialog .care-food-form + .care-food-directory { margin-top: 14px; }
+.care-dialog .page-list-item { border: 0; border-bottom: 1px solid var(--color-border-subtle); border-radius: 0; padding: 8px 1px; box-shadow: none; font-size: 12px; }
+.care-dialog .page-list-item > div:last-child button { min-height: 25px; padding: 2px 7px; font-size: 11px; }
+.care-page .care-history-detail { padding: 14px 16px; }
+.care-page .care-history-detail h3 { font-size: 14px; }
+.care-page .care-history-detail h4 { border-left: 3px solid var(--color-accent); padding-left: 8px; font-size: 13px; }
+.care-dialog.care-history-dialog .care-history-heading-time { margin-left: 8px; color: var(--color-text-muted); font-size: 11px; font-weight: 400; }
+.care-dialog.care-history-dialog .care-meal-card-title { font-size: 12px; }
+.care-dialog.care-history-dialog .care-body-record-head strong { color: var(--color-text-muted); font-size: 11px; font-weight: 500; }
+.care-dialog.care-history-dialog .care-history-empty { padding-left: 11px; }
+.care-dialog .care-history-detail .care-history-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.care-dialog.care-history-dialog > div > div:first-child { padding-top: 11px; padding-bottom: 11px; }
+.care-dialog.care-history-dialog > div > div:last-child { padding-top: 12px; padding-bottom: 14px; }
+.care-dialog.care-history-dialog button.care-history-open,
+.care-dialog.care-history-dialog button.care-history-add { min-height: 25px; padding: 3px 7px; font-size: 11px; font-weight: 500; }
+.care-dialog.care-history-dialog button.care-history-add { border-color: var(--color-border-subtle); background: transparent; color: var(--color-accent); }
+.care-dialog.care-history-dialog .care-history-section-head { padding-bottom: 6px; border-bottom: 1px solid var(--color-border-subtle); }
+.care-dialog.care-history-dialog .care-history-section-head h4 { min-width: 0; }
+.care-dialog.care-history-dialog .care-history-section-head button { margin-left: auto; }
+.care-dialog.care-history-dialog .care-history-detail > section + section { border-top: 1px solid var(--color-border-subtle); padding-top: 12px; }
+.care-dialog.care-history-dialog .care-history-section-head { border-bottom: 0; padding-bottom: 0; }
+.care-dialog.care-history-dialog .care-meal-card { border-bottom: 0; padding-bottom: 0; }
+.care-dialog.care-history-dialog .care-meal-card-head { border-radius: 6px; background: color-mix(in srgb, var(--color-accent) 4%, var(--color-surface-elevated)); padding: 5px 8px; }
+.care-dialog.care-history-dialog .care-meal-card-foods { border-left: 0; padding: 2px 8px 0; }
+.care-dialog.care-history-dialog .care-meal-card-item { padding: 3px 0; font-size: 11px; }
+.care-dialog.care-history-dialog .care-meal-card-item > :last-child { font-weight: 600; }
+.care-dialog.care-history-dialog .care-meal-card-note { margin-left: 8px; }
+.care-dialog.care-history-dialog .care-record-row.care-body-record { border-bottom: 0; padding: 8px 0 3px; }
+.care-dialog.care-history-dialog .care-history-detail > section .care-record-row:not(.care-body-record) { border-bottom: 0; }
+.care-dialog.care-history-dialog .care-body-record-grid { position: relative; margin-top: 0; }
+.care-dialog.care-history-dialog .care-body-record-head + .care-body-record-grid { margin-top: 8px; }
+.care-dialog.care-history-dialog .care-body-record-actions { position: absolute; top: 0; right: 0; z-index: 1; }
+.care-dialog.care-history-dialog .care-body-record-grid .care-body-metric:last-child { padding-right: 56px; }
+.care-dialog.care-history-dialog .care-routine { margin-top: 3px; }
+.care-dialog.care-history-dialog .care-routine-row { gap: 4px 8px; border-bottom: 0; padding: 3px 0; }
+.care-dialog.care-history-dialog .care-routine-name { align-items: center; gap: 6px; }
+.care-dialog.care-history-dialog .care-routine-row-actions { gap: 12px; }
+.care-dialog.care-history-dialog .care-routine-name > span:first-child { width: 18px; height: 18px; }
+.care-dialog.care-history-dialog .care-routine-name .diary-editor-check-box { width: 13px; height: 13px; }
+@media (max-width: 639px) {
+    .care-dialog.care-history-dialog .care-body-record-grid .care-body-metric:last-child { padding-right: 0; }
+    .care-dialog.care-history-dialog .care-body-record-grid .care-body-metric:nth-child(3) { padding-right: 56px; }
+}
+.care-dialog .care-routine-day-only { display: block; }
+.care-dialog .care-routine-day-only .care-routine-column-head { display: none; }
+.care-page .care-history-detail .page-list-item { border: 0; border-bottom: 1px solid var(--color-border-subtle); border-radius: 0; padding: 7px 1px; box-shadow: none; font-size: 12px; }
+.care-page .care-history-detail .page-list-item p { margin-top: 3px; font-size: 11px; }
+@media (min-width: 1024px) {
+    .care-dialog .care-analysis .grid > div + div { border-top: 0; border-left: 1px solid var(--color-border-subtle); padding-top: 0; padding-left: 20px; }
+}
+@media (max-width: 639px) {
+    .care-dialog .care-record-row { flex-direction: column; gap: 5px; }
+    .care-dialog .care-routine-row > span { flex-basis: 100%; }
+    .care-page .care-summary-main { min-height: 66px; }
+}
+.care-dialog:has(.care-food-form, .care-meal-form, .care-meal-list) h2 { font-size: 14px; }
+.care-dialog:has(.care-food-form, .care-meal-form, .care-meal-list) > div > div:first-child { padding-top: 12px; padding-bottom: 12px; }
+
+.care-dialog .care-meal-form > .care-meal-section:first-child { border-top: 0; padding-top: 0; }
+.care-dialog .care-meal-form > * + * { margin-top: 14px; }
+.care-dialog .care-meal-form button.care-selected { min-height: 30px; padding: 4px 11px; border-radius: 7px; font-size: 12px; }
+.care-dialog .care-meal-search::placeholder { font-size: 12px; }
+
+.care-dialog .care-meal-section {
+    border-top: 1px solid var(--color-border-subtle);
+    padding-top: 13px;
+}
+
+.care-dialog .care-meal-section-title {
+    display: block;
+    border-left: 3px solid var(--color-accent);
+    padding-left: 9px;
+    color: var(--color-text-main);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+.care-dialog:has(.care-food-form) { max-width: 540px; }
+.care-dialog .care-food-form-fields { padding-top: 2px; }
+.care-dialog .care-food-form label { color: var(--color-text-main); font-size: 12px; font-weight: 600; }
+.care-dialog .care-food-field-label { display: block; border-left: 3px solid var(--color-accent); padding-left: 8px; line-height: 1.3; }
+.care-dialog .care-food-field-label small { font-size: 10px; font-weight: 400; }
+.care-dialog .care-food-form .ui-input { margin-top: 6px; }
+.care-dialog .care-food-form-action { min-height: 26px; padding: 3px 9px; border-radius: 6px; font-size: 11px; line-height: 1.2; box-shadow: none; }
+.care-dialog .care-food-form-save { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-accent-contrast, var(--color-text-main)); }
+.care-dialog .care-food-form-save:hover { background: color-mix(in srgb, var(--color-accent) 86%, var(--color-text-main)); box-shadow: none; }
+.care-dialog .care-food-directory { margin-top: 20px; border-top: 1px solid var(--color-border-subtle); padding-top: 16px; }
+.care-dialog .care-food-directory-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.care-dialog .care-food-directory-head h3 { color: var(--color-text-main); font-size: 13px; font-weight: 700; }
+.care-dialog .care-food-directory-head h3 span { color: var(--color-accent); }
+.care-dialog .care-food-directory-list { margin-top: 10px; border-top: 1px solid var(--color-border-subtle); }
+.care-dialog .care-food-directory-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--color-border-subtle); font-size: 11px; }
+.care-dialog .care-food-directory-row strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-main); font-size: 12px; }
+.care-dialog .care-food-directory-row .care-food-favorite { font-size: 17px; text-decoration: none; }
+.care-dialog .care-food-directory-row > span { text-align: right; white-space: nowrap; }
+.care-dialog .care-food-directory-row > div { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.care-dialog .care-food-directory-row > div button { color: var(--color-accent); font-size: 11px; }
+.care-dialog .care-food-directory-row button.ui-danger-text { color: var(--color-danger-fg); }
+.care-dialog .care-food-directory-row > div button:hover { text-decoration: underline; }
+.care-dialog .care-food-directory-pages { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; font-size: 11px; }
+.care-dialog .care-food-directory-pages > div { display: flex; gap: 6px; }
+.care-dialog .care-food-directory-pages button { font-size: 11px; }
+.care-dialog .care-food-form select.ui-input {
+    appearance: none;
+    padding-right: 28px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 9px center;
+    background-size: 12px;
+}
+.care-dialog .care-meal-items { border-top: 1px solid var(--color-border-subtle); }
+.care-dialog .care-meal-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 104px 104px auto;
+    align-items: center;
+    gap: 5px 12px;
+    padding: 11px 2px;
+    border-bottom: 1px solid var(--color-border-subtle);
+}
+.care-dialog .care-meal-item-info { min-width: 0; overflow-wrap: anywhere; }
+.care-dialog .care-meal-item-info strong { color: var(--color-text-main); font-size: 12px; font-weight: 650; }
+.care-dialog .care-meal-item-info p { margin-top: 3px; font-size: 11px; line-height: 1.35; }
+.care-dialog .care-meal-item label { color: var(--color-text-muted); font-size: 11px; }
+.care-dialog .care-meal-item .ui-input { width: 100%; margin-top: 4px; }
+.care-dialog .care-meal-item-remove { align-self: center; font-size: 11px; }
+.care-dialog .care-meal-item-foot { display: flex; grid-column: 1 / -1; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: 11px; }
+.care-dialog .care-meal-total { color: var(--color-text-main); font-size: 19px; font-weight: 700; }
+.care-dialog .care-meal-list-summary { padding: 2px 0 10px; border-bottom: 1px solid var(--color-border-subtle); }
+.care-dialog .care-meal-list-summary button.ui-btn-success { min-height: 27px; padding: 3px 9px; font-size: 11px; }
+.care-dialog .care-meal-card { padding: 0 0 14px; border-bottom: 1px solid var(--color-border-subtle); }
+.care-dialog .care-meal-card-head,
+.care-dialog .care-meal-card-heading,
+.care-dialog .care-meal-card-actions { display: flex; align-items: center; gap: 6px; }
+.care-dialog .care-meal-card-head { justify-content: space-between; padding: 6px 0; }
+.care-dialog .care-meal-card-heading { min-width: 0; flex-wrap: wrap; }
+.care-dialog .care-meal-card-title { color: var(--color-text-main); font-size: 13px; font-weight: 700; }
+.care-dialog .care-meal-card-kcal { margin-left: 8px; color: var(--color-accent); font-size: 12px; font-weight: 700; }
+.care-dialog .care-meal-card-actions { flex-shrink: 0; gap: 9px; }
+.care-dialog .care-meal-card-actions button { font-size: 11px; }
+.care-dialog .care-meal-card-actions button:hover { text-decoration: underline; }
+.care-dialog .care-meal-card-foods { padding-left: 12px; border-left: 2px solid color-mix(in srgb, var(--color-accent) 35%, var(--color-border-subtle)); }
+.care-dialog .care-meal-card-item { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 155px) auto; align-items: baseline; gap: 5px 12px; padding: 5px 0; font-size: 12px; }
+.care-dialog .care-meal-card-item > :last-child { font-size: 11px; white-space: nowrap; }
+.care-dialog .care-meal-card-note { margin-top: 8px; font-size: 11px; }
+@media (max-width: 580px) {
+    .care-dialog .care-food-directory-row { grid-template-columns: minmax(0, 1fr) auto; gap: 3px 8px; }
+    .care-dialog .care-food-directory-row > span.page-text-muted { grid-column: 1; grid-row: 2; text-align: left; }
+    .care-dialog .care-food-directory-row > div { grid-column: 2; grid-row: 1 / 3; }
+    .care-dialog .care-meal-item { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+    .care-dialog .care-meal-item-info { grid-column: 1 / 3; }
+    .care-dialog .care-meal-item-remove { grid-column: 3; grid-row: 1; }
+    .care-dialog .care-meal-card-item { grid-template-columns: minmax(0, 1fr) auto; }
+    .care-dialog .care-meal-card-item > :nth-child(2) { grid-column: 1; grid-row: 2; }
+    .care-dialog .care-meal-card-item > :last-child { grid-column: 2; grid-row: 1; }
+}
+
+.care-dialog::backdrop {
+    background: rgba(12, 26, 53, 0.42);
+    backdrop-filter: blur(3px);
+}
