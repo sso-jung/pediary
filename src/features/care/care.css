@@ -324,6 +324,16 @@
 .care-dialog .ui-btn-success:hover {
     background-color: color-mix(in srgb, var(--color-accent) 86%, var(--color-text-main));
 }
+.app-shell[data-theme="dusk"] .care-dialog .ui-btn-success,
+.app-shell[data-theme="dusk"] .care-dialog .care-meal-form button.care-selected {
+    background-color: color-mix(in srgb, var(--color-accent) 42%, white);
+    border-color: color-mix(in srgb, var(--color-accent) 65%, white);
+    color: var(--color-text-main);
+}
+.app-shell[data-theme="dusk"] .care-dialog .ui-btn-success:hover,
+.app-shell[data-theme="dusk"] .care-dialog .care-meal-form button.care-selected:hover {
+    background-color: color-mix(in srgb, var(--color-accent) 58%, white);
+}
 
 .care-page .ui-input,
 .care-dialog .ui-input {
@@ -442,6 +452,7 @@
     border-radius: 16px;
     box-shadow: 0 20px 64px rgba(12, 26, 53, 0.17);
 }
+.app-shell[data-theme="dusk"] .care-dialog { --color-surface-elevated: rgba(255, 255, 255, 0.94); }
 
 .care-dialog > div > div:first-child { border-color: color-mix(in srgb, var(--color-text-main) 9%, transparent); }
 .care-dialog h2 { flex: 1; min-width: 0; font-size: 16px; letter-spacing: -0.025em; }
