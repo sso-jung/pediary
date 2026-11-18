@@ -1586,8 +1586,8 @@ export default function DiaryEditor({ open, diaryDate, onClose }) {
                         <input type="checkbox" className="peer sr-only" checked={item.status === 'done'} onChange={() => void toggleCare(item)} disabled={!!careBusyId} aria-label={`${item.name} 완료`} />
                         <span className="diary-editor-check-box flex h-4 w-4 items-center justify-center rounded border border-border-subtle bg-[var(--color-page-surface)] text-white transition peer-checked:border-[var(--color-accent)] peer-checked:bg-[var(--color-accent)] [&>svg]:peer-checked:opacity-100"><svg viewBox="0 0 16 16" className="h-3 w-3 opacity-0 transition" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3.5 8.5 6.5 11 12.5 5" /></svg></span>
                     </label>
-                    <span className="min-w-0 break-words text-xs">{item.name}</span>
-                    {item.status === 'skipped' && <span className="shrink-0 text-[11px] text-[var(--color-text-muted)]">건너뜀</span>}
+                    <span className={'min-w-0 break-words text-xs ' + (item.status === 'skipped' ? 'text-[var(--color-text-muted)] line-through' : '')}>{item.name}</span>
+                    {item.status === 'skipped' && <span className="shrink-0 text-[11px] text-[var(--color-text-muted)]">(건너뜀)</span>}
                 </div>)}
             </div>;
         }

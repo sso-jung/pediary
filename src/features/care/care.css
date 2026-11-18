@@ -1,6 +1,52 @@
 .care-page,
 .care-dialog { color-scheme: light; }
 
+.care-page.care-embedded { max-width: none; overflow: visible; }
+@media (min-width: 1281px) {
+    .care-page.care-embedded { display: flex; height: 100%; flex-direction: column; }
+    .care-page.care-embedded .care-tiles { flex: 1; grid-template-rows: repeat(2, minmax(320px, auto)); }
+    .care-page.care-embedded .care-tiles > :nth-child(-n+3) { display: grid; grid-template-rows: auto minmax(100px, 1fr) 140px; }
+    .care-page.care-embedded .care-tiles > :nth-child(3) .care-summary-main,
+    .care-page.care-embedded .care-energy-tile .care-summary-main { min-height: 0; padding: 0; }
+    .care-page.care-embedded .care-meal-preview { min-height: 0; overflow-y: auto; pointer-events: auto; scrollbar-width: none; }
+    .care-page.care-embedded .care-meal-preview::-webkit-scrollbar { display: none; }
+    .care-page.care-embedded .care-body-grid { position: absolute; top: 50%; left: 50%; width: min(calc(100% - 48px), 360px); gap: 32px 36px; padding: 0; transform: translate(-50%, -50%); pointer-events: none; }
+    .care-page.care-embedded .care-body-grid > div { align-items: center; text-align: center; }
+    .care-page.care-embedded .care-body-grid strong { position: relative; }
+    .care-page.care-embedded .care-body-grid strong small { position: absolute; bottom: 2px; left: 100%; margin-left: 2px; white-space: nowrap; }
+    .care-page.care-embedded .care-tile.care-body-tile { padding-bottom: 20px; }
+    .care-page.care-embedded .care-body-footer { grid-row: 3; align-self: end; }
+    .care-page.care-embedded .care-tiles > :nth-child(3) .care-summary-preview,
+    .care-page.care-embedded .care-energy-tile .care-summary-preview { min-height: 0; overflow-y: auto; padding-top: 10px; scrollbar-width: none; }
+    .care-page.care-embedded .care-tiles > :nth-child(3) .care-summary-preview::-webkit-scrollbar,
+    .care-page.care-embedded .care-energy-tile .care-summary-preview::-webkit-scrollbar { display: none; }
+    .care-page.care-embedded .care-routine-tile { display: grid; grid-template-rows: auto minmax(100px, 1fr) 140px; }
+    .care-page.care-embedded .care-routine-tile .care-summary-main { display: flex; justify-content: center; padding: 0; }
+    .care-page.care-embedded .care-routine-tile .care-summary-preview { max-height: none; padding-top: 10px; }
+    .care-page.care-embedded .care-energy-tile { display: grid; grid-template-rows: auto minmax(100px, 1fr) 140px; }
+}
+.care-page.care-embedded .care-meal-summary { min-height: 0; padding: 0; }
+.care-blossom-header { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.care-blossom-header .care-history-month-input { width: 125px; padding: 4px 7px; font-size: 12px; }
+.care-page.care-embedded .care-toolbar { justify-content: flex-end; }
+.care-page.care-embedded .care-toolbar-controls { width: 100%; justify-content: flex-end; }
+.care-page.care-embedded .care-control.care-food-button { border-left: 0; padding-left: 0; }
+@media (max-width: 639px) {
+    .care-page.care-embedded { min-height: 0; }
+    .care-page.care-embedded .care-toolbar { display: none; }
+    .care-blossom-header .care-tab { padding: 4px 7px; font-size: 11px; }
+    .care-blossom-header .care-date-nav { max-width: 100%; }
+    .care-page.care-embedded .care-toolbar + .care-tiles { margin-top: 16px; }
+    .care-page.care-embedded .care-tiles { row-gap: 16px; }
+    .care-page.care-embedded .care-meal-tile { padding: 16px; }
+    .care-page.care-embedded .care-meal-summary-row > div:first-child { flex: 1 1 100px; flex-wrap: wrap; gap: 2px 4px; }
+    .care-page.care-embedded .care-meal-summary-row .care-tile-value { font-size: 23px; }
+    .care-page.care-embedded .care-meal-protein { flex-basis: 100%; margin-left: 0; }
+    .care-page.care-embedded .care-meal-preview { margin-top: 10px; padding-top: 8px; font-size: 11px; }
+    .care-page.care-embedded .care-meal-entry { gap: 5px; padding: 4px 0; }
+    .care-page.care-embedded .care-routine-tile .care-summary-preview { max-height: none; overflow: visible; }
+}
+
 .care-page .care-selected,
 .care-dialog .care-selected {
     background-color: var(--color-accent);
@@ -62,8 +108,22 @@
 @media (max-width: 639px) {
     .care-page .care-toolbar-controls { width: 100%; justify-content: space-between; gap: 8px; }
     .care-page .care-date-nav { gap: 4px; }
+    .care-page .care-date-nav[aria-label="기록 모아보기 월 선택"] { flex-wrap: wrap; }
+    .care-page .care-date-nav[aria-label="기록 모아보기 월 선택"] .care-history-total { flex-basis: 100%; margin-right: 0; white-space: normal; }
     .care-page .care-date-field input { width: 120px; }
     .care-page .care-control.care-food-button { padding-left: 8px; }
+    .care-blossom-header { flex-wrap: wrap; gap: 4px; }
+    .care-blossom-header .care-tabs { flex-shrink: 0; }
+    .care-page .care-blossom-header .care-blossom-total { flex-basis: 100%; margin-right: 0; padding: 4px 6px; font-size: 10px; white-space: nowrap; }
+    .care-page .care-blossom-header .care-blossom-total strong { font-size: 10px; }
+    .care-page .care-blossom-header .care-tab { min-height: 25px; padding: 3px 4px; font-size: 9px; }
+    .care-page .care-blossom-header .care-date-nav { min-width: 0; gap: 3px; }
+    .care-page .care-blossom-header .care-date-nav[aria-label="기록 모아보기 월 선택"] { flex-wrap: nowrap; }
+    .care-page .care-blossom-header .care-date-field input { width: 102px; min-height: 25px; padding: 2px 4px; font-size: 10px; }
+    .care-page .care-blossom-header .care-control.care-date-arrow { width: 20px; height: 20px; min-height: 20px; }
+    .care-page .care-blossom-header .care-date-arrow svg { width: 13px; height: 13px; }
+    .care-page .care-blossom-header .care-control.care-date-today { min-height: 25px; padding: 0 5px; font-size: 10px; }
+    .care-page .care-blossom-header .care-history-month-input { width: 102px; min-height: 25px; padding: 2px 4px; font-size: 10px; }
 }
 
 .care-page .care-tile {
@@ -103,7 +163,11 @@
     cursor: pointer;
 }
 .care-page .care-meal-content { position: relative; z-index: 2; pointer-events: none; }
+.care-page .care-meal-content .care-food-shortcut { min-height: 18px; border: 0; background: none; padding: 0; color: color-mix(in srgb, var(--color-text-muted) 75%, var(--color-surface-elevated)); font-size: 10px; pointer-events: auto; }
 .care-page .care-meal-summary { display: flex; min-height: 78px; flex: 1; flex-direction: column; justify-content: center; padding: 14px 0; }
+.care-page .care-meal-summary-row { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; }
+.care-page .care-meal-quick-actions { display: flex; flex-wrap: wrap; gap: 5px; pointer-events: auto; }
+.care-page .care-meal-quick-actions button.care-control { min-height: 25px; padding: 3px 7px; font-size: 11px; }
 .care-page .care-tile-note { margin-top: 5px; }
 .care-page .care-meal-preview {
     border-top: 1px solid var(--color-border-subtle);
@@ -125,12 +189,17 @@
 .care-page .care-summary-preview { display: flex; min-height: 27px; flex-direction: column; gap: 3px; border-top: 1px solid var(--color-border-subtle); padding-top: 7px; line-height: 1.4; overflow-wrap: anywhere; }
 .care-page .care-summary-preview strong { color: var(--color-accent); font-weight: 700; }
 
+.care-page .care-tile.care-body-tile { position: relative; padding-bottom: 12px; }
 .care-page .care-body-grid { display: grid; flex: 1; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 12px; align-content: center; padding: 12px 0 6px; }
 .care-page .care-body-grid > div { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
 .care-page .care-body-grid span { color: var(--color-text-muted); font-size: 11px; }
 .care-page .care-body-grid strong { font-size: 18px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.care-page.care-embedded .care-body-grid strong { font-size: 22px; }
 .care-page .care-body-grid small { color: var(--color-text-muted); font-size: 11px; font-weight: 400; }
-.care-page .care-body-time { align-self: flex-end; color: var(--color-accent); font-size: 10px; }
+.care-page .care-body-grid .care-body-good { color: var(--color-success-fg); }
+.care-page .care-body-grid .care-body-bad { color: var(--color-danger-fg); }
+.care-page .care-body-time { color: var(--color-accent); font-size: 10px; }
+.care-page .care-body-footer { position: relative; z-index: 2; display: flex; align-items: center; justify-content: flex-end; pointer-events: none; }
 .care-page .care-analysis-tile { min-height: 190px; }
 .care-page .care-body-chart { display: flex; min-width: 0; flex: 1; flex-direction: column; justify-content: flex-end; padding-top: 8px; }
 .care-page .care-body-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
@@ -141,12 +210,20 @@
 .care-page .care-body-chart-axis { display: flex; justify-content: space-between; gap: 4px; padding-top: 8px; font-size: 10px; }
 .care-dialog .care-record-row.care-body-record { display: block; padding: 12px 0; }
 .care-dialog .care-body-record-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.care-dialog .care-body-record-head.care-body-record-head-bar { border-radius: 3px; background: color-mix(in srgb, var(--color-accent) 7%, var(--color-surface-elevated)); padding: 6px 8px; }
 .care-dialog .care-body-record-head > div:first-child { display: flex; align-items: baseline; gap: 8px; }
 .care-dialog .care-body-record-head strong { color: var(--color-text-main); font-size: 13px; }
+.care-dialog .care-body-record-head strong.care-body-record-date { font-size: 14px; font-weight: 500; line-height: 1.2; }
 .care-dialog .care-body-record-head span { color: var(--color-text-muted); font-size: 11px; }
 .care-dialog .care-body-record-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 13px; }
 .care-dialog .care-body-metric { min-width: 0; }
 .care-dialog .care-body-metric + .care-body-metric { border-left: 1px solid var(--color-border-subtle); padding-left: 12px; }
+.care-dialog .care-body-record-head-bar + .care-body-record-grid .care-body-metric { text-align: center; }
+.care-dialog .care-body-record-head-bar + .care-body-record-grid .care-body-metric + .care-body-metric { padding-left: 0; }
+.care-dialog.care-body-form-dialog { max-width: 540px; }
+.care-dialog.care-body-form-dialog .care-measurement-form { margin-top: 0; border-top: 0; padding-top: 0; }
+.care-dialog:is(.care-body-form-dialog, .care-body-list-dialog) > div > div:first-child h2 { font-size: 14px; }
+.care-dialog:is(.care-body-form-dialog, .care-body-list-dialog) > div > div:first-child { padding-top: 12px; padding-bottom: 12px; }
 .care-dialog .care-body-metric > span:first-child { display: block; color: var(--color-text-muted); font-size: 11px; }
 .care-dialog .care-body-metric > strong { display: block; margin-top: 3px; color: var(--color-text-main); font-size: 18px; line-height: 1.25; font-variant-numeric: tabular-nums; }
 .care-dialog .care-body-metric > strong small { color: var(--color-text-muted); font-size: 11px; font-weight: 400; }
@@ -162,19 +239,20 @@
 .care-page .care-history-weekdays > div { padding-block: 9px; font-weight: 700; }
 .care-page .care-history-weekdays > div + div { border-left: 1px solid var(--color-border-subtle); }
 .care-page .care-history-calendar-wrap { overflow-x: auto; }
-.care-page .care-history-blank { min-height: 124px; border-right: 1px solid var(--color-border-subtle); border-bottom: 1px solid var(--color-border-subtle); background: color-mix(in srgb, var(--color-text-muted) 8%, var(--color-surface-elevated)); }
+.care-page .care-history-blank { min-height: 140px; border-right: 1px solid var(--color-border-subtle); border-bottom: 1px solid var(--color-border-subtle); background: color-mix(in srgb, var(--color-text-muted) 8%, var(--color-surface-elevated)); }
 .care-page .care-history-day {
-    height: 124px;
+    height: 140px;
     background-color: var(--color-surface-elevated);
     transition: background-color 150ms;
 }
 .care-page .care-history-day:hover { background: var(--color-panel-bg); }
 .care-page .care-history-day[data-selected="true"] { background: color-mix(in srgb, #d9c8ef 28%, var(--color-surface-elevated)); }
 .care-page .care-history-day .care-control.care-history-date { width: 100%; min-height: 30px; color: var(--color-text-main); }
-.care-page .care-history-day-head { display: flex; width: 100%; min-width: 0; align-items: center; justify-content: space-between; gap: 4px; }
+.care-page .care-history-day-head { display: flex; width: 100%; min-width: 0; align-items: baseline; justify-content: flex-end; gap: 10px; }
 .care-page .care-history-date:hover .care-history-number:not(.bg-red-500) { color: var(--color-accent); }
 .care-page .care-history-mark { display: block; min-width: 0; overflow: hidden; color: var(--color-accent); font-size: 10px; font-weight: 700; line-height: 1.4; white-space: nowrap; text-overflow: ellipsis; }
 .care-page .care-history-mark.care-history-over { color: var(--color-danger-fg); }
+.care-page .care-history-routine-count { display: none; }
 .care-page .care-history-number { flex-shrink: 0; }
 .care-page .care-history-routines { min-height: 0; overflow-y: auto; }
 .care-page .care-history-routine { display: flex; width: 100%; min-width: 0; min-height: 16px; align-items: center; gap: 5px; border: 0; padding: 0; background: none; font-size: 10px; line-height: 1.3; text-align: left; }
@@ -183,6 +261,7 @@
 .care-page .care-history-check svg { opacity: 0; }
 .care-page .care-history-checked { border-color: var(--color-accent); background: var(--color-accent); }
 .care-page .care-history-checked svg { opacity: 1; }
+.care-page .care-routine-tile { position: relative; }
 .care-page .care-routine-content { position: relative; z-index: 2; pointer-events: none; }
 .care-page .care-routine-preview-row { display: flex; align-items: center; gap: 5px; pointer-events: auto; }
 .care-page .care-routine-preview-row span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -192,13 +271,15 @@
 .care-page .care-routine-complete { color: var(--color-success-fg); }
 
 .care-page .care-food-list { border-top: 1px solid var(--color-border-subtle); }
+.care-dialog .care-food-list { max-height: 131px; scrollbar-width: none; }
+.care-dialog .care-food-list::-webkit-scrollbar { display: none; }
 .care-page .care-food-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 1px 8px;
-    min-height: 30px;
-    padding: 2px 5px;
+    min-height: 26px;
+    padding: 1px 5px;
     border-bottom: 1px solid var(--color-border-subtle);
 }
 .care-page .care-food-row:hover { background: color-mix(in srgb, var(--color-accent) 5%, transparent); }
@@ -225,12 +306,26 @@
     .care-page .care-food-row button { grid-column: 5; grid-row: 1; }
 }
 
-@media (max-width: 639px) {
+@media (max-width: 800px) {
     .care-page .care-tile { min-height: 146px; padding: 18px; }
     .care-page .care-history-weekdays,
-    .care-page .care-history-calendar { min-width: 630px; }
-    .care-page .care-history-blank { min-height: 114px; }
-    .care-page .care-history-day { height: 114px; }
+    .care-page .care-history-calendar { min-width: 770px; }
+    .care-page .care-history-blank { min-height: 130px; }
+    .care-page .care-history-day { height: 130px; }
+    .care-page.care-embedded .care-history-weekdays,
+    .care-page.care-embedded .care-history-calendar { min-width: 0; }
+    .care-page.care-embedded .care-history-calendar-wrap { overflow-x: hidden; }
+    .care-page.care-embedded .care-history-weekdays > div { padding: 6px 0; }
+    .care-page.care-embedded .care-history-blank { min-height: 78px; }
+    .care-page.care-embedded .care-history-day { position: relative; height: 78px; padding: 3px 2px; }
+    .care-page.care-embedded .care-history-day .care-control.care-history-date { position: absolute; inset: 0; z-index: 1; height: 100%; min-height: 0; align-items: flex-start; padding: 3px 2px; }
+    .care-page.care-embedded .care-history-day-head { flex-direction: column-reverse; align-items: flex-end; gap: 1px; }
+    .care-page.care-embedded .care-history-mark { width: 100%; font-size: 9px; line-height: 1.2; text-align: right; white-space: normal; }
+    .care-page.care-embedded .care-history-mark-value { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .care-page.care-embedded .care-history-routine-count { display: block; margin-top: 42px; overflow: hidden; color: var(--color-text-main); font-size: 9px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
+    .care-page.care-embedded .care-history-routines { display: none; }
+    .care-page.care-embedded .care-history-routine { gap: 2px; font-size: 9px; }
+    .care-page.care-embedded .care-history-routine > .care-history-check { width: 10px; height: 10px; }
 }
 
 .app-shell[data-theme="midnight"] .care-page,
@@ -478,6 +573,10 @@
 .care-dialog .care-measurement-form-head span { color: var(--color-text-muted); font-size: 12px; white-space: nowrap; }
 .care-dialog .care-edit-form label { color: var(--color-text-main); font-size: 12px; font-weight: 600; }
 .care-dialog .care-edit-form label .ui-input { margin-top: 6px; }
+.care-dialog .care-measurement-form > .grid { max-width: 480px; }
+.care-dialog .care-measurement-form > label,
+.care-dialog .care-measurement-form > .grid { margin-left: 12px; }
+.care-dialog .care-measurement-form label .ui-input { min-height: 26px; margin-top: 4px; padding: 2px 7px; font-size: 12px; }
 .care-dialog .care-routine-row { align-items: flex-start; padding-block: 9px; font-size: 12px; }
 .care-dialog .care-routine-row > span { padding-top: 5px; }
 .care-dialog .care-routine-row button { min-height: 25px; padding: 3px 7px; font-size: 11px; }
@@ -525,12 +624,30 @@
 .care-dialog .care-energy-stats strong { color: var(--color-text-muted); font-weight: 600; }
 .care-dialog .care-energy-stats span { min-width: 0; overflow-wrap: anywhere; }
 .care-dialog .care-analysis .care-section-title { display: block; }
+.care-dialog .care-analysis [aria-label="표시할 그래프"] button { display: inline-flex; align-items: center; gap: 6px; }
+.care-dialog .care-analysis .care-analysis-color { width: 8px; height: 8px; border-radius: 50%; }
 .care-dialog .care-analysis svg { border: 1px solid var(--color-border-subtle); border-radius: 10px; padding: 8px; background: color-mix(in srgb, var(--color-accent) 2%, var(--color-surface-elevated)); }
-.care-dialog .care-analysis .grid > div { min-width: 0; }
-.care-dialog .care-analysis .grid > div + div { border-top: 1px solid var(--color-border-subtle); padding-top: 15px; }
+@media (max-width: 639px) {
+    .care-dialog .care-analysis [role="group"] button { min-height: 25px; padding: 4px 7px; font-size: 11px; }
+    .care-dialog .care-analysis [aria-label="표시할 그래프"] button { gap: 4px; }
+    .care-dialog .care-analysis .care-analysis-color { width: 6px; height: 6px; }
+    .care-dialog .care-analysis svg { padding: 5px; }
+    .care-dialog .care-analysis-values { gap: 5px 7px; font-size: 11px; }
+    .care-dialog .care-analysis-values label { flex-basis: 100%; }
+    .care-dialog .care-analysis-values select { min-height: 25px; padding: 3px 6px; font-size: 11px; }
+    .care-dialog .care-analysis > p:last-child { font-size: 11px; line-height: 1.45; }
+}
 .care-dialog .care-food-form + .care-food-directory { margin-top: 14px; }
 .care-dialog .page-list-item { border: 0; border-bottom: 1px solid var(--color-border-subtle); border-radius: 0; padding: 8px 1px; box-shadow: none; font-size: 12px; }
 .care-dialog .page-list-item > div:last-child button { min-height: 25px; padding: 2px 7px; font-size: 11px; }
+.care-dialog button.care-food-browser-add { min-height: 26px; padding: 3px 9px; font-size: 11px; }
+.care-dialog .care-food-browser-search::placeholder { font-size: 11px; }
+.care-dialog .page-list-item.care-food-browser-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) auto; gap: 8px; align-items: center; padding: 6px 1px; }
+.care-dialog .care-food-browser-row .care-food-name-with-favorite { overflow: hidden; }
+.care-dialog .care-food-browser-row .care-food-name-with-favorite strong,
+.care-dialog .care-food-browser-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.care-dialog .care-food-browser-meta { text-align: right; font-size: 11px; }
+.care-dialog .care-food-browser-row > div:last-child { margin-left: 5px; }
 .care-page .care-history-detail { padding: 14px 16px; }
 .care-page .care-history-detail h3 { font-size: 14px; }
 .care-page .care-history-detail h4 { border-left: 3px solid var(--color-accent); padding-left: 8px; font-size: 13px; }
@@ -557,27 +674,45 @@
 .care-dialog.care-history-dialog .care-meal-card-note { margin-left: 8px; }
 .care-dialog.care-history-dialog .care-record-row.care-body-record { border-bottom: 0; padding: 8px 0 3px; }
 .care-dialog.care-history-dialog .care-history-detail > section .care-record-row:not(.care-body-record) { border-bottom: 0; }
-.care-dialog.care-history-dialog .care-body-record-grid { position: relative; margin-top: 0; }
+.care-dialog.care-history-dialog .care-body-record-grid { position: relative; margin-top: 0; padding-right: 56px; }
 .care-dialog.care-history-dialog .care-body-record-head + .care-body-record-grid { margin-top: 8px; }
 .care-dialog.care-history-dialog .care-body-record-actions { position: absolute; top: 0; right: 0; z-index: 1; }
-.care-dialog.care-history-dialog .care-body-record-grid .care-body-metric:last-child { padding-right: 56px; }
+.care-dialog.care-history-dialog .care-body-record-grid .care-body-metric { text-align: center; }
+.care-dialog.care-history-dialog .care-body-record-grid .care-body-metric + .care-body-metric { padding-left: 0; }
 .care-dialog.care-history-dialog .care-routine { margin-top: 3px; }
 .care-dialog.care-history-dialog .care-routine-row { gap: 4px 8px; border-bottom: 0; padding: 3px 0; }
 .care-dialog.care-history-dialog .care-routine-name { align-items: center; gap: 6px; }
 .care-dialog.care-history-dialog .care-routine-row-actions { gap: 12px; }
 .care-dialog.care-history-dialog .care-routine-name > span:first-child { width: 18px; height: 18px; }
 .care-dialog.care-history-dialog .care-routine-name .diary-editor-check-box { width: 13px; height: 13px; }
+.care-dialog.care-history-dialog .care-history-mobile-title { display: none; }
+@media (max-width: 800px) {
+    .care-dialog.care-history-dialog { position: fixed; inset: auto 0 0; box-sizing: border-box; width: 100%; max-width: none; min-height: min(290px, 85dvh); max-height: 85dvh; margin: 0; transform: none; border-radius: 16px 16px 0 0; animation: care-history-sheet-in 220ms ease-out; }
+    .care-dialog.care-history-dialog > div { max-height: 85dvh; }
+    .care-dialog.care-history-dialog h2 { font-size: 17px; }
+    .care-dialog.care-history-dialog .care-history-desktop-title,
+    .care-dialog.care-history-dialog .care-history-open,
+    .care-dialog.care-history-dialog .care-history-detail > section:not(:last-child),
+    .care-dialog.care-history-dialog .care-history-section-head h4 { display: none; }
+    .care-dialog.care-history-dialog .care-history-mobile-title { display: inline; }
+    .care-dialog.care-history-dialog > div > div:last-child { padding-top: 6px; }
+    .care-dialog.care-history-dialog .care-history-detail { padding: 0; }
+    .care-dialog.care-history-dialog .care-history-detail > section:last-child { margin-top: 0; border-top: 0; padding-top: 0; }
+    .care-dialog.care-history-dialog .care-history-section-head { padding: 7px 0 10px; }
+    .care-dialog.care-history-dialog .care-routine { margin-top: 5px; }
+    .care-dialog.care-history-dialog .care-routine-row { padding: 6px 0; }
+}
+@keyframes care-history-sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+    .care-dialog.care-history-dialog { animation: none; }
+}
 @media (max-width: 639px) {
-    .care-dialog.care-history-dialog .care-body-record-grid .care-body-metric:last-child { padding-right: 0; }
-    .care-dialog.care-history-dialog .care-body-record-grid .care-body-metric:nth-child(3) { padding-right: 56px; }
+    .care-dialog.care-history-dialog .care-body-record-grid .care-body-metric:nth-child(4) { border-left: 0; }
 }
 .care-dialog .care-routine-day-only { display: block; }
 .care-dialog .care-routine-day-only .care-routine-column-head { display: none; }
 .care-page .care-history-detail .page-list-item { border: 0; border-bottom: 1px solid var(--color-border-subtle); border-radius: 0; padding: 7px 1px; box-shadow: none; font-size: 12px; }
 .care-page .care-history-detail .page-list-item p { margin-top: 3px; font-size: 11px; }
-@media (min-width: 1024px) {
-    .care-dialog .care-analysis .grid > div + div { border-top: 0; border-left: 1px solid var(--color-border-subtle); padding-top: 0; padding-left: 20px; }
-}
 @media (max-width: 639px) {
     .care-dialog .care-record-row { flex-direction: column; gap: 5px; }
     .care-dialog .care-routine-row > span { flex-basis: 100%; }
@@ -589,6 +724,7 @@
 .care-dialog .care-meal-form > .care-meal-section:first-child { border-top: 0; padding-top: 0; }
 .care-dialog .care-meal-form > * + * { margin-top: 14px; }
 .care-dialog .care-meal-form button.care-selected { min-height: 30px; padding: 4px 11px; border-radius: 7px; font-size: 12px; }
+.care-dialog .care-meal-form .ui-input { font-size: 12px; }
 .care-dialog .care-meal-search::placeholder { font-size: 12px; }
 
 .care-dialog .care-meal-section {
@@ -645,14 +781,14 @@
     grid-template-columns: minmax(0, 1fr) 104px 104px auto;
     align-items: center;
     gap: 5px 12px;
-    padding: 11px 2px;
+    padding: 6px 2px;
     border-bottom: 1px solid var(--color-border-subtle);
 }
 .care-dialog .care-meal-item-info { min-width: 0; overflow-wrap: anywhere; }
 .care-dialog .care-meal-item-info strong { color: var(--color-text-main); font-size: 12px; font-weight: 650; }
 .care-dialog .care-meal-item-info p { margin-top: 3px; font-size: 11px; line-height: 1.35; }
 .care-dialog .care-meal-item label { color: var(--color-text-muted); font-size: 11px; }
-.care-dialog .care-meal-item .ui-input { width: 100%; margin-top: 4px; }
+.care-dialog .care-meal-item .ui-input { width: 100%; min-height: 26px; margin-top: 2px; padding: 2px 7px; }
 .care-dialog .care-meal-item-remove { align-self: center; font-size: 11px; }
 .care-dialog .care-meal-item-foot { display: flex; grid-column: 1 / -1; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: 11px; }
 .care-dialog .care-meal-total { color: var(--color-text-main); font-size: 19px; font-weight: 700; }

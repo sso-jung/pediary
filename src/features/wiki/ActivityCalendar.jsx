@@ -31,6 +31,7 @@ import { useWikiLinkTooltip, WikiLinkTooltip } from './WikiLinkTooltip';
 import { useAuthStore } from '../../store/authStore';
 import { upsertDiaryPropertyValue } from '../../lib/wikiApi';
 import { fetchCareRoutineRange } from '../../lib/careApi';
+import CarePage from '../care/CarePage';
 
 const VIEW_LABEL = {
     weekly: 'WEEKLY',
@@ -39,6 +40,7 @@ const VIEW_LABEL = {
     patchwork: 'PATCHWORK',
     strata: 'STRATA',
     gradient: 'GRADIENT',
+    blossom: 'BLOSSOM',
 };
 
 const TIMELINE_GROUP_GAP_DAYS = 31;
@@ -58,7 +60,7 @@ const PATCHWORK_FALLBACK_COLORS = [
     '#f97316',
 ];
 const CALENDAR_VIEW_STORAGE_KEY_PREFIX = 'pediary.diaryCalendar.viewState';
-const CALENDAR_VIEWS = ['weekly', 'monthly', 'timeline', 'patchwork', 'strata', 'gradient'];
+const CALENDAR_VIEWS = ['weekly', 'monthly', 'timeline', 'patchwork', 'strata', 'gradient', 'blossom'];
 const MOBILE_MEDIA_QUERY = '(max-width: 639px)';
 const MOBILE_TIMELINE_MONTH_COUNT = 4;
 const MOBILE_EDGE_TAP_RATIO = 0.24;
@@ -1368,12 +1370,14 @@ function renderDiaryProperties(
                                                 isWeekly ? '' : 'mt-[2px]',
                                             ].join(' ')}
                                         >
-                                            <LinkedDiaryText
-                                                text={line.text ?? line}
-                                                documents={documents}
-                                                categories={categories}
-                                            />
-                                            {line.skipped && <span className="ml-1 text-[var(--color-text-muted)]">· 건너뜀</span>}
+                                            <span className={line.skipped ? 'text-[var(--color-text-muted)] line-through' : ''}>
+                                                <LinkedDiaryText
+                                                    text={line.text ?? line}
+                                                    documents={documents}
+                                                    categories={categories}
+                                                />
+                                            </span>
+                                            {line.skipped && <span className="ml-1 text-[var(--color-text-muted)]">(건너뜀)</span>}
                                         </span>
                                     </div>
                                 ))}
@@ -2115,6 +2119,7 @@ export default function ActivityCalendar() {
     const [year, setYear] = useState(today.getFullYear());
     const [month, setMonth] = useState(today.getMonth() + 1); // 1~12
     const [calendarView, setCalendarView] = useState('weekly');
+    const [blossomToolbarTarget, setBlossomToolbarTarget] = useState(null);
     const [editorDate, setEditorDate] = useState(null);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [weekDate, setWeekDate] = useState(
@@ -2137,6 +2142,7 @@ export default function ActivityCalendar() {
     const [selectedStrataPropertyId, setSelectedStrataPropertyId] = useState(null);
     const [selectedStrataOptionName, setSelectedStrataOptionName] = useState('');
     const [selectedMonthlyDate, setSelectedMonthlyDate] = useState(null);
+    const [monthlyDetailOpen, setMonthlyDetailOpen] = useState(false);
     const [theme, setTheme] = useState(() => {
         if (typeof document === 'undefined') return 'noon';
         return document.documentElement.getAttribute('data-theme') || 'noon';
@@ -2327,7 +2333,7 @@ export default function ActivityCalendar() {
     }, [calendarView, month, viewStorageKey, weekDate, year]);
 
     const handleChangeCalendarView = (nextView) => {
-        if (nextView !== calendarView) setSelectedMonthlyDate(null);
+        if (nextView !== calendarView) { setSelectedMonthlyDate(null); setMonthlyDetailOpen(false); }
         if (nextView === 'weekly' && calendarView !== 'weekly') {
             const isThisMonth =
                 year === today.getFullYear() &&
@@ -2370,6 +2376,7 @@ export default function ActivityCalendar() {
 
     const handlePrevMonth = () => {
         setSelectedMonthlyDate(null);
+        setMonthlyDetailOpen(false);
         setMonth((m) => {
             if (m === 1) {
                 setYear((y) => y - 1);
@@ -2381,6 +2388,7 @@ export default function ActivityCalendar() {
 
     const handleNextMonth = () => {
         setSelectedMonthlyDate(null);
+        setMonthlyDetailOpen(false);
         setMonth((m) => {
             if (m === 12) {
                 setYear((y) => y + 1);
@@ -2445,6 +2453,7 @@ export default function ActivityCalendar() {
 
     const handleToday = () => {
         setSelectedMonthlyDate(null);
+        setMonthlyDetailOpen(false);
         const next = new Date(today.getFullYear(), today.getMonth(), today.getDate());
         setYear(next.getFullYear());
         setMonth(next.getMonth() + 1);
@@ -2454,7 +2463,11 @@ export default function ActivityCalendar() {
 
     const handleCalendarTouchStart = (e) => {
         if (!isMobileView) return;
-        if (calendarView !== 'weekly' && calendarView !== 'monthly' && calendarView !== 'timeline' && calendarView !== 'patchwork' && calendarView !== 'gradient') return;
+        if (calendarView !== 'weekly' && calendarView !== 'monthly' && calendarView !== 'timeline' && calendarView !== 'patchwork' && calendarView !== 'gradient' && calendarView !== 'blossom') return;
+        if (calendarView === 'blossom' && e.target.closest?.('dialog, [role="dialog"]')) {
+            swipeTouchRef.current = null;
+            return;
+        }
 
         const touch = e.touches?.[0];
         if (!touch) return;
@@ -2467,7 +2480,7 @@ export default function ActivityCalendar() {
 
     const handleCalendarTouchEnd = (e) => {
         if (!isMobileView) return;
-        if (calendarView !== 'weekly' && calendarView !== 'monthly' && calendarView !== 'timeline' && calendarView !== 'patchwork' && calendarView !== 'gradient') return;
+        if (calendarView !== 'weekly' && calendarView !== 'monthly' && calendarView !== 'timeline' && calendarView !== 'patchwork' && calendarView !== 'gradient' && calendarView !== 'blossom') return;
 
         const start = swipeTouchRef.current;
         swipeTouchRef.current = null;
@@ -2661,8 +2674,8 @@ export default function ActivityCalendar() {
         },
         [calendarView, properties, viewLayout],
     );
-    const careVisible = ['weekly', 'monthly'].includes(calendarView) && viewItems.some((item) => item.property?.type === 'care');
-    const { data: careRangeRows } = useQuery({
+    const careVisible = ['weekly', 'monthly'].includes(calendarView) && (viewItems.some((item) => item.property?.type === 'care') || (isMobileView && calendarView === 'monthly' && (properties || []).some((property) => property.type === 'care')));
+    const { data: careRangeRows, isLoading: careRowsLoading } = useQuery({
         queryKey: ['care-routine-range', userId, rangeStartKey, rangeEndKey],
         queryFn: () => fetchCareRoutineRange(rangeStartKey, rangeEndKey),
         enabled: !!userId && careVisible,
@@ -2799,7 +2812,7 @@ export default function ActivityCalendar() {
             <div className="flex h-full min-h-0 min-w-0 flex-col">
                 <div className="diary-calendar-toolbar-divider shrink-0 border-b border-border-subtle pb-3">
                     <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3">
-                        <div className="flex min-w-0 flex-wrap items-center gap-0.5 sm:flex-nowrap sm:gap-2">
+                        <div className="flex min-w-0 flex-wrap items-center sm:flex-nowrap">
                             {(isMobileView
                                 ? visibleMobileViewTabs
                                 : visibleViewTabs
@@ -2809,7 +2822,7 @@ export default function ActivityCalendar() {
                                     type="button"
                                     onClick={() => handleChangeCalendarView(tab.value)}
                                     className={
-                                        'max-w-[120px] truncate rounded-full border px-1.5 py-1 text-[11px] font-semibold tracking-[0.01em] transition sm:max-w-none sm:px-3.5 sm:text-[13px] ' +
+                                        'max-w-[120px] cursor-pointer truncate rounded-full border px-1.5 py-1 text-[11px] font-semibold tracking-[0.01em] transition sm:max-w-none sm:px-3.5 sm:text-[13px] ' +
                                         (calendarView === tab.value
                                             ? 'text-[var(--color-text-main)]'
                                             : 'text-[var(--color-text-muted)] hover:bg-[var(--color-panel-bg)]')
@@ -2831,7 +2844,7 @@ export default function ActivityCalendar() {
                             <button
                                 type="button"
                                 onClick={() => handleOpenDiary(todayKey)}
-                                className="ui-control ml-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full sm:ml-0 sm:h-8 sm:w-8"
+                                className="ui-control ml-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full sm:h-8 sm:w-8"
                                 aria-label="작성"
                                 title="작성"
                             >
@@ -2853,7 +2866,7 @@ export default function ActivityCalendar() {
                             <button
                                 type="button"
                                 onClick={() => setIsSettingsOpen(true)}
-                                className="ui-control ml-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full sm:ml-0 sm:h-8 sm:w-8"
+                                className="ui-control ml-0.5 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full sm:h-8 sm:w-8"
                                 aria-label="다이어리 설정"
                                 title="다이어리 설정"
                             >
@@ -2873,7 +2886,8 @@ export default function ActivityCalendar() {
                             </button>
                         </div>
 
-                        <div className="flex items-center gap-1 sm:gap-2">
+                        {calendarView === 'blossom' && <div ref={setBlossomToolbarTarget} className="care-page flex min-w-0 w-full items-center gap-1 sm:w-auto sm:flex-1 sm:gap-2" />}
+                        {calendarView !== 'blossom' && <div className="flex items-center gap-1 sm:gap-2">
                             {calendarView === 'monthly' ? (
                                 <>
                                     <CalendarDropdown
@@ -2881,14 +2895,14 @@ export default function ActivityCalendar() {
                                         value={year}
                                         label={`${year}년`}
                                         options={yearOptions.map((y) => ({ value: y, label: `${y}년` }))}
-                                        onChange={(value) => { setSelectedMonthlyDate(null); setYear(value); }}
+                                        onChange={(value) => { setSelectedMonthlyDate(null); setMonthlyDetailOpen(false); setYear(value); }}
                                     />
                                     <CalendarDropdown
                                         className="w-[64px] sm:w-[70px]"
                                         value={month}
                                         label={`${month}월`}
                                         options={monthOptions.map((m) => ({ value: m, label: `${m}월` }))}
-                                        onChange={(value) => { setSelectedMonthlyDate(null); setMonth(value); }}
+                                        onChange={(value) => { setSelectedMonthlyDate(null); setMonthlyDetailOpen(false); setMonth(value); }}
                                     />
                                 </>
                             ) : (
@@ -2953,12 +2967,16 @@ export default function ActivityCalendar() {
                                     <path d="M7.5 5l5 5-5 5" />
                                 </svg>
                             </button>
-                        </div>
+                        </div>}
                     </div>
                 </div>
 
                 <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto pt-3 sm:overflow-auto">
-                    {calendarView === 'timeline' ? (
+                    {calendarView === 'blossom' ? (
+                        <div className="min-w-0 sm:h-full sm:min-h-full" onTouchStart={handleCalendarTouchStart} onTouchEnd={handleCalendarTouchEnd} onClickCapture={handleCalendarClickCapture}>
+                            <CarePage dayOnly embedded toolbarTarget={blossomToolbarTarget} />
+                        </div>
+                    ) : calendarView === 'timeline' ? (
                         <div
                             className="diary-timeline-scroll min-h-0 flex-1 overflow-x-hidden pb-2 text-[12px] sm:overflow-x-auto"
                             onTouchStart={handleCalendarTouchStart}
@@ -3329,11 +3347,16 @@ export default function ActivityCalendar() {
                                                     key={`${wi}-${di}`}
                                                     onClick={(e) => {
                                                         if (isInternalLinkClick(e)) return;
-                                                        if (isMobileView) setSelectedMonthlyDate(key);
+                                                        if (isMobileView) {
+                                                            setMonthlyDetailOpen(selectedMonthlyDate === key ? !monthlyDetailOpen : true);
+                                                            setSelectedMonthlyDate(key);
+                                                        }
                                                         else handleOpenDiary(key);
                                                     }}
+                                                    aria-expanded={isMobileView ? selectedMonthlyDate === key && monthlyDetailOpen : undefined}
+                                                    aria-controls={isMobileView && selectedMonthlyDate ? 'diary-monthly-detail' : undefined}
                                                     className="diary-calendar-cell flex min-h-[60px] min-w-0 flex-col overflow-hidden border-b border-r border-border-subtle px-0.5 py-0.5 text-left transition hover:bg-[var(--color-panel-bg)] sm:h-[146px] sm:px-2 sm:py-1.5"
-                                                    style={selectedMonthlyDate === key && isMobileView ? { backgroundColor: 'var(--color-page-surface-2)' } : isCurrentMonth ? undefined : { backgroundColor: 'rgba(148, 163, 184, 0.08)' }}
+                                                    style={selectedMonthlyDate === key && monthlyDetailOpen && isMobileView ? { backgroundColor: 'var(--color-page-surface-2)' } : isCurrentMonth ? undefined : { backgroundColor: 'rgba(148, 163, 184, 0.08)' }}
                                                 >
                                                     <div className="flex items-start justify-end">
                                                         <span
@@ -3429,14 +3452,18 @@ export default function ActivityCalendar() {
                                 </div>
                                 {isMobileView && calendarView === 'monthly' && selectedMonthlyDate && (
                                     <div
-                                        className="mt-3 min-w-0 rounded-lg border border-border-subtle p-3 text-left text-xs text-[var(--color-text-main)]"
-                                        onClick={(e) => { if (!e.target.closest?.('a, button')) handleOpenDiary(selectedMonthlyDate); }}
+                                        id="diary-monthly-detail"
+                                        className={'grid min-w-0 transition-[grid-template-rows,opacity,transform,margin] duration-300 motion-reduce:transition-none motion-reduce:transform-none ' + (monthlyDetailOpen ? 'mt-3 grid-rows-[1fr] opacity-100 translate-y-0' : 'mt-0 grid-rows-[0fr] opacity-0 translate-y-2')}
+                                        aria-hidden={!monthlyDetailOpen}
+                                        inert={!monthlyDetailOpen}
                                     >
+                                    <div className="min-h-0 overflow-hidden">
+                                    <div className="rounded-lg border border-border-subtle p-3 text-left text-xs text-[var(--color-text-main)]" onClick={(e) => { if (!e.target.closest?.('a, button')) handleOpenDiary(selectedMonthlyDate); }}>
                                         <div className="flex items-center justify-between gap-2 font-semibold">
                                             <span>{formatPatchworkDate(selectedMonthlyDate)}</span>
                                             <button type="button" className="ui-control rounded-md px-2 py-1" onClick={(e) => { e.stopPropagation(); handleOpenDiary(selectedMonthlyDate); }}>작성</button>
                                         </div>
-                                        {previewDiaryLoading || previewValuesLoading ? (
+                                        {previewDiaryLoading || previewValuesLoading || (careVisible && careRowsLoading) ? (
                                             <p className="mt-2 text-[var(--color-text-muted)]">불러오는 중...</p>
                                         ) : (
                                             <>
@@ -3446,16 +3473,16 @@ export default function ActivityCalendar() {
                                                         <Viewer key={previewDiary.content_markdown} initialValue={previewDiary.content_markdown} />
                                                     </div>
                                                 )}
-                                                {previewDiary && (
-                                                    <div className="mt-2">
-                                                        {renderDiaryProperties(fullPreviewDiary, previewViewItems, false, 'monthly', optionMapByPropertyId, goalSetsByPropertyId, allDocs || [], categories || [], '', careRowsByDate)}
-                                                    </div>
-                                                )}
-                                                {!previewDiary && (
+                                                <div className="mt-2">
+                                                    {renderDiaryProperties(fullPreviewDiary, previewViewItems, false, 'monthly', optionMapByPropertyId, goalSetsByPropertyId, allDocs || [], categories || [], '', careRowsByDate)}
+                                                </div>
+                                                {!previewDiary && !(careRowsByDate.get(selectedMonthlyDate) || []).length && (
                                                     <p className="mt-2 text-[var(--color-text-muted)]">기록이 없어. 눌러서 작성해.</p>
                                                 )}
                                             </>
                                         )}
+                                    </div>
+                                    </div>
                                     </div>
                                 )}
                                     </>

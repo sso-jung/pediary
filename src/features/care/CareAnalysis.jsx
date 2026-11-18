@@ -1,12 +1,15 @@
 import { CareButton } from './CareControls';
 import { CareSelect } from './CareControls';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchCareMeasurementChart, fetchCarePeriodSummary } from '../../lib/careApi';
+import { fetchCareMeasurementsRange, fetchCarePeriodSummary } from '../../lib/careApi';
 
 const metrics = [
-    ['weight_kg', '체중'], ['body_fat_kg', '체지방량'],
-    ['muscle_kg', '골격근량'], ['body_water_kg', '체수분량'],
+    ['weight_kg', '체중', 'kg', '#6488d6'],
+    ['body_fat_percent', '체지방률', '%', '#e89a69'],
+    ['muscle_percent', '골격근 비율', '%', '#29a782'],
+    ['total_kcal', '총 소모', 'kcal', '#9b80cd'],
+    ['balance_kcal', '일별 부족', 'kcal', '#d38196'],
 ];
 const periods = [7, 30, 90, 365];
 const buttonClass = 'ui-control rounded-lg border px-3 py-2 text-sm';
@@ -29,77 +32,82 @@ async function fetchEnergyChart(start, end) {
     return (await Promise.all(requests)).flat();
 }
 
-function Chart({ points, start, end, unit, selectedDate, onSelect, includeZero = false }) {
-    if (!points.length) return <p className="page-text-muted text-sm">이 기간에 표시할 기록이 없습니다.</p>;
-    const values = points.map((point) => point.value);
-    const minimum = Math.min(...values, ...(includeZero ? [0] : []));
-    const maximum = Math.max(...values, ...(includeZero ? [0] : []));
-    const padding = (maximum - minimum || Math.max(Math.abs(maximum), 1)) * 0.08;
-    const low = minimum - padding;
-    const high = maximum + padding;
-    const x = (point) => 42 + (dateNumber(point.date) - dateNumber(start)) / Math.max(1, dateNumber(end) - dateNumber(start)) * 246;
-    const y = (point) => 152 - (point.value - low) / (high - low) * 126;
-    const selected = points.find((point) => point.date === selectedDate) || points.at(-1);
+function Chart({ lines, start, end, selectedDate, onSelect }) {
+    const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches);
+    useEffect(() => {
+        const media = window.matchMedia('(max-width: 639px)');
+        const handleChange = () => setIsMobile(media.matches);
+        media.addEventListener('change', handleChange);
+        return () => media.removeEventListener('change', handleChange);
+    }, []);
+    const shown = lines.filter((line) => line.visible && line.points.length);
+    if (!shown.length) return <p className="page-text-muted text-sm">이 기간에 표시할 기록이 없습니다.</p>;
+    const dates = [...new Set(shown.flatMap((line) => line.points.map((point) => point.date)))].sort();
+    const selected = dates.includes(selectedDate) ? selectedDate : dates.at(-1);
+    const firstDate = dates[0];
+    const lastDate = dates.at(-1);
+    const right = isMobile ? 326 : 586;
+    const x = (date) => firstDate === lastDate ? (32 + right) / 2 : 32 + (dateNumber(date) - dateNumber(firstDate)) / (dateNumber(lastDate) - dateNumber(firstDate)) * (right - 32);
+    const y = (line, value) => 160 - (value - line.low) / (line.high - line.low) * 130;
+    const axis = shown.length === 1 ? shown[0] : null;
 
     return <div className="min-w-0 space-y-2">
-        <svg viewBox="0 0 300 185" className="block h-auto w-full max-w-[360px]" role="img" aria-label={`${start}부터 ${end}까지 ${unit} 변화 그래프`}>
-            <line x1="42" y1="18" x2="42" y2="152" stroke="currentColor" opacity="0.3" />
-            <line x1="42" y1="152" x2="288" y2="152" stroke="currentColor" opacity="0.3" />
-            <text x="38" y="22" textAnchor="end" fontSize="12" fill="currentColor">{formatAxis(high)}</text>
-            <text x="38" y="153" textAnchor="end" fontSize="12" fill="currentColor">{formatAxis(low)}</text>
-            <text x="42" y="177" fontSize="12" fill="currentColor">{start}</text>
-            <text x="288" y="177" textAnchor="end" fontSize="12" fill="currentColor">{end}</text>
-            {points.slice(1).map((point, index) => <line key={point.date} x1={x(points[index])} y1={y(points[index])} x2={x(point)} y2={y(point)} stroke="var(--color-accent)" strokeWidth="2" strokeDasharray={dateNumber(point.date) - dateNumber(points[index].date) > 1 ? '4 4' : undefined} />)}
-            {points.map((point) => <circle key={point.date} cx={x(point)} cy={y(point)} r={selected.date === point.date ? 6 : 4} fill="var(--color-accent)" stroke="var(--color-surface, white)" strokeWidth="2" role="button" tabIndex="0" aria-label={`${point.date} ${format(point.value)} ${unit} 선택`} onClick={() => onSelect(point.date)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(point.date); } }} />)}
+        <svg viewBox={`0 0 ${right + 14} 205`} className="block h-auto w-full" role="img" aria-label={`${start}부터 ${end}까지 ${shown.map((line) => line.label).join(', ')} 변화 그래프`}>
+            <line x1="32" y1="24" x2="32" y2="160" stroke="currentColor" opacity="0.3" />
+            <line x1="32" y1="160" x2={right} y2="160" stroke="currentColor" opacity="0.3" />
+            {axis && <><text x="28" y="28" textAnchor="end" fontSize="11" fill="currentColor">{formatAxis(axis.high)}</text><text x="28" y="161" textAnchor="end" fontSize="11" fill="currentColor">{formatAxis(axis.low)}</text></>}
+            <text x="32" y="188" fontSize="11" fill="currentColor">{firstDate.slice(5)}</text>
+            {lastDate !== firstDate && <text x={right} y="188" textAnchor="end" fontSize="11" fill="currentColor">{lastDate.slice(5)}</text>}
+            {shown.map((line) => <g key={line.key}>
+                {line.points.slice(1).map((point, index) => <line key={point.date} x1={x(line.points[index].date)} y1={y(line, line.points[index].value)} x2={x(point.date)} y2={y(line, point.value)} stroke={line.color} strokeWidth="2" strokeDasharray={dateNumber(point.date) - dateNumber(line.points[index].date) > 1 ? '4 4' : undefined} />)}
+                {line.points.map((point) => <circle key={point.date} cx={x(point.date)} cy={y(line, point.value)} r={selected === point.date ? 4 : 3} fill={line.color} stroke="var(--color-surface, white)" strokeWidth="1.5" role="button" tabIndex="0" aria-label={`${point.date} ${line.label} ${format(point.value)} ${line.unit} 선택`} onClick={() => onSelect(point.date)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(point.date); } }} />)}
+            </g>)}
         </svg>
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-            <label>날짜 <CareSelect value={selected.date} onChange={(event) => onSelect(event.target.value)} className={`${inputClass} ml-1 w-auto`}>{points.map((point) => <option key={point.date} value={point.date}>{point.date}</option>)}</CareSelect></label>
-            <strong>{format(selected.value)} {unit}</strong>
-            {selected.provisional && <span className="page-text-muted text-xs">잠정</span>}
+        <div className="care-analysis-values flex flex-wrap items-center gap-2 text-sm">
+            <label>날짜 <CareSelect value={selected} onChange={(event) => onSelect(event.target.value)} className={`${inputClass} ml-1 w-auto`}>{dates.map((day) => <option key={day} value={day}>{day}</option>)}</CareSelect></label>
+            {shown.map((line) => {
+                const point = line.points.find((item) => item.date === selected);
+                return point && <span key={line.key} style={{ color: line.color }}><strong>{line.label} {format(point.value)} {line.unit}</strong>{point.provisional && <small className="page-text-muted ml-1">잠정</small>}</span>;
+            })}
         </div>
     </div>;
 }
 
 export default function CareAnalysis({ userId, date }) {
     const [period, setPeriod] = useState(30);
-    const [metric, setMetric] = useState('weight_kg');
-    const [selectedMeasurement, setSelectedMeasurement] = useState(null);
-    const [selectedEnergy, setSelectedEnergy] = useState(null);
+    const [visible, setVisible] = useState(metrics.map(([key]) => key));
+    const [selectedDate, setSelectedDate] = useState(null);
     const start = addDays(date, 1 - period);
-    const measurementsQuery = useQuery({ queryKey: ['care-measurement-chart', userId, metric, start, date], queryFn: () => fetchCareMeasurementChart(userId, metric, start, date), enabled: !!userId });
+    const measurementsQuery = useQuery({ queryKey: ['care-measurements-range', userId, start, date], queryFn: () => fetchCareMeasurementsRange(userId, start, date), enabled: !!userId });
     const energyQuery = useQuery({ queryKey: ['care-period', userId, 'chart', start, date], queryFn: () => fetchEnergyChart(start, date), enabled: !!userId });
+    const ordered = [...(measurementsQuery.data || [])].sort((a, b) => a.measurement_date.localeCompare(b.measurement_date) || a.measured_at.localeCompare(b.measured_at) || Number(a.id) - Number(b.id));
     const measurementDays = new Map();
-    for (const row of measurementsQuery.data || []) measurementDays.set(row.measurement_date, { date: row.measurement_date, value: Number(row[metric]) });
-    const measurementPoints = [...measurementDays.values()];
+    for (const row of ordered) {
+        const values = measurementDays.get(row.measurement_date) || {};
+        for (const key of ['weight_kg', 'body_fat_kg', 'muscle_kg']) if (row[key] != null) values[key] = row[key];
+        measurementDays.set(row.measurement_date, values);
+    }
     const today = localDate(new Date());
-    const energyPoints = (energyQuery.data || []).filter((day) => day.total_kcal != null && (Number(day.meal_count) > 0 || day.intake_confirmed)).reduce((points, day) => {
-        const previous = points.at(-1);
-        points.push({
-            date: day.summary_date,
-            value: (previous?.value || 0) + Number(day.total_kcal) - Number(day.intake_kcal),
-            provisional: !!previous?.provisional || day.summary_date === today || !day.intake_confirmed,
-        });
-        return points;
-    }, []);
+    const lines = metrics.map(([key, label, unit, color]) => {
+        const points = key === 'total_kcal' || key === 'balance_kcal'
+            ? (energyQuery.data || []).filter((day) => day.total_kcal != null && (key === 'total_kcal' || Number(day.meal_count) > 0 || day.intake_confirmed)).map((day) => ({ date: day.summary_date, value: key === 'total_kcal' ? Number(day.total_kcal) : Number(day.total_kcal) - Number(day.intake_kcal), provisional: key === 'balance_kcal' && (day.summary_date === today || !day.intake_confirmed) }))
+            : [...measurementDays].filter(([, row]) => key === 'weight_kg' ? row.weight_kg != null : row.weight_kg != null && Number(row.weight_kg) > 0 && row[key === 'body_fat_percent' ? 'body_fat_kg' : 'muscle_kg'] != null).map(([day, row]) => ({ date: day, value: key === 'weight_kg' ? Number(row.weight_kg) : Number(row[key === 'body_fat_percent' ? 'body_fat_kg' : 'muscle_kg']) / Number(row.weight_kg) * 100 }));
+        const values = points.map((point) => point.value);
+        const minimum = Math.min(...values);
+        const maximum = Math.max(...values);
+        const padding = (maximum - minimum || Math.max(Math.abs(maximum), 1)) * 0.08;
+        return { key, label, unit, color, points, low: minimum - padding, high: maximum + padding, visible: visible.includes(key) };
+    });
 
     return <section className="care-analysis min-w-0 space-y-4">
         <div className="care-section-head"><div><h2>기록 분석</h2><p className="page-text-muted mt-1 text-xs">선택한 날짜까지의 변화를 봅니다.</p></div></div>
-        <div className="flex flex-wrap gap-1" role="group" aria-label="분석 기간">{periods.map((days) => <CareButton key={days} type="button" className={buttonClass} aria-pressed={period === days} onClick={() => setPeriod(days)}>{days}일</CareButton>)}</div>
-        <div className="grid min-w-0 gap-5 lg:grid-cols-2">
-            <div className="min-w-0 space-y-2">
-                <label className="care-section-title">신체 지표 <CareSelect value={metric} onChange={(event) => { setMetric(event.target.value); setSelectedMeasurement(null); }} className={`${inputClass} ml-1 w-auto`}>{metrics.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</CareSelect></label>
-                {measurementsQuery.isPending && <p className="page-text-muted text-sm">측정 기록을 불러오는 중...</p>}
-                {measurementsQuery.isError && <p role="alert" className="ui-danger-text text-sm">측정 기록을 불러오지 못했습니다: {measurementsQuery.error.message}</p>}
-                {measurementsQuery.isSuccess && <Chart points={measurementPoints} start={start} end={date} unit="kg" selectedDate={selectedMeasurement} onSelect={setSelectedMeasurement} />}
-                {measurementPoints.length > 1 && <p className="page-text-muted text-xs">하루에 여러 번 측정했다면 마지막 값을 표시합니다. 기록이 없는 날 사이에는 점선을 표시합니다.</p>}
-            </div>
-            <div className="min-w-0 space-y-2">
-                <h3 className="care-section-title">누적 부족·초과 열량</h3>
-                {energyQuery.isPending && <p className="page-text-muted text-sm">에너지 기록을 불러오는 중...</p>}
-                {energyQuery.isError && <p role="alert" className="ui-danger-text text-sm">에너지 기록을 불러오지 못했습니다: {energyQuery.error.message}</p>}
-                {energyQuery.isSuccess && <Chart points={energyPoints} start={start} end={date} unit="kcal" selectedDate={selectedEnergy} onSelect={setSelectedEnergy} includeZero />}
-                <p className="page-text-muted text-xs">총 소모 − 섭취를 계산 가능한 날짜만 합산합니다. 양수는 적자, 음수는 잉여입니다. 미기록일은 제외하며 식사 미확정일과 오늘은 잠정입니다.</p>
-            </div>
-        </div>
+        <div className="flex flex-wrap gap-1" role="group" aria-label="분석 기간">{periods.map((days) => <CareButton key={days} type="button" className={buttonClass} aria-pressed={period === days} onClick={() => { setPeriod(days); setSelectedDate(null); }}>{days}일</CareButton>)}</div>
+        <div className="flex flex-wrap gap-1" role="group" aria-label="표시할 그래프">{metrics.map(([key, label, , color]) => <CareButton key={key} type="button" className={buttonClass} aria-pressed={visible.includes(key)} onClick={() => { setVisible((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]); setSelectedDate(null); }}><span className="care-analysis-color" style={{ backgroundColor: color }} />{label}</CareButton>)}</div>
+        {measurementsQuery.isPending && <p className="page-text-muted text-sm">측정 기록을 불러오는 중...</p>}
+        {measurementsQuery.isError && <p role="alert" className="ui-danger-text text-sm">측정 기록을 불러오지 못했습니다: {measurementsQuery.error.message}</p>}
+        {energyQuery.isPending && <p className="page-text-muted text-sm">에너지 기록을 불러오는 중...</p>}
+        {energyQuery.isError && <p role="alert" className="ui-danger-text text-sm">에너지 기록을 불러오지 못했습니다: {energyQuery.error.message}</p>}
+        {(measurementsQuery.isSuccess || energyQuery.isSuccess) && <Chart lines={lines} start={start} end={date} selectedDate={selectedDate} onSelect={setSelectedDate} />}
+        {(measurementsQuery.isSuccess || energyQuery.isSuccess) && <p className="page-text-muted text-xs">각 지표의 범위를 따로 맞춰 겹쳐 표시합니다. 하루에 여러 번 측정했다면 날짜별 각 항목의 마지막 값을 사용하고, 기록이 없는 날 사이에는 점선을 표시합니다. 일별 부족은 총 소모 − 섭취이며 양수는 적자, 음수는 잉여입니다. 식사 미확정일과 오늘은 잠정입니다.</p>}
     </section>;
 }

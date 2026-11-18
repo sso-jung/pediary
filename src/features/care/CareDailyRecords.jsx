@@ -1,6 +1,6 @@
 import { CareButton } from './CareControls';
 import { CareInput, CareTextarea } from './CareControls';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     deleteCareMeasurement, deleteCareWorkout, fetchCareDailyEnergy, fetchCareMeasurementsRange,
@@ -16,33 +16,27 @@ const fields = [
 ];
 const format = (value) => Math.round(Number(value) * 10) / 10;
 const localDate = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const weekday = (date) => ['일', '월', '화', '수', '목', '금', '토'][new Date(`${date}T12:00:00`).getDay()];
 const validOptional = (value, positive = false) => value === '' || (Number.isFinite(Number(value)) && Number(value) <= 999999999.999 && (positive ? Number(value) > 0 : Number(value) >= 0));
 const balance = (day) => day && day.total_kcal != null && (Number(day.meal_count) > 0 || day.intake_confirmed)
     ? Number(day.total_kcal) - Number(day.intake_kcal) : null;
 const provisional = (day) => day.summary_date === localDate(new Date()) || !day.intake_confirmed;
 
-export default function CareDailyRecords({ userId, date, onBusyChange, section, addMeasurementRequest, startWithNew = false, startWithEdit = null }) {
+export default function CareDailyRecords({ userId, date, onBusyChange, section, startWithNew = false, startWithEdit = null, formOnly = false, onFormClose }) {
     const queryClient = useQueryClient();
     const [measurementForm, setMeasurementForm] = useState(() => startWithEdit ? Object.fromEntries(Object.entries(startWithEdit).map(([key, value]) => [key, value == null ? '' : String(value)])) : startWithNew && section === 'body' ? { measurement_date: date, measured_at: new Date().toTimeString().slice(0, 5), weight_kg: '', body_fat_kg: '', muscle_kg: '', body_water_kg: '' } : null);
     const [workoutForm, setWorkoutForm] = useState(() => startWithNew && section === 'workout' ? { workout_date: date, name: '', started_at: '', duration_minutes: '', kcal: '', note: '' } : null);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [actionDialog, setActionDialog] = useState(null);
-    const previousAddRequest = useRef(addMeasurementRequest);
     useEffect(() => () => onBusyChange(false), [onBusyChange]);
-    useEffect(() => {
-        if (section !== 'body' || previousAddRequest.current === addMeasurementRequest) return;
-        previousAddRequest.current = addMeasurementRequest;
-        setError('');
-        setMeasurementForm({ measurement_date: date, measured_at: new Date().toTimeString().slice(0, 5), weight_kg: '', body_fat_kg: '', muscle_kg: '', body_water_kg: '' });
-    }, [addMeasurementRequest, date, section]);
     const current = new Date(`${date}T12:00:00`);
     const bodyStartDate = new Date(current);
     bodyStartDate.setDate(current.getDate() - 7);
     const bodyStart = localDate(bodyStartDate);
     const comparisonStartDate = new Date(bodyStartDate);
     comparisonStartDate.setDate(bodyStartDate.getDate() - 1);
-    const measurementsQuery = useQuery({ queryKey: ['care-measurements-range', userId, localDate(comparisonStartDate), date], queryFn: () => fetchCareMeasurementsRange(userId, localDate(comparisonStartDate), date), enabled: !!userId && section === 'body' });
+    const measurementsQuery = useQuery({ queryKey: ['care-measurements-range', userId, localDate(comparisonStartDate), date], queryFn: () => fetchCareMeasurementsRange(userId, localDate(comparisonStartDate), date), enabled: !!userId && section === 'body' && !formOnly });
     const workoutsQuery = useQuery({ queryKey: ['care-workouts', userId, date], queryFn: () => fetchCareWorkouts(userId, date), enabled: !!userId && (section === 'workout' || section === 'energy') });
     const energyQuery = useQuery({ queryKey: ['care-energy', userId, date], queryFn: () => fetchCareDailyEnergy(userId, date), enabled: !!userId && section === 'energy' });
     const dayQuery = useQuery({ queryKey: ['care-period', userId, date, date], queryFn: () => fetchCarePeriodSummary(date, date), enabled: !!userId && section === 'energy' });
@@ -76,7 +70,7 @@ export default function CareDailyRecords({ userId, date, onBusyChange, section, 
             setError('측정 시각과 하나 이상의 측정값을 확인해 주세요.');
             return;
         }
-        run(() => saveCareMeasurement(userId, measurementForm), [['care-measurements-range', userId], ['care-measurement-latest', userId], ['care-measurement-chart', userId], ['care-history', userId]], () => setMeasurementForm(null));
+        run(() => saveCareMeasurement(userId, measurementForm), [['care-measurements-range', userId], ['care-measurement-latest', userId], ['care-measurement-chart', userId], ['care-history', userId]], () => { setMeasurementForm(null); if (formOnly) onFormClose(); });
     };
 
     const submitWorkout = (event) => {
@@ -103,14 +97,14 @@ export default function CareDailyRecords({ userId, date, onBusyChange, section, 
 
     return <>
         {error && <div role="alert" className="rounded-lg border border-[var(--color-danger-border)] bg-[var(--color-danger-bg)] px-3 py-2 text-sm text-[var(--color-danger-fg)]">{error}</div>}
-        {(section === 'body' || section === 'workout') && <div className="min-w-0 space-y-4">
+        {((section === 'body' && !formOnly) || section === 'workout') && <div className="min-w-0 space-y-4">
             {section === 'body' &&
             <section className="min-w-0 space-y-3">
                 {measurementsQuery.isPending && <p className="page-text-muted text-sm">측정을 불러오는 중...</p>}
                 {measurementsQuery.isError && <p role="alert" className="ui-danger-text text-sm">측정을 불러오지 못했습니다: {measurementsQuery.error.message}</p>}
                 {measurementsQuery.isSuccess && !measurements.length && <p className="page-text-muted text-sm">이 기간에 기록된 측정이 없습니다.</p>}
                 {measurements.map((measurement) => <div key={measurement.id} className="care-record-row care-body-record">
-                    <div className="care-body-record-head"><div><strong>{measurement.measurement_date} {measurement.measured_at.slice(0, 5)}</strong></div>
+                    <div className="care-body-record-head care-body-record-head-bar"><div><strong className="care-body-record-date">{measurement.measurement_date}({weekday(measurement.measurement_date)}) {measurement.measured_at.slice(0, 5)}</strong></div>
                         <div className="care-text-actions"><CareButton type="button" disabled={busy} onClick={() => { setError(''); setMeasurementForm(Object.fromEntries(Object.entries(measurement).map(([key, value]) => [key, value == null ? '' : String(value)]))); }}>수정</CareButton><CareButton type="button" className="ui-danger-text" disabled={busy} onClick={() => setActionDialog({ message: '이 측정을 삭제할까요?', onConfirm: () => run(() => deleteCareMeasurement(userId, measurement.id), [['care-measurements-range', userId], ['care-measurement-latest', userId], ['care-measurement-chart', userId], ['care-history', userId]]) })}>삭제</CareButton></div>
                     </div>
                     <div className="care-body-record-grid">{fields.map(([key, label]) => {
@@ -154,12 +148,12 @@ export default function CareDailyRecords({ userId, date, onBusyChange, section, 
                 <div><strong>차이</strong><span>{dailyBalance == null ? '계산 전' : `${format(dailyBalance)} kcal${provisional(selectedDay) ? ' · 잠정' : ''}`}</span></div>
             </div>}
         </section>}
-        {measurementForm && <form onSubmit={submitMeasurement} className="care-edit-form mt-4 space-y-3">
-            <div className="care-measurement-form-head"><h2 className="font-semibold">신체 측정 {measurementForm.id ? '수정' : '추가'}</h2>{measurementForm.id && <span>{measurementForm.measurement_date}</span>}</div>
+        {measurementForm && <form onSubmit={submitMeasurement} className="care-edit-form care-measurement-form mt-4 space-y-3">
+            {!formOnly && <div className="care-measurement-form-head"><h2 className="font-semibold">신체 측정 {measurementForm.id ? '수정' : '추가'}</h2>{measurementForm.id && <span>{measurementForm.measurement_date}</span>}</div>}
             {error && <p role="alert" className="ui-danger-text text-sm">{error}</p>}
-            <label className="block text-sm">측정 시각<CareInput required autoFocus type="time" value={measurementForm.measured_at.slice(0, 5)} onChange={(event) => setMeasurementForm({ ...measurementForm, measured_at: event.target.value })} className={`${inputClass} mt-1`} /></label>
+            <label className="block max-w-48 text-sm">측정 시각<CareInput required autoFocus type="time" value={measurementForm.measured_at.slice(0, 5)} onChange={(event) => setMeasurementForm({ ...measurementForm, measured_at: event.target.value })} className={`${inputClass} mt-1`} /></label>
             <div className="grid grid-cols-2 gap-2">{fields.map(([key, label]) => <label key={key} className="min-w-0 text-sm">{label} (kg)<CareInput type="number" min={key === 'weight_kg' ? '0.001' : '0'} max="999999.999" step="0.001" value={measurementForm[key]} onChange={(event) => setMeasurementForm({ ...measurementForm, [key]: event.target.value })} className={`${inputClass} mt-1`} /></label>)}</div>
-            <div className="flex justify-end gap-2"><CareButton type="button" className={buttonClass} disabled={busy} onClick={() => setMeasurementForm(null)}>취소</CareButton><CareButton type="submit" className={buttonClass} disabled={busy}>저장</CareButton></div>
+            <div className="flex justify-end gap-2"><CareButton type="button" className={buttonClass} disabled={busy} onClick={() => { setMeasurementForm(null); if (formOnly) onFormClose(); }}>취소</CareButton><CareButton type="submit" className={buttonClass} disabled={busy}>저장</CareButton></div>
         </form>}
         {workoutForm && <form onSubmit={submitWorkout} className="care-edit-form mt-4 space-y-3">
             <h2 className="font-semibold">운동 {workoutForm.id ? '수정' : '추가'}</h2>
