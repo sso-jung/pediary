@@ -5,6 +5,7 @@ export const DIARY_VIEW_TABS = [
     { value: 'patchwork', label: 'PATCHWORK', description: '날짜 칸마다 그날 기록한 값을 색상 구획으로 보여줍니다.' },
     { value: 'strata', label: 'STRATA', description: '기록된 랜덤 선택 결과의 횟수와 최초·최근 날짜를 모아 봅니다.' },
     { value: 'gradient', label: 'GRADIENT', description: '날짜별 목표 달성률을 색으로 보여줍니다.' },
+    { value: 'search', label: 'SEARCH', description: '모든 다이어리 속성에서 날짜별 기록을 찾습니다.' },
     { value: 'blossom', label: 'BLOSSOM', description: '가꿈의 하루 기록을 봅니다.' },
 ];
 

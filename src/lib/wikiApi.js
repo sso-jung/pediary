@@ -759,6 +759,28 @@ export async function fetchDiariesByDateRange({ userId, startDate, endDate, prop
     }));
 }
 
+export async function fetchDiarySearchYear({ userId, year }) {
+    if (!userId || !year) return [];
+
+    const diaries = [];
+    for (let offset = 0; ; offset += 500) {
+        const { data, error } = await supabase
+            .from('diaries')
+            .select('diary_date, title, content_markdown, diary_property_values(property_id, value)')
+            .eq('user_id', userId)
+            .gte('diary_date', `${year}-01-01`)
+            .lt('diary_date', `${year + 1}-01-01`)
+            .order('diary_date', { ascending: false })
+            .range(offset, offset + 499);
+
+        if (error) throw error;
+        diaries.push(...(data || []));
+        if (!data || data.length < 500) break;
+    }
+
+    return diaries;
+}
+
 export async function fetchDiaryProperties(userId) {
     if (!userId) return [];
 

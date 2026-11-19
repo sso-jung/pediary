@@ -22,7 +22,9 @@ export default function DiaryOptionSelectField({
                                                    onChange,
                                                    onCreateOption,
                                                    onBlur,
+                                                   onInputCommit,
                                                    disabled,
+                                                   placeholder = '',
                                                }) {
     const rootRef = useRef(null);
     const inputRef = useRef(null);
@@ -90,12 +92,16 @@ export default function DiaryOptionSelectField({
             if (rootRef.current.contains(e.target)) return;
 
             setIsOpen(false);
+            if (keyword.trim() && onInputCommit) {
+                onInputCommit(keyword.trim());
+                setKeyword('');
+            }
             onBlur?.();
         };
 
         document.addEventListener('mousedown', handleMouseDown, true);
         return () => document.removeEventListener('mousedown', handleMouseDown, true);
-    }, [isOpen, onBlur]);
+    }, [isOpen, keyword, onBlur, onInputCommit]);
 
     const selectOption = (option) => {
         const nextOption = makeOptionValue(option);
@@ -231,7 +237,7 @@ export default function DiaryOptionSelectField({
                         });
                     }}
                     disabled={disabled}
-                    placeholder={selectedOptions.length === 0 ? '' : ''}
+                    placeholder={selectedOptions.length === 0 ? placeholder : ''}
                 />
             </div>
 

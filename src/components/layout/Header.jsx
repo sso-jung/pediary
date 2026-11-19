@@ -116,14 +116,6 @@ export default function Header({
                     >
                         문서
                     </button>
-                    <button
-                        type="button"
-                        onClick={() => navigate('/care')}
-                        className="header-tab"
-                        data-active={activeTab === 'care'}
-                    >
-                        가꿈
-                    </button>
                     {/*<button*/}
                     {/*    type="button"*/}
                     {/*    onClick={() => navigate('/materials')}*/}

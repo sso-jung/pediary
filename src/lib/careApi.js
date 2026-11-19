@@ -165,12 +165,28 @@ export async function fetchCarePeriodSummary(start, end) {
     return result(await supabase.rpc('care_period_summary', { p_start: start, p_end: end }));
 }
 
+function orderCareRoutines(rows) {
+    return rows.sort((a, b) => (a.routine_date || '').localeCompare(b.routine_date || '') ||
+        (a.routine_id == null ? 0 : a.repeat_type === 'daily' ? 2 : 1) -
+        (b.routine_id == null ? 0 : b.repeat_type === 'daily' ? 2 : 1));
+}
+
 export async function fetchCareRoutineDay(date) {
-    return result(await supabase.rpc('list_care_routine_day', { p_date: date }));
+    return orderCareRoutines(result(await supabase.rpc('list_care_routine_day', { p_date: date })));
 }
 
 export async function fetchCareRoutineRange(start, endExclusive) {
-    return result(await supabase.rpc('list_care_routine_range', { p_start: start, p_end_exclusive: endExclusive }));
+    return orderCareRoutines(result(await supabase.rpc('list_care_routine_range', { p_start: start, p_end_exclusive: endExclusive })));
+}
+
+export async function fetchCareRoutineYear(year) {
+    const rows = [];
+    const end = Date.UTC(year + 1, 0, 1);
+    for (let start = Date.UTC(year, 0, 1); start < end; start += 42 * 86400000) {
+        const next = Math.min(start + 42 * 86400000, end);
+        rows.push(...await fetchCareRoutineRange(new Date(start).toISOString().slice(0, 10), new Date(next).toISOString().slice(0, 10)));
+    }
+    return rows;
 }
 
 export async function fetchCareRoutineSettings(date) {

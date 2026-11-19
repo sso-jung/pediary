@@ -6,6 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import DiaryEditor from './DiaryEditor';
 import DiarySettings from './DiarySettings';
+import DiarySearch from './DiarySearch';
+import CalendarDropdown from './CalendarDropdown';
 import { PropertyIcon } from './DiaryPropertyUtils';
 import { useDiariesByDateRange } from './hooks/useDiariesByDateRange';
 import { useDiary } from './hooks/useDiary';
@@ -60,7 +62,7 @@ const PATCHWORK_FALLBACK_COLORS = [
     '#f97316',
 ];
 const CALENDAR_VIEW_STORAGE_KEY_PREFIX = 'pediary.diaryCalendar.viewState';
-const CALENDAR_VIEWS = ['weekly', 'monthly', 'timeline', 'patchwork', 'strata', 'gradient', 'blossom'];
+const CALENDAR_VIEWS = ['weekly', 'monthly', 'timeline', 'patchwork', 'strata', 'gradient', 'search', 'blossom'];
 const MOBILE_MEDIA_QUERY = '(max-width: 639px)';
 const MOBILE_TIMELINE_MONTH_COUNT = 4;
 const MOBILE_EDGE_TAP_RATIO = 0.24;
@@ -2038,78 +2040,6 @@ function PatchworkMonthHeader({ group, patchworkBorderColor, isMobileView = fals
     );
 }
 
-function CalendarDropdown({ value, label, options, onChange, className = '' }) {
-    const [isOpen, setIsOpen] = useState(false);
-    const menuRef = useRef(null);
-
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (!menuRef.current) return;
-            if (!menuRef.current.contains(e.target)) {
-                setIsOpen(false);
-            }
-        };
-
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
-
-    return (
-        <div className={'relative ' + className} ref={menuRef}>
-            <button
-                type="button"
-                className="ui-input flex h-[30px] w-full items-center justify-between gap-1 !rounded-md !px-2 !py-0 !text-left !text-[11.5px] sm:gap-2 sm:!px-2.5 sm:!text-[12px]"
-                onClick={(e) => {
-                    e.stopPropagation();
-                    setIsOpen((prev) => !prev);
-                }}
-            >
-                <span className="min-w-0 truncate">{label}</span>
-                <svg
-                    viewBox="0 0 20 20"
-                    className="h-3.5 w-3.5 shrink-0 page-text-muted"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                >
-                    <path d="M5.5 7.5L10 12l4.5-4.5" />
-                </svg>
-            </button>
-
-            {isOpen && (
-                <div
-                    className="absolute right-0 top-[34px] z-30 max-h-72 w-full overflow-y-auto rounded-md border py-1 text-[12px] shadow-lg"
-                    style={{
-                        borderColor: 'var(--color-border-subtle)',
-                        backgroundColor: 'var(--color-page-surface)',
-                        color: 'var(--color-text-main)',
-                    }}
-                >
-                    {options.map((option) => (
-                        <button
-                            key={option.value}
-                            type="button"
-                            className={
-                                'block w-full whitespace-normal break-keep px-2 py-1.5 text-left leading-snug ui-side-subitem ' +
-                                (option.value === value ? 'ui-side-subitem-active' : '')
-                            }
-                            onClick={() => {
-                                onChange(option.value);
-                                setIsOpen(false);
-                            }}
-                        >
-                            {option.label}
-                        </button>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-}
-
 export default function ActivityCalendar() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
@@ -2887,7 +2817,7 @@ export default function ActivityCalendar() {
                         </div>
 
                         {calendarView === 'blossom' && <div ref={setBlossomToolbarTarget} className="care-page flex min-w-0 w-full items-center gap-1 sm:w-auto sm:flex-1 sm:gap-2" />}
-                        {calendarView !== 'blossom' && <div className="flex items-center gap-1 sm:gap-2">
+                        {calendarView !== 'blossom' && calendarView !== 'search' && <div className="flex items-center gap-1 sm:gap-2">
                             {calendarView === 'monthly' ? (
                                 <>
                                     <CalendarDropdown
@@ -2976,6 +2906,8 @@ export default function ActivityCalendar() {
                         <div className="min-w-0 sm:h-full sm:min-h-full" onTouchStart={handleCalendarTouchStart} onTouchEnd={handleCalendarTouchEnd} onClickCapture={handleCalendarClickCapture}>
                             <CarePage dayOnly embedded toolbarTarget={blossomToolbarTarget} />
                         </div>
+                    ) : calendarView === 'search' ? (
+                        <DiarySearch properties={properties || []} propertyOptions={propertyOptions || []} yearOptions={yearOptions} onOpenDiary={handleOpenDiary} />
                     ) : calendarView === 'timeline' ? (
                         <div
                             className="diary-timeline-scroll min-h-0 flex-1 overflow-x-hidden pb-2 text-[12px] sm:overflow-x-auto"

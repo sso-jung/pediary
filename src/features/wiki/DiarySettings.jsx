@@ -46,7 +46,7 @@ const VISIBILITY_OPTIONS = [
     { value: 'when_filled', label: '값 있을 때' },
     { value: 'hidden', label: '숨김' },
 ];
-const VIEW_OPTIONS = DIARY_VIEW_TABS.filter((tab) => tab.value !== 'blossom');
+const VIEW_OPTIONS = DIARY_VIEW_TABS.filter((tab) => tab.value !== 'blossom' && tab.value !== 'search');
 const VIEW_VISIBILITY_OPTIONS = [
     { value: 'visible', label: '내용 표시' },
     { value: 'hidden', label: '내용 숨김' },
@@ -731,9 +731,9 @@ export default function DiarySettings({ open, onClose }) {
     const visibleMobileViewTabs = orderedMobileViewTabs.filter((tab) => tab.isVisible);
 
     const selectedSettingsTab = activeSettingsTab === 'properties' || activeSettingsTab === 'tabs' || activeSettingsTab === 'mobile' ||
-        visibleViewTabs.some((tab) => tab.value === activeSettingsTab && tab.value !== 'blossom')
+        visibleViewTabs.some((tab) => tab.value === activeSettingsTab && tab.value !== 'blossom' && tab.value !== 'search')
         ? activeSettingsTab
-        : visibleViewTabs.find((tab) => tab.value !== 'blossom')?.value || 'properties';
+        : visibleViewTabs.find((tab) => tab.value !== 'blossom' && tab.value !== 'search')?.value || 'properties';
 
     useEffect(() => {
         return () => {
@@ -1697,7 +1697,7 @@ export default function DiarySettings({ open, onClose }) {
                         {[
                             { value: 'properties', label: '속성 편집' },
                             { value: 'tabs', label: '탭 관리' },
-                            ...visibleViewTabs.filter((tab) => tab.value !== 'blossom').map((tab) => ({ value: tab.value, label: tab.customTitle || tab.label })),
+                            ...visibleViewTabs.filter((tab) => tab.value !== 'blossom' && tab.value !== 'search').map((tab) => ({ value: tab.value, label: tab.customTitle || tab.label })),
                             { value: 'mobile', label: '모바일 설정' },
                         ].map((tab) => (
                             <button

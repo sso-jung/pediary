@@ -41,7 +41,7 @@ function Chart({ lines, start, end, selectedDate, onSelect }) {
         return () => media.removeEventListener('change', handleChange);
     }, []);
     const shown = lines.filter((line) => line.visible && line.points.length);
-    if (!shown.length) return <p className="page-text-muted text-sm">이 기간에 표시할 기록이 없습니다.</p>;
+    if (!shown.length) return <div className="flex min-h-[300px] items-center justify-center"><p className="page-text-muted text-sm">이 기간에 표시할 기록이 없습니다.</p></div>;
     const dates = [...new Set(shown.flatMap((line) => line.points.map((point) => point.date)))].sort();
     const selected = dates.includes(selectedDate) ? selectedDate : dates.at(-1);
     const firstDate = dates[0];
